@@ -1,3 +1,6 @@
+(function (window) {
+'use strict';
+
 const LogDb = window.LogDb;
 const { buildModel, stream, fmt } = window.LR;
 const { applyFilters, drillRows, unique } = window.Filters;
@@ -177,3 +180,4 @@ window.LogApp = {
 
 document.body.innerHTML = '<app-shell></app-shell>';
 window.LogApp.init();
+})();

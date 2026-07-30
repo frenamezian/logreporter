@@ -1,3 +1,6 @@
+(function (window) {
+'use strict';
+
 const SQL_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js';
 const WASM_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.wasm';
 
@@ -105,3 +108,4 @@ class LogDb {
 }
 
 window.LogDb = LogDb;
+})();

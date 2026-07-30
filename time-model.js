@@ -1,3 +1,6 @@
+(function (window) {
+'use strict';
+
 // Derives durations, per-type time and idle gaps from raw log rows.
 // A run is one start/end pair for a single agent inside one task; time between
 // runs that no agent covers is idle — treated as a first-class category.
@@ -183,3 +186,4 @@ const fmt = (ms) => {
 };
 
 window.LR = { TYPES, CATEGORIES, GIT_ACTIONS, gitAction, buildModel, stream, fmt };
+})();

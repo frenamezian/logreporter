@@ -1,3 +1,6 @@
+(function (window) {
+'use strict';
+
 const SEARCH_KEYS = ['log_title', 'log_description', 'agent_name', 'agent_path'];
 
 function applyFilters(rows, filter) {
@@ -42,3 +45,4 @@ function unique(rows, key) {
 }
 
 window.Filters = { applyFilters, drillRows, unique };
+})();

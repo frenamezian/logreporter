@@ -1,3 +1,6 @@
+(function (window) {
+'use strict';
+
 const typeDot = (t) => `<span class="type-dot ${t}"></span>`;
 const esc = (s) => window.LogApp?.escapeHtml(s) ?? String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (ms) => window.LogApp?.fmt(ms) ?? '—';
@@ -522,3 +525,4 @@ class LogHelp extends LogComponent {
   }
 }
 customElements.define('log-help', LogHelp);
+})();
