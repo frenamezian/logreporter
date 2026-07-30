@@ -2,12 +2,12 @@
 // A run is one start/end pair for a single agent inside one task; time between
 // runs that no agent covers is idle — treated as a first-class category.
 
-export const TYPES = ['start', 'end', 'activity', 'issue', 'decision', 'github'];
-export const CATEGORIES = ['activity', 'issue', 'decision', 'github', 'idle'];
+const TYPES = ['start', 'end', 'activity', 'issue', 'decision', 'github'];
+const CATEGORIES = ['activity', 'issue', 'decision', 'github', 'idle'];
 
 // git actions carried in `tags` on a github log, e.g. "#push,#main"
-export const GIT_ACTIONS = ['pull', 'push', 'commit', 'add', 'delete'];
-export const gitAction = (l) => {
+const GIT_ACTIONS = ['pull', 'push', 'commit', 'add', 'delete'];
+const gitAction = (l) => {
   const hay = ((l.tags || '') + ' ' + (l.log_title || '')).toLowerCase();
   return GIT_ACTIONS.find((a) => hay.includes(a)) || '';
 };
@@ -80,7 +80,7 @@ function runsFor(logs) {
 function blank() { return {activity: 0, issue: 0, decision: 0, github: 0, idle: 0, wall: 0, agentMs: 0, logs: 0, issues: 0}; }
 function add(a, b) { CATEGORIES.forEach((c) => { a[c] += b[c]; }); a.wall += b.wall; a.agentMs += b.agentMs; a.logs += b.logs; a.issues += b.issues; return a; }
 
-export function buildModel(logs) {
+function buildModel(logs) {
   const tasksMap = new Map();
   logs.forEach((l) => {
     if (!l || !l.timestamp) return;
@@ -151,7 +151,7 @@ export function buildModel(logs) {
 }
 
 // Chronological stream: logs in time order with explicit idle rows between them.
-export function stream(logs, model) {
+function stream(logs, model) {
   const rows = logs.slice().sort((a, b) => at(a.timestamp) - at(b.timestamp));
   const gapAt = new Map();
   model.tasks.forEach((t) => t.gaps.forEach((g) => {
@@ -173,7 +173,7 @@ export function stream(logs, model) {
   return out;
 }
 
-export const fmt = (ms) => {
+const fmt = (ms) => {
   if (ms == null || isNaN(ms)) return '—';
   const s = Math.round(ms / 1000);
   if (s < 60) return s + 's';
@@ -181,3 +181,5 @@ export const fmt = (ms) => {
   if (m < 60) return m + 'm';
   return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
 };
+
+window.LR = { TYPES, CATEGORIES, GIT_ACTIONS, gitAction, buildModel, stream, fmt };

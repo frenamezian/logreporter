@@ -1,7 +1,6 @@
-import './components.js';
-import { LogDb } from './db.js';
-import { buildModel, stream, fmt } from './time-model.js';
-import { applyFilters, drillRows, unique } from './filters.js';
+const LogDb = window.LogDb;
+const { buildModel, stream, fmt } = window.LR;
+const { applyFilters, drillRows, unique } = window.Filters;
 
 const DEFAULT_FILTER = { search: '', repo: '', branch: '', agent: '', log_type: '', log_level: '', status: '', priority: '', from: '', to: '' };
 
@@ -169,9 +168,9 @@ window.LogApp = {
     const toDelete = this.scopeCount(scope);
     if (!toDelete.length) return;
     if (!confirm(`Delete ${toDelete.length} logs? This cannot be undone.`)) return;
-    const ids = toDelete.map((l) => l.id);
-    this.state.db.deleteByIds(ids);
-    this.state.rows = this.state.db.readAll();
+    const ids = new Set(toDelete.map((l) => l.id));
+    this.state.db.deleteByIds(Array.from(ids));
+    this.state.rows = this.state.db.db ? this.state.db.readAll() : this.state.rows.filter((l) => !ids.has(l.id));
     this.update();
   }
 };

@@ -38,7 +38,7 @@ const MIN_SAMPLE = [
   { id: 3, timestamp: '2026-07-29 09:10:00', repo_name: 'demo', branch_name: 'main', task_title: 'Sample task', agent_name: 'lead_architect', agent_path: 'lead_architect', log_title: 'Task complete', log_description: 'Completed sample task.', log_type: 'end', log_level: 'info', status: 'completed', user_id: 'admin' }
 ];
 
-export class LogDb {
+class LogDb {
   constructor() { this.db = null; this.name = 'Demo data'; }
 
   async open(file) {
@@ -103,3 +103,5 @@ export class LogDb {
     URL.revokeObjectURL(a.href);
   }
 }
+
+window.LogDb = LogDb;

@@ -1,6 +1,6 @@
 const SEARCH_KEYS = ['log_title', 'log_description', 'agent_name', 'agent_path'];
 
-export function applyFilters(rows, filter) {
+function applyFilters(rows, filter) {
   const f = filter || {};
   return rows.filter((l) => {
     if (f.search) {
@@ -26,7 +26,7 @@ export function applyFilters(rows, filter) {
   });
 }
 
-export function drillRows(rows, drill) {
+function drillRows(rows, drill) {
   if (!drill) return rows;
   return rows.filter((l) => {
     if (drill.repo && l.repo_name !== drill.repo) return false;
@@ -37,6 +37,8 @@ export function drillRows(rows, drill) {
   });
 }
 
-export function unique(rows, key) {
+function unique(rows, key) {
   return Array.from(new Set(rows.map((r) => r[key]).filter(Boolean))).sort();
 }
+
+window.Filters = { applyFilters, drillRows, unique };
