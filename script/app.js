@@ -49,7 +49,8 @@ window.LogApp = {
     confirm: null,
     fileHandle: null,
     navOpen: new Set(), // navigation tree expand/collapse state (persists across re-renders)
-    treeOpen: new Set() // hierarchy tree expand/collapse state (persists across re-renders)
+    treeOpen: new Set(), // hierarchy tree expand/collapse state (persists across re-renders)
+    detailWidth: 372 // right detail panel width (drag to resize)
   },
 
   async init() {
@@ -96,7 +97,9 @@ window.LogApp = {
   },
 
   setDrill(drill) {
-    this.state.drill = { ...this.state.drill, ...drill };
+    // Replace the drill state entirely (not merge) so drilling to a shallower
+    // level clears deeper keys (e.g. clicking a task clears a stale agent).
+    this.state.drill = { ...drill };
     this.state.selectedLog = null;
     this.update();
   },
@@ -180,9 +183,11 @@ window.LogApp = {
   expandAll() {
     if (!this.state.treeOpen) this.state.treeOpen = new Set();
     const s = this.state;
-    s.treeModel.repos.forEach((r) => {
-      s.treeOpen.add('r:' + r.name);
-      r.branches.forEach((b) => s.treeOpen.add('b:' + r.name + '|' + b.name));
+    // Expand every repo/branch/task that holds a row currently in scope
+    s.inScope.forEach((l) => {
+      s.treeOpen.add('r:' + l.repo_name);
+      s.treeOpen.add('b:' + l.repo_name + '|' + l.branch_name);
+      s.treeOpen.add('t:' + l.repo_name + '|' + l.branch_name + '|' + (l.task_title || 'Untitled task'));
     });
     const tree = document.querySelector('log-tree');
     if (tree) tree.refresh();
@@ -246,14 +251,31 @@ window.LogApp = {
   },
 
   async refresh() {
-    if (this.state.src.demo) {
-      const sample = await this.state.db.loadSample();
-      this.state.rows = sample;
-      this.update();
-    } else {
-      this.state.rows = this.state.db.readAll();
-      this.update();
+    // "Refresh" means re-read the database, so it has to go back to the source.
+    // Rows appended by agents in other repos since the last load exist only on
+    // disk; reading the in-memory copy (readAll) would never surface them, which
+    // is what made this button appear to do nothing while agents were working.
+    const stamp = () => new Date().toLocaleTimeString();
+    try {
+      if (this.state.fileHandle) {
+        const file = await this.state.fileHandle.getFile();
+        this._lastMtime = file.lastModified;
+        this.state.rows = await this.state.db.open(file);
+        this.state.src = { name: file.name, demo: false, ok: true,
+          detail: this.state.rows.length + ' rows · reloaded ' + stamp() };
+      } else if (!this.state.src.demo) {
+        this.state.rows = await this.state.db.loadDefault();
+        this.state.src = { name: 'activity_logs.db', demo: false, ok: true,
+          detail: this.state.rows.length + ' rows · reloaded ' + stamp() };
+      } else {
+        // No database is open, so the sample set is the only available source.
+        this.state.rows = await this.state.db.loadSample();
+        this.state.src = { ...this.state.src, detail: 'demo data · restamped ' + stamp() };
+      }
+    } catch (e) {
+      this.state.src = { ...this.state.src, ok: false, detail: 'refresh failed: ' + e.message };
     }
+    this.update();
   },
 
   exportCsv() { exportRows(this.state.inScope, 'csv'); },
@@ -276,31 +298,58 @@ window.LogApp = {
   },
 
   scopeCount(scope) {
+    // Delete scope now inherits the current filter + drill (s.inScope), with
+    // an optional "older than" date as the only delete-specific refinement.
     const s = this.state;
-    return applyFilters(s.rows, {
-      ...DEFAULT_FILTER,
-      repo: scope.repo ? [scope.repo] : [],
-      branch: scope.branch ? [scope.branch] : [],
-      log_type: scope.log_type ? [scope.log_type] : []
-    }).filter((l) => {
-      if (scope.olderThan) {
-        const t = l.timestamp?.replace(' ', 'T') + 'Z';
-        if (t && new Date(t) >= new Date(scope.olderThan + 'T00:00:00Z')) return false;
-      }
-      return true;
+    const rows = s.inScope;
+    if (!scope || !scope.olderThan) return rows;
+    return rows.filter((l) => {
+      const t = l.timestamp?.replace(' ', 'T') + 'Z';
+      return t && new Date(t) < new Date(scope.olderThan + 'T00:00:00Z');
     });
   },
 
-  deleteLogs(scope) {
+  // Deletes are executed by serve.py against activity_logs.db, not against the
+  // in-memory image. sql.js holds a copy of bytes fetched over HTTP, so a delete
+  // applied there is discarded by the next read — the row has to be removed by a
+  // process that owns the file. After the server confirms, the database is
+  // re-read so what is on screen is what is stored.
+  async deleteLogs(scope) {
     const toDelete = this.scopeCount(scope);
     if (!toDelete.length) return;
-    // §8.1: confirmation is handled by the Maintenance component's custom modal
-    // (state.confirm). The modal clears state.confirm then calls this method,
-    // so by the time we reach here the user has already confirmed.
     this.state.confirm = null;
-    const ids = new Set(toDelete.map((l) => l.id));
-    this.state.db.deleteByIds(Array.from(ids));
-    this.state.rows = this.state.db.db ? this.state.db.readAll() : this.state.rows.filter((l) => !ids.has(l.id));
+    const ids = Array.from(new Set(toDelete.map((l) => l.id)));
+
+    // Demo data has no backing file, so the in-memory delete is all there is.
+    if (this.state.src.demo) {
+      this.state.db.deleteByIds(ids);
+      this.state.rows = this.state.db.readAll();
+      this.state.src = { ...this.state.src, detail: 'demo data · ' + ids.length + ' rows removed in memory' };
+      this.update();
+      return;
+    }
+
+    try {
+      const res = await fetch('api/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || 'HTTP ' + res.status);
+      this.state.rows = await this.state.db.loadDefault();
+      this.state.src = { name: 'activity_logs.db', demo: false, ok: true,
+        detail: out.deleted + ' deleted · ' + this.state.rows.length + ' rows remain' };
+    } catch (e) {
+      // Reached when the page is not being served by serve.py (plain
+      // http.server, or opened over file://). Fall back to the in-memory delete
+      // so the view still responds, but flag it as not persisted rather than
+      // letting it look permanent.
+      this.state.db.deleteByIds(ids);
+      this.state.rows = this.state.db.db ? this.state.db.readAll() : this.state.rows.filter((l) => !ids.includes(l.id));
+      this.state.src = { ...this.state.src, ok: false,
+        detail: 'NOT saved to the database (' + e.message + ') — start the app with start_dashboard.bat' };
+    }
     this.update();
   }
 };
