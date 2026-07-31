@@ -4,6 +4,7 @@
       "Exec(python)",
       "Exec(git)",
       "Exec(npm)",
+      "Exec(Remove-Item)",
       "edit",
       "Write(**)"
     ]
