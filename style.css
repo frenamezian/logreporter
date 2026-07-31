@@ -361,7 +361,6 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
 
 .detail-section-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
 
-.error-block { }
 .error-pre { margin: 0; padding: 10px; border-radius: 4px; background: var(--surface); font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; color: oklch(0.78 0.09 25); font-family: var(--mono); border-left: 2px solid var(--issue); }
 
 .agent-path-chain { display: flex; flex-direction: column; gap: 3px; }
