@@ -4,13 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LogReporter</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <script src="time-model.js"></script>
-  <script src="filters.js"></script>
-  <script src="db.js"></script>
-  <script src="components.js"></script>
-  <script src="app.js"></script>
+  <!-- data layer first -->
+  <script src="script/time-model.js"></script>
+  <script src="script/filters.js"></script>
+  <script src="script/db.js"></script>
+  <script src="script/app.js"></script>
+  <!-- components: base + helpers first, app-shell last -->
+  <script src="components/log-component.js"></script>
+  <script src="components/log-header.js"></script>
+  <script src="components/log-filters.js"></script>
+  <script src="components/log-tree.js"></script>
+  <script src="components/log-list.js"></script>
+  <script src="components/log-details.js"></script>
+  <script src="components/log-timeline.js"></script>
+  <script src="components/log-timegoes.js"></script>
+  <script src="components/log-metrics.js"></script>
+  <script src="components/log-maintenance.js"></script>
+  <script src="components/log-help.js"></script>
+  <script src="components/app-shell.js"></script>
 </body>
 </html>
