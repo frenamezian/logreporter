@@ -1,1 +1,7 @@
-activity_logs.db
+# The live database is runtime data (continuous writes from agents in multiple
+# repos), not source. Patterns are ANCHORED to the repo root so they do not
+# also ignore seed/activity_logs.db, which the bootstrap depends on.
+/activity_logs.db
+/activity_logs.db-wal
+/activity_logs.db-shm
+__pycache__/
