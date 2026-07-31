@@ -3,30 +3,101 @@
 const LogComponent = window.LogComponent;
 const { esc, fmt, fmtTs, typeDot } = window.LRC;
 
+const LIMIT = 500;
+const SNIPPET_LEN = 80;
+
+const LEGEND = [
+  { type: 'activity', label: 'Activity' },
+  { type: 'issue', label: 'Issue' },
+  { type: 'decision', label: 'Decision' },
+  { type: 'github', label: 'GitHub' },
+  { type: 'start', label: 'Start/end' },
+  { type: 'idle', label: 'Idle' },
+];
+
 class LogTimeline extends LogComponent {
   render() {
     const s = window.LogApp.state;
     if (!s.inScope.length) return '<div class="empty">No data in scope</div>';
     const model = s.model;
-    const rows = window.LogApp.stream ? window.LogApp.stream(s.inScope, model) : [];
+    let rows = window.LogApp.stream ? window.LogApp.stream(s.inScope, model) : [];
     if (!rows.length) return '<div class="empty">No data</div>';
-    return `<div class="page-title">Chronology</div><div class="timeline">` + rows.map((r) => {
-      if (r.kind === 'day') return `<div style="margin:18px 0 8px;font-size:12px;color:var(--text-dim);border-bottom:1px solid var(--border);padding-bottom:4px">${esc(r.day)}</div>`;
-      if (r.kind === 'gap') return `<div style="margin:4px 0;padding:6px 10px;background:repeating-linear-gradient(135deg,rgba(255,255,255,0.05) 0 3px,transparent 3px 6px);border-radius:6px;font-size:12px;color:var(--text-dim)">Idle ${fmt(r.gap.ms)} · ${esc(r.gap.task)}</div>`;
-      const l = r.log;
-      return `<div class="log-row" data-id="${l.id}" style="display:flex;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer">
-        <div class="mono" style="width:50px">${fmtTs(l.timestamp)}</div>
-        <div style="width:80px">${typeDot(l.log_type)}${esc(l.log_type)}</div>
-        <div style="flex:1"><div style="font-weight:500">${esc(l.log_title)}</div><div style="font-size:12px;color:var(--text-dim)">${esc(l.agent_name)} · ${esc(l.repo_name)}/${esc(l.branch_name)}</div></div>
-      </div>`;
-    }).join('') + `</div>`;
+
+    // §5.1 — stream() returns ascending; reverse the whole output for newest
+    // so day headers and idle gaps stay correctly positioned relative to entries.
+    const order = s.order || 'newest';
+    if (order === 'newest') rows = rows.slice().reverse();
+
+    // §5.2 — 500-row cap + truncation note
+    const total = rows.length;
+    const truncated = total > LIMIT;
+    const shown = truncated ? rows.slice(0, LIMIT) : rows;
+    const note = truncated
+      ? 'Showing ' + LIMIT + ' of ' + total + ' rows'
+      : total + ' rows';
+
+    // §5.4 — legend strip + entry count
+    const entryCount = s.inScope.length;
+    const legendHtml = '<div class="chrono-legend">' +
+      LEGEND.map((g) =>
+        '<span class="chrono-legend-item">' + typeDot(g.type) + esc(g.label) + '</span>'
+      ).join('') +
+      '<span class="chrono-legend-count">' + entryCount + ' entries</span>' +
+      '</div>';
+
+    // §5.1 — newest/oldest toggle buttons
+    const toggleHtml = '<div class="chrono-toolbar">' +
+      '<span class="chrono-note">' + esc(note) + '</span>' +
+      '<span class="chrono-toggles">' +
+        '<button class="small' + (order === 'newest' ? ' primary' : '') + '" data-order="newest">Newest first</button>' +
+        '<button class="small' + (order === 'oldest' ? ' primary' : '') + '" data-order="oldest">Oldest first</button>' +
+      '</span>' +
+      '</div>';
+
+    const body = shown.map((r) => this._row(r, s)).join('');
+    return legendHtml + toggleHtml + '<div class="timeline">' + body + '</div>';
   }
+
+  _row(r, s) {
+    if (r.kind === 'day') {
+      return '<div class="chrono-day">' + esc(r.day) + '</div>';
+    }
+    if (r.kind === 'gap') {
+      // §5.3 — idle row names branch + task
+      const g = r.gap;
+      const where = esc(g.repo || '') + '/' + esc(g.branch || '');
+      return '<div class="chrono-gap">Idle ' + fmt(g.ms) + ' · ' + where + ' · ' + esc(g.task || '') + '</div>';
+    }
+    // §5.3 — entry row: time, dot, type, title, agent, repo/branch, snippet
+    const l = r.log;
+    const snippet = (l.log_description || '').slice(0, SNIPPET_LEN);
+    const where = esc(l.repo_name) + '/' + esc(l.branch_name);
+    const selected = s.selectedLog && s.selectedLog.id === l.id ? ' selected' : '';
+    return '<div class="log-row' + selected + '" data-id="' + l.id + '">' +
+      '<div class="mono chrono-time">' + fmtTs(l.timestamp) + '</div>' +
+      '<div class="chrono-type">' + typeDot(l.log_type) + esc(l.log_type) + '</div>' +
+      '<div class="chrono-body">' +
+        '<div class="chrono-title">' + esc(l.log_title) + '</div>' +
+        '<div class="chrono-meta"><span class="mono">' + esc(l.agent_name) + '</span> · ' + where +
+          (snippet ? ' · ' + esc(snippet) : '') + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   attach() {
     this.querySelectorAll('.log-row').forEach((el) => {
       el.onclick = () => {
         const id = +el.getAttribute('data-id');
         const log = window.LogApp.state.inScope.find((l) => l.id === id);
         if (log) window.LogApp.selectLog(log);
+      };
+    });
+    this.querySelectorAll('button[data-order]').forEach((btn) => {
+      btn.onclick = () => {
+        const newOrder = btn.getAttribute('data-order');
+        if (window.LogApp.state.order === newOrder) return;
+        window.LogApp.state.order = newOrder;
+        window.LogApp.render();
       };
     });
   }

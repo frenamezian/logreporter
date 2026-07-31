@@ -14,6 +14,12 @@ function applyFilters(rows, filter) {
     if (f.branch && l.branch_name !== f.branch) return false;
     if (f.agent && l.agent_path !== f.agent && l.agent_name !== f.agent) return false;
     if (f.log_type && l.log_type !== f.log_type) return false;
+    // §3.1 — git action filter: only github logs whose derived git action
+    // matches survive; non-github rows are excluded when the filter is set.
+    if (f.git) {
+      const ga = window.LR && window.LR.gitAction ? window.LR.gitAction(l) : '';
+      if (l.log_type !== 'github' || ga !== f.git) return false;
+    }
     if (f.log_level && l.log_level !== f.log_level) return false;
     if (f.status && l.status !== f.status) return false;
     if (f.priority && l.priority !== f.priority) return false;

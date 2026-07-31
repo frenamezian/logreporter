@@ -5,7 +5,7 @@ const LogDb = window.LogDb;
 const { buildModel, stream, fmt } = window.LR;
 const { applyFilters, drillRows, unique } = window.Filters;
 
-const DEFAULT_FILTER = { search: '', repo: '', branch: '', agent: '', log_type: '', log_level: '', status: '', priority: '', from: '', to: '' };
+const DEFAULT_FILTER = { search: '', repo: '', branch: '', agent: '', log_type: '', git: '', log_level: '', status: '', priority: '', from: '', to: '' };
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -280,7 +280,10 @@ window.LogApp = {
   deleteLogs(scope) {
     const toDelete = this.scopeCount(scope);
     if (!toDelete.length) return;
-    if (!confirm(`Delete ${toDelete.length} logs? This cannot be undone.`)) return;
+    // §8.1: confirmation is handled by the Maintenance component's custom modal
+    // (state.confirm). The modal clears state.confirm then calls this method,
+    // so by the time we reach here the user has already confirmed.
+    this.state.confirm = null;
     const ids = new Set(toDelete.map((l) => l.id));
     this.state.db.deleteByIds(Array.from(ids));
     this.state.rows = this.state.db.db ? this.state.db.readAll() : this.state.rows.filter((l) => !ids.has(l.id));
