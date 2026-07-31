@@ -52,6 +52,16 @@ class LogDb {
     return this.readAll();
   }
 
+  async loadDefault() {
+    const res = await fetch('activity_logs.db');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const SQL = await ensureSqlJs();
+    this.db = new SQL.Database(buf);
+    this.name = 'activity_logs.db';
+    return this.readAll();
+  }
+
   async loadSample() {
     try {
       const mod = await import('../prototype/project/sample-logs.js');

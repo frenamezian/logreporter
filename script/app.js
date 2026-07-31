@@ -37,19 +37,39 @@ window.LogApp = {
     treeModel: { repos: [], totals: {} },
     model: { repos: [], totals: {} },
     src: { name: 'Demo data', demo: true, ok: false, detail: 'no database open' },
-    db: new LogDb()
+    db: new LogDb(),
+    // shell state (§11.1)
+    sidebar: true,
+    panels: { filters: false, nav: true },
+    srcOpen: false,
+    poll: false,
+    order: 'newest',
+    helpTopic: 'started',
+    prevPage: 'hierarchy',
+    confirm: null,
+    fileHandle: null
   },
 
   async init() {
-    const sample = await this.state.db.loadSample();
-    this.state.rows = sample;
-    this.state.src = { name: 'Demo data', demo: true, ok: false, detail: 'using bundled demo data' };
+    try {
+      const rows = await this.state.db.loadDefault();
+      this.state.rows = rows;
+      this.state.src = { name: 'activity_logs.db', demo: false, ok: true,
+        detail: rows.length + ' rows · loaded by default' };
+    } catch (e) {
+      const sample = await this.state.db.loadSample();
+      this.state.rows = sample;
+      this.state.src = { name: 'Demo data', demo: true, ok: false,
+        detail: 'activity_logs.db not reachable (' + e.message + '); using demo data' };
+    }
     this.update();
   },
 
   setPage(page) {
+    if (page === 'help' && this.state.page !== 'help') this.state.prevPage = this.state.page;
     this.state.page = page;
     if (page === 'help' || page === 'maintenance') this.state.selectedLog = null;
+    this.state.srcOpen = false;
     this.render();
   },
 
@@ -69,6 +89,94 @@ window.LogApp = {
   clearDrill() {
     this.state.drill = {};
     this.update();
+  },
+
+  // --- shell / sidebar / panels (§11.2) ---
+  toggleSidebar() {
+    this.state.sidebar = !this.state.sidebar;
+    this.render();
+  },
+  openFilters() {
+    this.state.sidebar = true;
+    this.state.panels.filters = true;
+    this.render();
+  },
+  toggleFilters() {
+    this.state.panels.filters = !this.state.panels.filters;
+    this.render();
+  },
+  toggleNav() {
+    this.state.panels.nav = !this.state.panels.nav;
+    this.render();
+  },
+  toggleSrc() {
+    this.state.srcOpen = !this.state.srcOpen;
+    this.render();
+  },
+  closeSrc() {
+    this.state.srcOpen = false;
+    this.render();
+  },
+  togglePoll() {
+    this.state.poll = !this.state.poll;
+    if (this.state.poll) this._startPoll();
+    else this._stopPoll();
+    this.render();
+  },
+  _startPoll() {
+    this._stopPoll();
+    this._pollTimer = setInterval(() => this._pollTick(), 5000);
+  },
+  _stopPoll() {
+    if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
+  },
+  async _pollTick() {
+    try {
+      if (this.state.fileHandle) {
+        const file = await this.state.fileHandle.getFile();
+        if (file.lastModified !== this._lastMtime) {
+          this._lastMtime = file.lastModified;
+          this.state.rows = await this.state.db.open(file);
+          this.state.src = { name: file.name, demo: false, ok: true, detail: new Date(file.lastModified).toLocaleString() };
+          this.update();
+        }
+      } else if (!this.state.src.demo) {
+        // re-fetch the default DB (§17.5)
+        const rows = await this.state.db.loadDefault();
+        this.state.rows = rows;
+        this.update();
+      }
+    } catch (e) { /* ignore poll errors */ }
+  },
+  closeDetail() { this.selectLog(null); },
+  setHelpTopic(id) {
+    this.state.helpTopic = id;
+    this.render();
+  },
+  closeHelp() {
+    this.setPage(this.state.prevPage || 'hierarchy');
+  },
+  drillCollapse(key, repo, branch, task) {
+    this.setDrill({ repo, branch, task });
+    const tree = document.querySelector('log-tree');
+    if (tree && tree._open) tree._open.delete(key);
+    this.update();
+  },
+  expandAll() {
+    const tree = document.querySelector('log-tree');
+    if (!tree || !tree._open) return;
+    const s = this.state;
+    s.treeModel.repos.forEach((r) => {
+      tree._open.add('r:' + r.name);
+      r.branches.forEach((b) => tree._open.add('b:' + r.name + '|' + b.name));
+    });
+    tree.refresh();
+  },
+  collapseAll() {
+    const tree = document.querySelector('log-tree');
+    if (!tree || !tree._open) return;
+    tree._open.clear();
+    tree.refresh();
   },
 
   selectLog(log) {
@@ -96,8 +204,11 @@ window.LogApp = {
           types: [{ description: 'SQLite databases', accept: { 'application/x-sqlite3': ['.db', '.sqlite', '.sqlite3'] } }]
         });
         const file = await handle.getFile();
+        this.state.fileHandle = handle;
+        this._lastMtime = file.lastModified;
         this.state.rows = await this.state.db.open(file);
         this.state.src = { name: file.name, demo: false, ok: true, detail: new Date(file.lastModified).toLocaleString() };
+        this.state.srcOpen = false;
       } else {
         const input = document.createElement('input');
         input.type = 'file';
@@ -107,6 +218,7 @@ window.LogApp = {
           if (!file) return;
           this.state.rows = await this.state.db.open(file);
           this.state.src = { name: file.name, demo: false, ok: true, detail: new Date(file.lastModified).toLocaleString() };
+          this.state.srcOpen = false;
           this.update();
         };
         input.click();
@@ -152,12 +264,10 @@ window.LogApp = {
   scopeCount(scope) {
     const s = this.state;
     return applyFilters(s.rows, {
-      ...s.filter,
-      repo: scope.repo || s.filter.repo,
-      branch: scope.branch || s.filter.branch,
-      log_type: scope.log_type || s.filter.log_type,
-      to: '',
-      from: ''
+      ...DEFAULT_FILTER,
+      repo: scope.repo || '',
+      branch: scope.branch || '',
+      log_type: scope.log_type || ''
     }).filter((l) => {
       if (scope.olderThan) {
         const t = l.timestamp?.replace(' ', 'T') + 'Z';
