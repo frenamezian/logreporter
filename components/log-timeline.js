@@ -4,7 +4,6 @@ const LogComponent = window.LogComponent;
 const { esc, fmt, fmtTs, typeDot } = window.LRC;
 
 const LIMIT = 500;
-const SNIPPET_LEN = 80;
 
 const LEGEND = [
   { type: 'activity', label: 'Activity' },
@@ -54,8 +53,10 @@ class LogTimeline extends LogComponent {
       '</span>' +
       '</div>';
 
+    // Column header — same vocabulary as the hierarchy entry grid
+    const head = '<div class="entry-grid entry-head"><span>Time</span><span>Type</span><span>Agent</span><span>Entry</span><span>Level</span></div>';
     const body = shown.map((r) => this._row(r, s)).join('');
-    return legendHtml + toggleHtml + '<div class="timeline">' + body + '</div>';
+    return legendHtml + toggleHtml + head + '<div class="timeline">' + body + '</div>';
   }
 
   _row(r, s) {
@@ -68,24 +69,23 @@ class LogTimeline extends LogComponent {
       const where = esc(g.repo || '') + '/' + esc(g.branch || '');
       return '<div class="chrono-gap">Idle ' + fmt(g.ms) + ' · ' + where + ' · ' + esc(g.task || '') + '</div>';
     }
-    // §5.3 — entry row: time, dot, type, title, agent, repo/branch, snippet
+    // §5.3 — entry row uses the same entry-grid format as the hierarchy panel
+    // (Time, Type, Agent, Entry, Level) so both pages share one visual language.
     const l = r.log;
-    const snippet = (l.log_description || '').slice(0, SNIPPET_LEN);
-    const where = esc(l.repo_name) + '/' + esc(l.branch_name);
-    const selected = s.selectedLog && s.selectedLog.id === l.id ? ' selected' : '';
-    return '<div class="log-row' + selected + '" data-id="' + l.id + '">' +
-      '<div class="mono chrono-time">' + fmtTs(l.timestamp) + '</div>' +
-      '<div class="chrono-type">' + typeDot(l.log_type) + esc(l.log_type) + '</div>' +
-      '<div class="chrono-body">' +
-        '<div class="chrono-title">' + esc(l.log_title) + '</div>' +
-        '<div class="chrono-meta"><span class="mono">' + esc(l.agent_name) + '</span> · ' + where +
-          (snippet ? ' · ' + esc(snippet) : '') + '</div>' +
-      '</div>' +
+    const title = esc(l.log_title || '');
+    const snippet = l.log_description ? ' — ' + esc(l.log_description) : '';
+    const selected = s.selectedLog && s.selectedLog.id === l.id ? ' entry-row-selected' : '';
+    return '<div class="entry-grid entry-row' + selected + '" data-id="' + l.id + '" style="cursor:pointer">' +
+      '<span class="entry-time mono">' + fmtTs(l.timestamp) + '</span>' +
+      '<span class="entry-type">' + typeDot(l.log_type) + esc(l.log_type) + '</span>' +
+      '<span class="entry-agent mono">' + esc(l.agent_name || '—') + '</span>' +
+      '<span class="entry-text"><span class="entry-title">' + title + '</span><span class="entry-snippet">' + snippet + '</span></span>' +
+      '<span class="entry-level">' + esc(l.log_level || '') + '</span>' +
     '</div>';
   }
 
   attach() {
-    this.querySelectorAll('.log-row').forEach((el) => {
+    this.querySelectorAll('.entry-row[data-id]').forEach((el) => {
       el.onclick = () => {
         const id = +el.getAttribute('data-id');
         const log = window.LogApp.state.inScope.find((l) => l.id === id);

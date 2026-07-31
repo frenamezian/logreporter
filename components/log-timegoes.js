@@ -38,7 +38,7 @@ class LogTimegoes extends LogComponent {
       items = t ? t.runs.map((run) => ({
         label: run.agent || run.path,
         ms: { activity: run.by.activity, issue: run.by.issue, decision: run.by.decision, github: run.by.github, idle: 0, wall: run.ms },
-        drill: { repo: s.drill.repo, branch: s.drill.branch, task: s.drill.task, agent: run.path },
+        drill: { repo: s.drill.repo, branch: s.drill.branch, task: s.drill.task, agent: run.agent || run.path.split('/').pop() },
       })) : [];
     } else if (s.drill.branch) {
       items = m.repos.find((x) => x.name === s.drill.repo)?.branches.find((x) => x.name === s.drill.branch)?.tasks.map((t) => ({

@@ -88,8 +88,10 @@ class AppShell extends HTMLElement {
     `;
   }
   _detailPanelHTML() {
+    const w = window.LogApp.state.detailWidth || 372;
     return `
-      <div class="right-panel">
+      <div class="right-panel" style="width:clamp(280px, ${w}px, 60vw); flex:0 0 clamp(280px, ${w}px, 60vw)">
+        <div class="right-panel-resize" data-resize-detail="1" title="Drag to resize"></div>
         <button class="detail-close" title="Close" data-close-detail="1">✕</button>
         <log-details></log-details>
       </div>
@@ -130,6 +132,35 @@ class AppShell extends HTMLElement {
       const d = JSON.parse(b.getAttribute('data-drill'));
       window.LogApp.setDrill(d);
     });
+
+    // Right panel resize handle — drag to change detail panel width
+    const resizeHandle = this.querySelector('[data-resize-detail]');
+    if (resizeHandle) {
+      resizeHandle.onmousedown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const panel = resizeHandle.closest('.right-panel');
+        const startX = e.clientX;
+        const startW = panel.offsetWidth;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        const onMove = (ev) => {
+          const delta = startX - ev.clientX;
+          const newW = Math.max(280, Math.min(window.innerWidth * 0.6, startW + delta));
+          window.LogApp.state.detailWidth = newW;
+          panel.style.width = newW + 'px';
+          panel.style.flex = '0 0 ' + newW + 'px';
+        };
+        const onUp = () => {
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      };
+    }
   }
 }
 customElements.define('app-shell', AppShell);

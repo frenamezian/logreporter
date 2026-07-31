@@ -43,7 +43,9 @@ function drillRows(rows, drill) {
     if (drill.repo && l.repo_name !== drill.repo) return false;
     if (drill.branch && l.branch_name !== drill.branch) return false;
     if (drill.task && (l.task_title || 'Untitled task') !== drill.task) return false;
-    if (drill.agent && l.agent_path !== drill.agent && l.agent_name !== drill.agent) return false;
+    // Agent match: drill.agent is an agent name (last path segment); a row is in
+    // scope when that name appears anywhere in its agent_path segments.
+    if (drill.agent && !(l.agent_path || '').split('/').includes(drill.agent)) return false;
     return true;
   });
 }

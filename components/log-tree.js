@@ -20,22 +20,28 @@ class LogTree extends LogComponent {
 
   render() {
     const s = window.LogApp.state;
-    const model = s.treeModel;
+    // Use the drill-applied model so the hierarchy stays consistent with every
+    // other panel (chronology, where-time-goes, metrics). The navigation tree
+    // in the sidebar keeps using treeModel (un-drilled) so siblings stay visible.
+    const model = s.model;
     if (!model?.repos?.length) return '<div class="empty">No data</div>';
-    // Filter the hierarchy by drill scope and auto-expand the drilled path
+    // Auto-expand the drilled path so the user sees the entries immediately
     const d = s.drill || {};
-    let repos = model.repos;
     if (d.repo) {
-      repos = repos.filter((r) => r.name === d.repo);
-      // Auto-expand the repo and drilled branch
-      this._open.add('r:' + d.repo);
-      if (d.branch) {
-        this._open.add('b:' + d.repo + '|' + d.branch);
-        if (d.task) this._open.add('t:' + d.repo + '|' + d.branch + '|' + d.task);
-      }
+      model.repos.forEach((r) => {
+        this._open.add('r:' + r.name);
+        if (d.branch || d.task || d.agent) {
+          r.branches.forEach((b) => {
+            this._open.add('b:' + r.name + '|' + b.name);
+            if (d.task || d.agent) {
+              b.tasks.forEach((t) => this._open.add('t:' + r.name + '|' + b.name + '|' + t.title));
+            }
+          });
+        }
+      });
     }
     // AppShell renders the breadcrumb strip; LogTree only renders tree content.
-    return `${this.legend()}${repos.map((r) => this.repoCard(r, s)).join('')}`;
+    return `${this.legend()}${model.repos.map((r) => this.repoCard(r, s)).join('')}`;
   }
 
   // §4.2 — legend row with color swatches + Expand all / Collapse all buttons
@@ -62,22 +68,18 @@ class LogTree extends LogComponent {
     const key = 'r:' + r.name;
     const open = this._open.has(key);
     const ish = idleShare(r.ms);
-    const d = s.drill || {};
-    // Filter branches by drill scope
-    let branches = r.branches;
-    if (d.branch) branches = branches.filter((b) => b.name === d.branch);
     return `
       <div class="tree-card">
         <div class="tree-head" data-key="${esc(key)}" data-dbl="${esc(key)}" data-repo="${esc(r.name)}">
           <span class="caret">${open ? '▾' : '▸'}</span>
           <span class="name">${esc(r.name)}</span>
-          <span class="meta">${branches.length} branches · ${fmt(r.ms.wall)}${ish ? ' · ' + ish + '% idle' : ''}</span>
+          <span class="meta">${r.branches.length} branches · ${fmt(r.ms.wall)}${ish ? ' · ' + ish + '% idle' : ''}</span>
           <div style="width:120px">${bar(r.ms, Math.max(r.ms.wall, 1))}</div>
           <span class="tree-badges">${this.badges(r.ms)}</span>
           <button class="btn btn-secondary time-btn" data-time='{"repo":"${esc(r.name)}"}'>Time →</button>
         </div>
         <div class="tree-body" ${open ? '' : 'hidden'}>
-          ${branches.map((b) => this.branchBlock(r, b, s)).join('')}
+          ${r.branches.map((b) => this.branchBlock(r, b, s)).join('')}
         </div>
       </div>
     `;
@@ -125,36 +127,23 @@ class LogTree extends LogComponent {
     `;
   }
 
-  // §4.3 / §4.4 / §4.5 — inline log entry rows, compact vs roomy grid, selection highlight
+  // §4.3 / §4.4 / §4.5 — inline log entry rows, always showing Agent column
   entryRows(t, s) {
     const rows = (t.logs || []).slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     if (!rows.length) return '<div class="empty" style="padding:10px">No entries</div>';
-    const compact = !!s.selectedLog;
-    const head = compact
-      ? `<span>Time</span><span>Type</span><span>Entry</span>`
-      : `<span>Time</span><span>Type</span><span>Agent</span><span>Entry</span><span>Level</span>`;
-    const grid = compact ? 'entry-grid entry-grid-compact' : 'entry-grid entry-grid-roomy';
-    let body = `<div class="${grid} entry-head">${head}</div>`;
-    body += rows.map((l) => this.entryRow(l, compact, s)).join('');
+    const head = `<span>Time</span><span>Type</span><span>Agent</span><span>Entry</span><span>Level</span>`;
+    let body = `<div class="entry-grid entry-head">${head}</div>`;
+    body += rows.map((l) => this.entryRow(l, s)).join('');
     return body;
   }
 
-  entryRow(l, compact, s) {
+  entryRow(l, s) {
     const selected = s.selectedLog?.id === l.id;
     const selCls = selected ? ' entry-row-selected' : '';
     const title = esc(l.log_title || '');
     const snippet = l.log_description ? ` — ${esc(l.log_description)}` : '';
-    if (compact) {
-      return `
-        <div class="${'entry-grid entry-row' + selCls}" data-id="${l.id}" style="cursor:pointer">
-          <span class="entry-time mono">${fmtTs(l.timestamp)}</span>
-          <span class="entry-type">${typeDot(l.log_type)}${esc(l.log_type)}</span>
-          <span class="entry-text"><span class="entry-title">${title}</span><span class="entry-snippet">${snippet}</span></span>
-        </div>
-      `;
-    }
     return `
-      <div class="${'entry-grid entry-grid-roomy entry-row' + selCls}" data-id="${l.id}" style="cursor:pointer">
+      <div class="${'entry-grid entry-row' + selCls}" data-id="${l.id}" style="cursor:pointer">
         <span class="entry-time mono">${fmtTs(l.timestamp)}</span>
         <span class="entry-type">${typeDot(l.log_type)}${esc(l.log_type)}</span>
         <span class="entry-agent mono">${esc(l.agent_name || '—')}</span>
@@ -176,37 +165,46 @@ class LogTree extends LogComponent {
   attach() {
     // Single click on any tree-head: expand the node + drill to it
     // Double click on any tree-head: collapse the node + drill to it
+    // A click timer is used so the single-click action (which triggers a full
+    // re-render via setDrill) is delayed; if a dblclick arrives first, the
+    // timer is cancelled and the collapse action runs instead. Without this,
+    // the re-render would destroy the DOM element between the two clicks and
+    // dblclick would never fire.
+    const DBLCLICK_MS = 220;
+    this._clickTimers = this._clickTimers || new Map();
     this.querySelectorAll('.tree-head[data-key]').forEach((h) => {
-      h.onclick = (e) => {
-        if (e.target.closest('[data-time]')) return; // Time → has its own handler
-        e.stopPropagation();
-        const k = h.getAttribute('data-key');
-        const repo = h.getAttribute('data-repo') || '';
-        const branch = h.getAttribute('data-branch') || '';
-        const task = h.getAttribute('data-task') || '';
-        // Single click: expand + drill
-        this._open.add(k);
+      const k = h.getAttribute('data-key');
+      const repo = h.getAttribute('data-repo') || '';
+      const branch = h.getAttribute('data-branch') || '';
+      const task = h.getAttribute('data-task') || '';
+      const buildDrill = () => {
         const drill = {};
         if (repo) drill.repo = repo;
         if (branch) drill.branch = branch;
         if (task) drill.task = task;
-        window.LogApp.setDrill(drill);
+        return drill;
       };
+
+      h.onclick = (e) => {
+        if (e.target.closest('[data-time]')) return;
+        e.stopPropagation();
+        // Delay the single-click action to see if a dblclick follows
+        if (this._clickTimers.has(k)) clearTimeout(this._clickTimers.get(k));
+        this._clickTimers.set(k, setTimeout(() => {
+          this._clickTimers.delete(k);
+          this._open.add(k);
+          window.LogApp.setDrill(buildDrill());
+        }, DBLCLICK_MS));
+      };
+
       h.ondblclick = (e) => {
         if (e.target.closest('[data-time]')) return;
         e.preventDefault();
         e.stopPropagation();
-        const k = h.getAttribute('data-key');
-        const repo = h.getAttribute('data-repo') || '';
-        const branch = h.getAttribute('data-branch') || '';
-        const task = h.getAttribute('data-task') || '';
-        // Double click: collapse + drill
+        // Cancel the pending single-click action
+        if (this._clickTimers.has(k)) { clearTimeout(this._clickTimers.get(k)); this._clickTimers.delete(k); }
         this._open.delete(k);
-        const drill = {};
-        if (repo) drill.repo = repo;
-        if (branch) drill.branch = branch;
-        if (task) drill.task = task;
-        window.LogApp.setDrill(drill);
+        window.LogApp.setDrill(buildDrill());
       };
     });
 
@@ -233,9 +231,7 @@ class LogTree extends LogComponent {
       row.onclick = () => {
         const id = +row.getAttribute('data-id');
         const s = window.LogApp.state;
-        const log = (s.treeModel.repos || [])
-          .flatMap((r) => r.branches).flatMap((b) => b.tasks)
-          .flatMap((t) => t.logs || []).find((l) => l.id === id);
+        const log = s.inScope.find((l) => l.id === id);
         if (log) window.LogApp.selectLog(log);
       };
     });

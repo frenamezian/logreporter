@@ -163,18 +163,21 @@ class LogFilters extends LogComponent {
   }
 
   // Render nested agent nodes recursively
-  _renderAgentNodes(agents, task, r, b, open, isActive, caret, jattr, depth) {
+  _renderAgentNodes(agents, task, r, b, open, drill, caret, jattr, depth) {
     const tree = this._agentTree(agents);
     const renderNode = (node, d) => {
       const ak = 'a:' + r.name + '|' + b.name + '|' + task.title + '|' + node.path;
       const aOpen = open.has(ak);
-      const aDrill = { repo: r.name, branch: b.name, task: task.title, agent: node.path };
+      // Drill by agent name (last path segment), matching the prototype's
+      // split('/').includes() filter semantics.
+      const aDrill = { repo: r.name, branch: b.name, task: task.title, agent: node.name };
       const hasKids = node.children.length > 0;
-      const cnt = (task.logs || []).filter((l) => (l.agent_path || l.agent_name) === node.path).length;
+      const cnt = (task.logs || []).filter((l) => (l.agent_path || '').split('/').includes(node.name)).length;
+      const active = drill.agent === node.name && drill.task === task.title;
       const pad = 'padding-left:' + (12 + d * 14) + 'px';
       return `
         <li>
-          <div class="node leaf${isActive(aDrill) ? ' active' : ''}" data-drill='${jattr(aDrill)}' data-nav-key="${esc(ak)}" data-has-kids="${hasKids ? '1' : '0'}" style="${pad}">
+          <div class="node leaf${active ? ' active' : ''}" data-drill='${jattr(aDrill)}' data-nav-key="${esc(ak)}" data-has-kids="${hasKids ? '1' : '0'}" style="${pad}">
             ${hasKids ? `<span class="nav-caret-icon ${aOpen ? 'open' : ''}">${aOpen ? '▾' : '▸'}</span>` : '<span class="nav-caret-spacer"></span>'}
             <span class="node-label mono">${esc(node.name)}</span>
             <span class="node-meta">${esc(String(cnt))}</span>
@@ -191,12 +194,10 @@ class LogFilters extends LogComponent {
     if (!model?.repos?.length) return '<div class="empty">No data</div>';
     const open = this._openNav;
     const drill = window.LogApp.state.drill || {};
-    const isActive = (d) => {
-      return (d.repo || '') === (drill.repo || '') &&
-        (d.branch || '') === (drill.branch || '') &&
-        (d.task || '') === (drill.task || '') &&
-        (d.agent || '') === (drill.agent || '');
-    };
+    // Per-level active state matching the prototype:
+    // repo active when drilled to repo (no branch); branch active when drilled
+    // to branch (no task); task active when drilled to task or agent under it;
+    // agent active when drilled to that agent name.
     const caret = (key, hasKids) => {
       if (!hasKids) return '<span class="nav-caret-spacer"></span>';
       const isOpen = open.has(key);
@@ -208,9 +209,10 @@ class LogFilters extends LogComponent {
       const rk = 'n:' + r.name;
       const rOpen = open.has(rk);
       const rDrill = { repo: r.name };
+      const rActive = drill.repo === r.name && !drill.branch;
       return `
         <li>
-          <div class="node${isActive(rDrill) ? ' active' : ''}" data-drill='${jattr(rDrill)}' data-nav-key="${esc(rk)}" data-has-kids="1">
+          <div class="node${rActive ? ' active' : ''}" data-drill='${jattr(rDrill)}' data-nav-key="${esc(rk)}" data-has-kids="1">
             ${caret(rk, true)}
             <span class="node-label">${esc(r.name)}</span>
             <span class="node-meta">${esc(fmt(r.ms.wall))}</span>
@@ -219,9 +221,10 @@ class LogFilters extends LogComponent {
             const bk = 'b:' + r.name + '|' + b.name;
             const bOpen = open.has(bk);
             const bDrill = { repo: r.name, branch: b.name };
+            const bActive = drill.repo === r.name && drill.branch === b.name && !drill.task;
             return `
               <li>
-                <div class="node${isActive(bDrill) ? ' active' : ''}" data-drill='${jattr(bDrill)}' data-nav-key="${esc(bk)}" data-has-kids="1">
+                <div class="node${bActive ? ' active' : ''}" data-drill='${jattr(bDrill)}' data-nav-key="${esc(bk)}" data-has-kids="1">
                   ${caret(bk, true)}
                   <span class="node-label mono">${esc(b.name)}</span>
                   <span class="node-meta">${esc(fmt(b.ms.wall))}</span>
@@ -230,15 +233,16 @@ class LogFilters extends LogComponent {
                   const tk = 't:' + r.name + '|' + b.name + '|' + t.title;
                   const tOpen = open.has(tk);
                   const tDrill = { repo: r.name, branch: b.name, task: t.title };
+                  const tActive = drill.task === t.title && drill.branch === b.name;
                   const agentCount = (t.agents || []).length;
                   return `
                     <li>
-                      <div class="node${isActive(tDrill) ? ' active' : ''}" data-drill='${jattr(tDrill)}' data-nav-key="${esc(tk)}" data-has-kids="${agentCount > 0 ? '1' : '0'}">
+                      <div class="node${tActive ? ' active' : ''}" data-drill='${jattr(tDrill)}' data-nav-key="${esc(tk)}" data-has-kids="${agentCount > 0 ? '1' : '0'}">
                         ${caret(tk, agentCount > 0)}
                         <span class="node-label">${esc(t.title)}</span>
                         <span class="node-meta">${esc(String(t.ms.logs || 0))}</span>
                       </div>
-                      ${tOpen && agentCount ? `<ul>${this._renderAgentNodes(t.agents || [], t, r, b, open, isActive, caret, jattr, 0)}</ul>` : ''}
+                      ${tOpen && agentCount ? `<ul>${this._renderAgentNodes(t.agents || [], t, r, b, open, drill, caret, jattr, 0)}</ul>` : ''}
                     </li>
                   `;
                 }).join('')}</ul>` : ''}
@@ -311,31 +315,50 @@ class LogFilters extends LogComponent {
     };
 
     // Navigation tree: single click = expand + drill, double click = collapse + drill
+    // A click timer distinguishes single from double click so the re-render
+    // triggered by setDrill doesn't destroy the DOM element between clicks.
+    const DBLCLICK_MS = 220;
+    this._navTimers = this._navTimers || new Map();
     this.querySelectorAll('[data-drill]').forEach((el) => {
       // Skip non-nav drill targets (breadcrumb etc. are in app-shell)
       if (!el.classList.contains('node')) return;
 
+      const key = el.getAttribute('data-nav-key') || el.getAttribute('data-drill');
+      const doDrill = (d) => {
+        if (d.agent) {
+          const cur = window.LogApp.state.drill || {};
+          if (cur.agent === d.agent && cur.task === d.task) {
+            window.LogApp.setDrill({ repo: d.repo, branch: d.branch, task: d.task });
+          } else {
+            window.LogApp.setDrill(d);
+          }
+        } else {
+          window.LogApp.setDrill(d);
+        }
+      };
+
       el.onclick = (e) => {
         e.stopPropagation();
         const d = JSON.parse(el.getAttribute('data-drill'));
-        const key = el.getAttribute('data-nav-key');
+        const navKey = el.getAttribute('data-nav-key');
         const hasKids = el.getAttribute('data-has-kids') === '1';
-        // Single click: expand the node + drill
-        if (hasKids && key) this._openNav.add(key);
-        window.LogApp.setDrill(d);
-        this.refresh();
+        if (this._navTimers.has(key)) clearTimeout(this._navTimers.get(key));
+        this._navTimers.set(key, setTimeout(() => {
+          this._navTimers.delete(key);
+          if (hasKids && navKey) this._openNav.add(navKey);
+          doDrill(d);
+        }, DBLCLICK_MS));
       };
 
       el.ondblclick = (e) => {
         e.stopPropagation();
         e.preventDefault();
         const d = JSON.parse(el.getAttribute('data-drill'));
-        const key = el.getAttribute('data-nav-key');
+        const navKey = el.getAttribute('data-nav-key');
         const hasKids = el.getAttribute('data-has-kids') === '1';
-        // Double click: collapse the node + drill
-        if (hasKids && key) this._openNav.delete(key);
-        window.LogApp.setDrill(d);
-        this.refresh();
+        if (this._navTimers.has(key)) { clearTimeout(this._navTimers.get(key)); this._navTimers.delete(key); }
+        if (hasKids && navKey) this._openNav.delete(navKey);
+        doDrill(d);
       };
     });
 
