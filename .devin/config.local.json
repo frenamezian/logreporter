@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Exec(python)",
+      "Exec(git)",
+      "Exec(npm)",
+      "edit",
+      "Write(**)"
+    ]
+  }
+}
