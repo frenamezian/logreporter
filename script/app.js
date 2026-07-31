@@ -5,7 +5,7 @@ const LogDb = window.LogDb;
 const { buildModel, stream, fmt } = window.LR;
 const { applyFilters, drillRows, unique } = window.Filters;
 
-const DEFAULT_FILTER = { search: '', repo: '', branch: '', agent: '', log_type: '', git: '', log_level: '', status: '', priority: '', from: '', to: '' };
+const DEFAULT_FILTER = { search: '', repo: [], branch: [], agent: [], log_type: [], git: [], log_level: [], status: [], priority: [], from: '', to: '' };
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -47,7 +47,9 @@ window.LogApp = {
     helpTopic: 'started',
     prevPage: 'hierarchy',
     confirm: null,
-    fileHandle: null
+    fileHandle: null,
+    navOpen: new Set(), // navigation tree expand/collapse state (persists across re-renders)
+    treeOpen: new Set() // hierarchy tree expand/collapse state (persists across re-renders)
   },
 
   async init() {
@@ -74,8 +76,21 @@ window.LogApp = {
   },
 
   setFilter(key, value) {
-    this.state.filter[key] = value || '';
+    // Respect the key's default type (array vs string) when clearing
+    this.state.filter[key] = value || (Array.isArray(DEFAULT_FILTER[key]) ? [] : '');
     this.state.drill = {}; // changing filters clears drill
+    this.state.selectedLog = null;
+    this.update();
+  },
+
+  // Toggle a value in an array-based filter (multi-select)
+  toggleFilter(key, value) {
+    if (!Array.isArray(this.state.filter[key])) this.state.filter[key] = [];
+    const arr = this.state.filter[key];
+    const idx = arr.indexOf(value);
+    if (idx >= 0) arr.splice(idx, 1);
+    else arr.push(value);
+    this.state.drill = {};
     this.state.selectedLog = null;
     this.update();
   },
@@ -163,20 +178,19 @@ window.LogApp = {
     this.update();
   },
   expandAll() {
-    const tree = document.querySelector('log-tree');
-    if (!tree || !tree._open) return;
+    if (!this.state.treeOpen) this.state.treeOpen = new Set();
     const s = this.state;
     s.treeModel.repos.forEach((r) => {
-      tree._open.add('r:' + r.name);
-      r.branches.forEach((b) => tree._open.add('b:' + r.name + '|' + b.name));
+      s.treeOpen.add('r:' + r.name);
+      r.branches.forEach((b) => s.treeOpen.add('b:' + r.name + '|' + b.name));
     });
-    tree.refresh();
+    const tree = document.querySelector('log-tree');
+    if (tree) tree.refresh();
   },
   collapseAll() {
+    if (this.state.treeOpen) this.state.treeOpen.clear();
     const tree = document.querySelector('log-tree');
-    if (!tree || !tree._open) return;
-    tree._open.clear();
-    tree.refresh();
+    if (tree) tree.refresh();
   },
 
   selectLog(log) {
@@ -265,9 +279,9 @@ window.LogApp = {
     const s = this.state;
     return applyFilters(s.rows, {
       ...DEFAULT_FILTER,
-      repo: scope.repo || '',
-      branch: scope.branch || '',
-      log_type: scope.log_type || ''
+      repo: scope.repo ? [scope.repo] : [],
+      branch: scope.branch ? [scope.branch] : [],
+      log_type: scope.log_type ? [scope.log_type] : []
     }).filter((l) => {
       if (scope.olderThan) {
         const t = l.timestamp?.replace(' ', 'T') + 'Z';

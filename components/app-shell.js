@@ -32,19 +32,21 @@ class AppShell extends HTMLElement {
         ${s.sidebar ? this._sidebarHTML() : this._railHTML()}
         <div class="content">
           ${this._breadcrumbHTML(s)}
-          <div class="page-host" id="pages">
-            <div data-page="hierarchy"><log-tree></log-tree></div>
-            <div data-page="chronology" hidden><log-timeline></log-timeline></div>
-            <div data-page="timegoes" hidden><log-timegoes></log-timegoes></div>
-            <div data-page="metrics" hidden><log-metrics></log-metrics></div>
-            <div data-page="maintenance" hidden><log-maintenance></log-maintenance></div>
+          <div class="content-row">
+            <div class="page-host" id="pages">
+              <div data-page="hierarchy"><log-tree></log-tree></div>
+              <div data-page="chronology" hidden><log-timeline></log-timeline></div>
+              <div data-page="timegoes" hidden><log-timegoes></log-timegoes></div>
+              <div data-page="metrics" hidden><log-metrics></log-metrics></div>
+              <div data-page="maintenance" hidden><log-maintenance></log-maintenance></div>
+            </div>
+            ${s.selectedLog ? this._detailPanelHTML() : ''}
           </div>
-          ${s.selectedLog ? this._detailPanelHTML() : ''}
         </div>
       </div>
     `;
     const p = s.page || 'hierarchy';
-    this.querySelectorAll('[data-page]').forEach((el) => { el.hidden = el.getAttribute('data-page') !== p; });
+    this.querySelectorAll('#pages > [data-page]').forEach((el) => { el.hidden = el.getAttribute('data-page') !== p; });
     this._wireShell();
   }
   _sidebarHTML() {
@@ -112,6 +114,17 @@ class AppShell extends HTMLElement {
     if (openFilters) openFilters.onclick = () => window.LogApp.openFilters();
     const closeDetail = this.querySelector('[data-close-detail]');
     if (closeDetail) closeDetail.onclick = () => window.LogApp.closeDetail();
+    // Close detail panel on outside click (clicking in the page-host area)
+    const pageHost = this.querySelector('#pages');
+    if (pageHost && window.LogApp.state.selectedLog) {
+      pageHost.onclick = (e) => {
+        // Only close if clicking on the page-host itself or non-entry elements
+        // (not when clicking on a log entry row that opens the detail)
+        if (!e.target.closest('[data-id]') && !e.target.closest('[data-time]') && !e.target.closest('.tree-head')) {
+          window.LogApp.closeDetail();
+        }
+      };
+    }
     this.querySelectorAll('[data-drill-clear]').forEach((b) => b.onclick = () => window.LogApp.clearDrill());
     this.querySelectorAll('.crumb[data-drill]').forEach((b) => b.onclick = () => {
       const d = JSON.parse(b.getAttribute('data-drill'));

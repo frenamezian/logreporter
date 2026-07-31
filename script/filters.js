@@ -5,24 +5,26 @@ const SEARCH_KEYS = ['log_title', 'log_description', 'agent_name', 'agent_path']
 
 function applyFilters(rows, filter) {
   const f = filter || {};
+  // Helper: check if a filter value is active (non-empty array or non-empty string)
+  const isActive = (v) => Array.isArray(v) ? v.length > 0 : !!v;
+  // Helper: check if a row's value matches the filter (array membership or string equality)
+  const match = (fv, val) => Array.isArray(fv) ? fv.includes(val) : fv === val;
   return rows.filter((l) => {
     if (f.search) {
       const q = f.search.toLowerCase();
       if (!SEARCH_KEYS.some((k) => (l[k] || '').toLowerCase().includes(q))) return false;
     }
-    if (f.repo && l.repo_name !== f.repo) return false;
-    if (f.branch && l.branch_name !== f.branch) return false;
-    if (f.agent && l.agent_path !== f.agent && l.agent_name !== f.agent) return false;
-    if (f.log_type && l.log_type !== f.log_type) return false;
-    // §3.1 — git action filter: only github logs whose derived git action
-    // matches survive; non-github rows are excluded when the filter is set.
-    if (f.git) {
+    if (isActive(f.repo) && !match(f.repo, l.repo_name)) return false;
+    if (isActive(f.branch) && !match(f.branch, l.branch_name)) return false;
+    if (isActive(f.agent) && !match(f.agent, l.agent_path) && !match(f.agent, l.agent_name)) return false;
+    if (isActive(f.log_type) && !match(f.log_type, l.log_type)) return false;
+    if (isActive(f.git)) {
       const ga = window.LR && window.LR.gitAction ? window.LR.gitAction(l) : '';
-      if (l.log_type !== 'github' || ga !== f.git) return false;
+      if (l.log_type !== 'github' || !match(f.git, ga)) return false;
     }
-    if (f.log_level && l.log_level !== f.log_level) return false;
-    if (f.status && l.status !== f.status) return false;
-    if (f.priority && l.priority !== f.priority) return false;
+    if (isActive(f.log_level) && !match(f.log_level, l.log_level)) return false;
+    if (isActive(f.status) && !match(f.status, l.status)) return false;
+    if (isActive(f.priority) && !match(f.priority, l.priority)) return false;
     if (f.from) {
       const t = l.timestamp?.replace(' ', 'T') + 'Z';
       if (t && new Date(t) < new Date(f.from)) return false;

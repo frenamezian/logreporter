@@ -111,6 +111,7 @@ log-filters .filter-group:first-child .filter-body { max-height: 44vh; overflow-
 .nav-tree .caret { width: 12px; text-align: center; opacity: .6; }
 
 .content { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+.content-row { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row; overflow: hidden; }
 .breadcrumb-strip { flex: 0 0 auto; display: flex; align-items: baseline; gap: 12px; padding: 8px 16px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
 .breadcrumb-crumbs { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-dim); }
 .breadcrumb-crumbs .crumb { background: transparent; border: 0; padding: 2px 6px; font-size: 12px; color: var(--accent); }
@@ -485,15 +486,15 @@ log-header { position: relative; }
   font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--text-dim); padding: 3px 12px 5px; border-bottom: 1px solid var(--border);
 }
-.entry-row { position: relative; cursor: pointer; font-size: 12.5px; }
+.entry-row { position: relative; cursor: pointer; font-size: 12.5px; height: 28px; overflow: hidden; }
 .entry-row:hover { background: rgba(255,255,255,0.04); }
-.entry-row > span { min-width: 0; overflow: hidden; white-space: nowrap; }
+.entry-row > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .entry-time { font-variant-numeric: tabular-nums; color: var(--text-dim); }
 .entry-type { white-space: nowrap; }
 .entry-agent { color: var(--text-dim); }
-.entry-text { white-space: nowrap; text-overflow: ellipsis; }
-.entry-title { font-size: 13px; }
-.entry-snippet { font-size: 12px; color: var(--text-dim); }
+.entry-text { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.entry-title { font-size: 13px; white-space: nowrap; }
+.entry-snippet { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
 .entry-level { justify-self: start; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* §4.5 — selection highlighting: 2px accent left border + 12% accent wash */
@@ -566,4 +567,53 @@ log-header { position: relative; }
 }
 .help-prev:hover, .help-next:hover { background: var(--surface-2); color: var(--text); border-color: var(--accent); }
 .help-next { margin-left: auto; text-align: right; }
+
+/* --- filter count pill next to FILTERS label (#4) --- */
+.filter-count-pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
+  font-size: 10.5px; font-weight: 600; line-height: 1;
+  background: var(--accent); color: #fff; border-radius: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- multi-select dropdown (#3) --- */
+.multiselect { position: relative; margin-bottom: 6px; }
+.ms-btn {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 6px 10px; font-size: 12.5px; text-align: left;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-dim); cursor: pointer;
+}
+.ms-btn:hover { border-color: var(--accent); }
+.ms-btn.open { border-color: var(--accent); color: var(--text); }
+.ms-btn-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-btn-arrow { flex: none; margin-left: 6px; font-size: 10px; opacity: .6; }
+.ms-panel {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+  max-height: 220px; overflow-y: auto;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: var(--shadow); padding: 4px; margin-top: 2px;
+}
+.ms-option {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px; font-size: 12px; cursor: pointer;
+  border-radius: 4px; color: var(--text);
+}
+.ms-option:hover { background: rgba(255,255,255,0.06); }
+.ms-option input { margin: 0; flex: none; }
+.ms-empty { padding: 8px; font-size: 12px; color: var(--text-dim); }
+.ms-summary {
+  font-size: 11px; color: var(--text-dim); padding: 2px 10px 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* --- nav tree caret refinements (#5, #6) --- */
+log-filters .nav-caret-spacer { flex: none; width: 14px; }
+log-filters .nav-caret-icon {
+  flex: none; width: 14px; text-align: center; font-size: 10px;
+  color: var(--text-dim); opacity: .7;
+}
+log-filters .node { user-select: none; }
+log-filters .node:hover .nav-caret-icon { opacity: 1; color: var(--text); }
 

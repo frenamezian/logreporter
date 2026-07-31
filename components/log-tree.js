@@ -10,14 +10,32 @@ function idleShare(ms) {
 }
 
 class LogTree extends LogComponent {
-  constructor() { super(); this._open = new Set(); }
+  constructor() { super(); }
+
+  // Open state persists on LogApp.state so it survives shell re-renders
+  get _open() {
+    if (!window.LogApp.state.treeOpen) window.LogApp.state.treeOpen = new Set();
+    return window.LogApp.state.treeOpen;
+  }
 
   render() {
     const s = window.LogApp.state;
     const model = s.treeModel;
     if (!model?.repos?.length) return '<div class="empty">No data</div>';
+    // Filter the hierarchy by drill scope and auto-expand the drilled path
+    const d = s.drill || {};
+    let repos = model.repos;
+    if (d.repo) {
+      repos = repos.filter((r) => r.name === d.repo);
+      // Auto-expand the repo and drilled branch
+      this._open.add('r:' + d.repo);
+      if (d.branch) {
+        this._open.add('b:' + d.repo + '|' + d.branch);
+        if (d.task) this._open.add('t:' + d.repo + '|' + d.branch + '|' + d.task);
+      }
+    }
     // AppShell renders the breadcrumb strip; LogTree only renders tree content.
-    return `${this.legend()}${model.repos.map((r) => this.repoCard(r, s)).join('')}`;
+    return `${this.legend()}${repos.map((r) => this.repoCard(r, s)).join('')}`;
   }
 
   // §4.2 — legend row with color swatches + Expand all / Collapse all buttons
@@ -44,18 +62,22 @@ class LogTree extends LogComponent {
     const key = 'r:' + r.name;
     const open = this._open.has(key);
     const ish = idleShare(r.ms);
+    const d = s.drill || {};
+    // Filter branches by drill scope
+    let branches = r.branches;
+    if (d.branch) branches = branches.filter((b) => b.name === d.branch);
     return `
       <div class="tree-card">
         <div class="tree-head" data-key="${esc(key)}" data-dbl="${esc(key)}" data-repo="${esc(r.name)}">
           <span class="caret">${open ? '▾' : '▸'}</span>
           <span class="name">${esc(r.name)}</span>
-          <span class="meta">${r.branches.length} branches · ${fmt(r.ms.wall)}${ish ? ' · ' + ish + '% idle' : ''}</span>
+          <span class="meta">${branches.length} branches · ${fmt(r.ms.wall)}${ish ? ' · ' + ish + '% idle' : ''}</span>
           <div style="width:120px">${bar(r.ms, Math.max(r.ms.wall, 1))}</div>
           <span class="tree-badges">${this.badges(r.ms)}</span>
           <button class="btn btn-secondary time-btn" data-time='{"repo":"${esc(r.name)}"}'>Time →</button>
         </div>
         <div class="tree-body" ${open ? '' : 'hidden'}>
-          ${r.branches.map((b) => this.branchBlock(r, b, s)).join('')}
+          ${branches.map((b) => this.branchBlock(r, b, s)).join('')}
         </div>
       </div>
     `;
@@ -152,41 +174,39 @@ class LogTree extends LogComponent {
   }
 
   attach() {
-    // caret / tree-head toggle (expand/collapse entry rows + nested bodies)
+    // Single click on any tree-head: expand the node + drill to it
+    // Double click on any tree-head: collapse the node + drill to it
     this.querySelectorAll('.tree-head[data-key]').forEach((h) => {
-      const isTask = h.classList.contains('task-head');
-      const toggle = (e) => {
-        // never toggle when clicking the Time → button (it has its own handler)
-        if (e.target.closest('[data-time]')) return;
-        if (isTask) {
-          // task: only the caret toggles; the title drills (data-drill)
-          if (e.target.closest('[data-drill]')) return;
-          if (!e.target.closest('[data-toggle]')) return;
-        }
+      h.onclick = (e) => {
+        if (e.target.closest('[data-time]')) return; // Time → has its own handler
+        e.stopPropagation();
         const k = h.getAttribute('data-key');
-        this._open.has(k) ? this._open.delete(k) : this._open.add(k);
-        this.refresh();
+        const repo = h.getAttribute('data-repo') || '';
+        const branch = h.getAttribute('data-branch') || '';
+        const task = h.getAttribute('data-task') || '';
+        // Single click: expand + drill
+        this._open.add(k);
+        const drill = {};
+        if (repo) drill.repo = repo;
+        if (branch) drill.branch = branch;
+        if (task) drill.task = task;
+        window.LogApp.setDrill(drill);
       };
-      h.onclick = toggle;
-      // §4.7 — double-click drills and collapses this node
       h.ondblclick = (e) => {
         if (e.target.closest('[data-time]')) return;
         e.preventDefault();
         e.stopPropagation();
-        const key = h.getAttribute('data-dbl');
+        const k = h.getAttribute('data-key');
         const repo = h.getAttribute('data-repo') || '';
         const branch = h.getAttribute('data-branch') || '';
         const task = h.getAttribute('data-task') || '';
-        window.LogApp.drillCollapse(key, repo, branch, task);
-      };
-    });
-
-    // single-click drill on task title
-    this.querySelectorAll('[data-drill]').forEach((el) => {
-      el.onclick = (e) => {
-        e.stopPropagation();
-        const d = JSON.parse(el.getAttribute('data-drill'));
-        window.LogApp.setDrill(d);
+        // Double click: collapse + drill
+        this._open.delete(k);
+        const drill = {};
+        if (repo) drill.repo = repo;
+        if (branch) drill.branch = branch;
+        if (task) drill.task = task;
+        window.LogApp.setDrill(drill);
       };
     });
 
