@@ -27,7 +27,8 @@ python log_activity.py \
   [--tags "#x #y"] \
   [--error-details "..."] \
   [--resolved-by <name>] \
-  [--performance-metrics '{"execution_ms":12}']
+  [--performance-metrics '{"execution_ms":12}'] \
+  [--commit-reference <sha>]
 ```
 Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defaults to `--agent`. `--log-level` defaults to `info`. `--user-id` defaults to `admin`.
 
@@ -60,6 +61,12 @@ Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defau
 - `decision` — a choice between alternatives. Record the alternatives and why you rejected them, not just the outcome. Use this whenever you picked an approach over others.
 - `issue` — a failure, retry, or block. Put the raw error text in `--error-details`. When it is later fixed, log a follow-up `issue` row with `--resolved-by` set.
 - `github` — any git operation. Tag the action in `--tags`: `#pull #push #commit #add #delete`.
+  - **For a commit specifically:** pass `--commit-reference <sha>` with the commit's SHA
+    (prefer the full 40-char SHA from `git rev-parse HEAD` / `git log -1 --format=%H`;
+    a short SHA from `git log -1 --format=%h` is accepted but the full SHA is canonical
+    and unambiguous for GitHub lookups). Set `--log-title` to
+    `"commit <commit_reference>: <title>"` (e.g. `"commit a1b2c3d4e5f6789012345678901234567890abcd: Add header dropdown"`),
+    and put the **full commit message** in `--log-description`. Tag with `#commit`.
 - `start` / `end` — only the brackets, never for intermediate steps.
 
 ## On every row
@@ -110,6 +117,25 @@ $ python log_activity.py --log-type end --repo log_reporter --branch main \
     --parent-trace-id 9f2c41a8 --log-title "Finished header dropdown component" \
     --log-level info --status completed
 # (exits immediately)
+```
+
+## Worked example (a github commit)
+
+After committing (e.g. `git commit` produced SHA `a1b2c3d4e5f6789012345678901234567890abcd`):
+
+```
+$ python log_activity.py --log-type github --repo log_reporter --branch main \
+    --task "Implement header dropdown" --agent header_agent \
+    --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
+    --parent-trace-id 9f2c41a8 \
+    --log-title "commit a1b2c3d4e5f6789012345678901234567890abcd: Add header dropdown" \
+    --log-description "Add header dropdown component
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>" \
+    --tags "#commit" --commit-reference a1b2c3d4e5f6789012345678901234567890abcd
+# (exits immediately; row written in the background with commit_reference set)
 ```
 
 Full contract and rationale: `UPDATE_PLAN.md` §16.

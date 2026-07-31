@@ -59,7 +59,7 @@ COLUMNS = [
     "status", "priority", "agent_name", "agent_path",
     "trace_id", "parent_trace_id", "user_id", "tags",
     "error_details", "resolved_by", "resolution_time",
-    "performance_metrics", "input_output_hash",
+    "performance_metrics", "input_output_hash", "commit_reference",
 ]
 
 
@@ -109,6 +109,7 @@ def row_values(args):
         "resolution_time": args.resolution_time,
         "performance_metrics": args.performance_metrics,
         "input_output_hash": args.input_output_hash,
+        "commit_reference": args.commit_reference,
     }
 
 
@@ -242,6 +243,10 @@ def main():
     p.add_argument("--performance-metrics", dest="performance_metrics",
                    help="JSON object: execution_ms, tokens, cpu_pct, memory_mb")
     p.add_argument("--input-output-hash", dest="input_output_hash")
+    p.add_argument("--commit-reference", dest="commit_reference",
+                   help="git commit SHA/reference for github commit logs "
+                        "(full 40-char SHA preferred; short SHA accepted). "
+                        "Used with --log-type github for commit actions.")
     p.add_argument("--_child", action="store_true", help=argparse.SUPPRESS)
     args = p.parse_args()
     _args = args
