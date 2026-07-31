@@ -108,4 +108,4 @@ class LogDb {
 }
 
 window.LogDb = LogDb;
-})();
+})(window);

@@ -180,4 +180,4 @@ window.LogApp = {
 
 document.body.innerHTML = '<app-shell></app-shell>';
 window.LogApp.init();
-})();
+})(window);

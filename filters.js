@@ -45,4 +45,4 @@ function unique(rows, key) {
 }
 
 window.Filters = { applyFilters, drillRows, unique };
-})();
+})(window);

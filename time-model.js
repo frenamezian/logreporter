@@ -186,4 +186,4 @@ const fmt = (ms) => {
 };
 
 window.LR = { TYPES, CATEGORIES, GIT_ACTIONS, gitAction, buildModel, stream, fmt };
-})();
+})(window);

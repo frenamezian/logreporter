@@ -525,4 +525,4 @@ class LogHelp extends LogComponent {
   }
 }
 customElements.define('log-help', LogHelp);
-})();
+})(window);
