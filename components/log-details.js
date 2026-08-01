@@ -44,6 +44,10 @@ class LogDetails extends LogComponent {
 
     return `
       <div class="detail">
+        <div class="trace-nav">
+          <button class="trace-nav-btn" data-act="prev" ${hasPrev ? '' : 'disabled'}>‹ Prev in trace</button>
+          <button class="trace-nav-btn" data-act="next" ${hasNext ? '' : 'disabled'}>Next in trace ›</button>
+        </div>
         <div class="detail-header">
           <div class="detail-header-text">
             <span class="type-badge type-${esc(l.log_type)}">${typeDot(l.log_type)}${esc(l.log_type)}</span>
@@ -51,10 +55,6 @@ class LogDetails extends LogComponent {
           </div>
         </div>
         <div class="detail-body">
-          <div class="trace-nav">
-            <button class="trace-nav-btn" data-act="prev" ${hasPrev ? '' : 'disabled'}>‹ Prev in trace</button>
-            <button class="trace-nav-btn" data-act="next" ${hasNext ? '' : 'disabled'}>Next in trace ›</button>
-          </div>
           ${l.task_title ? `
             <div class="detail-task">
               <span class="detail-task-label">Task</span>

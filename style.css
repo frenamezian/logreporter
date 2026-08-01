@@ -465,7 +465,7 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
 
 .detail-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 16px; }
 
-.trace-nav { display: flex; gap: 6px; }
+.trace-nav { display: flex; gap: 6px; padding: 10px 16px 8px; border-bottom: 1px solid var(--border); flex: none; }
 .trace-nav-btn { flex: 1; font-size: 11.5px; padding: 5px 8px; }
 .trace-nav-btn:disabled { opacity: .4; cursor: default; }
 
