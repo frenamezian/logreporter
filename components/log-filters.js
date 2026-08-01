@@ -78,21 +78,25 @@ class LogFilters extends LogComponent {
         <h4 class="section-head" data-toggle="filters">
           <span class="caret">${s.panels.filters ? '▾' : '▸'}</span>Filters
           ${filterCount ? `<span class="filter-count-pill">${filterCount}</span>` : ''}
+          <button class="section-head-btn" data-clear-all="1"${hasFilters ? '' : ' disabled'}
+                  title="Clear every active filter">Clear all filters</button>
         </h4>
-        <input class="filter-search" placeholder="Search title / description" data-key="search" value="${esc(s.filter.search)}">
+        ${chips}
+        <input class="filter-search" placeholder="Search title / description — press Enter" data-search="1" value="${esc(s.searchDraft ?? s.filter.search)}">
         <div class="filter-body" ${s.panels.filters ? '' : 'hidden'}>
           ${dropdowns}
           <div class="filter-row"><label>From</label><input type="date" data-key="from" value="${esc(s.filter.from)}"></div>
           <div class="filter-row"><label>To</label><input type="date" data-key="to" value="${esc(s.filter.to)}"></div>
-          ${chips}
-          ${hasFilters ? '<button class="small" data-clear-all="1" style="width:100%">Clear all filters</button>' : ''}
         </div>
       </div>
       <div class="filter-group">
-        <h4 class="section-head" data-toggle="nav"><span class="caret">${s.panels.nav ? '▾' : '▸'}</span>Navigation</h4>
+        <h4 class="section-head" data-toggle="nav">
+          <span class="caret">${s.panels.nav ? '▾' : '▸'}</span>Navigation
+          <button class="section-head-btn" data-drill-clear="1"${Object.keys(s.drill || {}).length ? '' : ' disabled'}
+                  title="Clear the selection and show every repository">All repositories</button>
+        </h4>
         <div class="filter-body" ${s.panels.nav ? '' : 'hidden'}>
           ${this._renderNav(s.treeModel)}
-          <button class="small" data-drill-clear="1" style="width:100%">All repositories</button>
         </div>
       </div>
     `;
@@ -189,7 +193,7 @@ class LogFilters extends LogComponent {
     return tree.map((node) => renderNode(node, depth)).join('');
   }
 
-  // Navigation tree: single click = expand + drill, double click = collapse + drill
+  // Navigation tree: click = drill + open, click the node you are on = collapse
   _renderNav(model) {
     if (!model?.repos?.length) return '<div class="empty">No data</div>';
     const open = this._openNav;
@@ -267,11 +271,41 @@ class LogFilters extends LogComponent {
       };
     });
 
-    // Search input + date inputs (string-based filters)
+    // Date inputs apply immediately; they do not lose a partial value the way
+    // a text field does.
     this.querySelectorAll('[data-key]').forEach((el) => {
       const key = el.getAttribute('data-key');
-      el.oninput = el.onchange = () => window.LogApp.setFilter(key, el.value);
+      el.onchange = () => window.LogApp.setFilter(key, el.value);
     });
+
+    // Search box: type freely, apply on Enter. Applying on every keystroke
+    // re-rendered the sidebar and destroyed the input after a single letter.
+    const search = this.querySelector('[data-search]');
+    if (search) {
+      search.oninput = () => { s.searchDraft = search.value; };
+      search.onfocus = () => { s.searchFocused = true; };
+      search.onblur = () => { s.searchFocused = false; };
+      search.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const v = search.value;
+          s.searchDraft = null;
+          window.LogApp.setFilter('search', v);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          s.searchDraft = null;
+          if (s.filter.search) window.LogApp.setFilter('search', '');
+          else search.value = '';
+        }
+      };
+      // A background re-render (poll tick, drill, …) rebuilds this input, so
+      // restore the caret where the user left it.
+      if (s.searchFocused) {
+        search.focus();
+        const n = search.value.length;
+        search.setSelectionRange(n, n);
+      }
+    }
 
     // Multi-select dropdown toggle (open/close)
     this.querySelectorAll('[data-ms-toggle]').forEach((btn) => {
@@ -306,24 +340,30 @@ class LogFilters extends LogComponent {
       };
     });
 
-    // Clear all filters
+    // Clear all filters — lives in the Filters section head, so the click must
+    // not also collapse that section.
     const clearAll = this.querySelector('[data-clear-all]');
-    if (clearAll) clearAll.onclick = () => {
+    if (clearAll) clearAll.onclick = (e) => {
+      e.stopPropagation();
+      if (clearAll.disabled) return;
       const f = window.LogApp.state.filter;
       Object.keys(f).forEach((k) => { f[k] = Array.isArray(f[k]) ? [] : ''; });
       window.LogApp.setFilter('search', '');
     };
 
-    // Navigation tree: single click = expand + drill, double click = collapse + drill
-    // A click timer distinguishes single from double click so the re-render
-    // triggered by setDrill doesn't destroy the DOM element between clicks.
-    const DBLCLICK_MS = 220;
-    this._navTimers = this._navTimers || new Map();
+    // Navigation tree: a click drills to the node and opens it; clicking the
+    // node you are already on (open + drilled) collapses it again. Drilling
+    // re-renders the sidebar, so we cannot rely on the dblclick event firing —
+    // this toggle rule makes a slow double click collapse just the same, and
+    // the dblclick handler below covers the fast case.
     this.querySelectorAll('[data-drill]').forEach((el) => {
       // Skip non-nav drill targets (breadcrumb etc. are in app-shell)
       if (!el.classList.contains('node')) return;
 
-      const key = el.getAttribute('data-nav-key') || el.getAttribute('data-drill');
+      const isDrilledTo = (d) => {
+        const cur = window.LogApp.state.drill || {};
+        return ['repo', 'branch', 'task', 'agent'].every((f) => (cur[f] || '') === (d[f] || ''));
+      };
       const doDrill = (d) => {
         if (d.agent) {
           const cur = window.LogApp.state.drill || {};
@@ -337,17 +377,19 @@ class LogFilters extends LogComponent {
         }
       };
 
+      // Suppress the text selection the second click of a double click makes
+      el.onmousedown = (e) => { if (e.detail > 1) e.preventDefault(); };
+
       el.onclick = (e) => {
         e.stopPropagation();
         const d = JSON.parse(el.getAttribute('data-drill'));
         const navKey = el.getAttribute('data-nav-key');
         const hasKids = el.getAttribute('data-has-kids') === '1';
-        if (this._navTimers.has(key)) clearTimeout(this._navTimers.get(key));
-        this._navTimers.set(key, setTimeout(() => {
-          this._navTimers.delete(key);
-          if (hasKids && navKey) this._openNav.add(navKey);
-          doDrill(d);
-        }, DBLCLICK_MS));
+        if (hasKids && navKey) {
+          if (this._openNav.has(navKey) && isDrilledTo(d)) this._openNav.delete(navKey);
+          else this._openNav.add(navKey);
+        }
+        doDrill(d);
       };
 
       el.ondblclick = (e) => {
@@ -355,16 +397,18 @@ class LogFilters extends LogComponent {
         e.preventDefault();
         const d = JSON.parse(el.getAttribute('data-drill'));
         const navKey = el.getAttribute('data-nav-key');
-        const hasKids = el.getAttribute('data-has-kids') === '1';
-        if (this._navTimers.has(key)) { clearTimeout(this._navTimers.get(key)); this._navTimers.delete(key); }
-        if (hasKids && navKey) this._openNav.delete(navKey);
+        if (el.getAttribute('data-has-kids') === '1' && navKey) this._openNav.delete(navKey);
         doDrill(d);
       };
     });
 
-    // All repositories reset
+    // All repositories reset — it sits inside the Navigation section head, so
+    // the click must not also collapse that section.
     const drillClear = this.querySelector('[data-drill-clear]');
-    if (drillClear) drillClear.onclick = () => window.LogApp.clearDrill();
+    if (drillClear) drillClear.onclick = (e) => {
+      e.stopPropagation();
+      if (!drillClear.disabled) window.LogApp.clearDrill();
+    };
 
     // Close open dropdown on outside click (deferred to avoid immediate close)
     if (this._openDropdown) {

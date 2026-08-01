@@ -1,0 +1,17 @@
+<p>A static page over a local SQLite file. No backend, no build step, no network calls except the one CDN fetch for the SQLite engine.</p>
+<pre>activity_logs.db  (written by the agents)
+      │
+      │  File System Access handle, or a file input
+      ▼
+sql.js (SQLite compiled to WASM, loaded from CDN)
+      │  SELECT * FROM logs ORDER BY timestamp DESC
+      ▼
+rows: plain objects, held in component state
+      │
+      ├─ filters + drill scope  → rows in scope
+      ├─ time-model.js          → tasks, runs, gaps, totals
+      └─ five pages + detail panel render from those</pre>
+<p>The database is read once per load or poll and never queried per view — every page is a pure function of the in-memory row array. That keeps interaction instant and means a 50k-row file behaves the same as a 500-row one.</p>
+<p>Deletions execute against the in-memory database as well as the row array; <strong>Save database copy</strong> exports the mutated bytes. The original file is never written to.</p>
+<p><strong>Libraries.</strong> sql.js 1.10.3 (CDN), React 18 (UMD), design-system bundle, time-model.js (local). Nothing else: no charting library, no date library, no icon package, no CSS framework. Bars, timelines and the waterfall are DOM elements with percentage widths; timestamps are handled with native <code>Date</code>; exports use <code>Blob</code> and an object URL.</p>
+<p>If the page must run fully offline, vendor <code>sql-wasm.js</code> and <code>sql-wasm.wasm</code> next to the page and point the loader's <code>locateFile</code> at them — that is the only remote dependency.</p>

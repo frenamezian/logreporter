@@ -1,0 +1,10 @@
+<p>Durations are never stored — they are derived, in <code>time-model.js</code>, so that any log file produces the same numbers.</p>
+<ul>
+<li><strong>Run</strong> — one <code>start</code>→<code>end</code> pair for one agent_path within one task. Its length is the run's agent time.</li>
+<li><strong>Segments</strong> — the entries inside a run split it into consecutive slices, each attributed to the log type that opened it: activity, issue, decision or github. That is what colours every stacked bar.</li>
+<li><strong>Wall-clock</strong> — first to last event of the task, regardless of who was working.</li>
+<li><strong>Idle</strong> — the complement of the union of all runs inside that wall-clock span. Overlapping agents are unioned first, so parallel work never manufactures idle time.</li>
+<li><strong>Agent time</strong> — the sum of run lengths. It can exceed wall-clock when agents overlap; that ratio is shown on the stat card.</li>
+</ul>
+<p>Branch, repository and global totals are sums of task totals, so an idle share is always comparable across levels. The largest gap per task is kept separately for the waterfall callout and the gaps table.</p>
+<p>Consequences worth knowing: a run whose <code>end</code> row never arrived contributes no time; a task with a single entry has zero wall-clock; and time spent by a process that logs nothing counts as idle, which is the honest reading.</p>

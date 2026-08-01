@@ -1,93 +1,32 @@
 (function (window) {
 'use strict';
 const LogComponent = window.LogComponent;
+const { esc } = window.LRC;
 
-/* --- Topic data (ported from .git/help_content.md) --- */
-const TOPICS = {
-  started: {
-    title: 'Getting started',
-    body: '<div style="display:flex;flex-direction:column;gap:11.2px;font-size:13.5px;line-height:1.65;color:color-mix(in srgb,var(--color-text) 82%,transparent)">\n<p style="margin:0">LogReporter is a single static page that reads an agent activity log — a SQLite file, <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">activity_logs.db</span> — directly in your browser. There is no server and no upload: the file is parsed in place and every view is computed from the rows in memory.</p>\n<p style="margin:0">On first load you are looking at the bundled demo dataset, so every page has something in it. To read your own log:</p>\n<ol style="margin:0;padding-left:22.4px;display:flex;flex-direction:column;gap:5.6px">\n<li>Open the data-source button in the header — it reads <em>Demo data</em> until a file is loaded.</li>\n<li>Choose <strong>Open activity_logs.db</strong> and pick your file (<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">.db</span>, <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">.sqlite</span>, <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">.sqlite3</span>).</li>\n<li>The status dot turns accent-coloured and the row count appears. Every page now reflects your data.</li>\n<li>Turn on <strong>Auto-poll</strong> if agents are still writing — the file is re-read whenever its modified time changes.</li>\n</ol>\n<p style="margin:0">Auto-poll needs a browser that supports file handles (Chromium-based). Elsewhere, press <strong>Refresh</strong> and re-pick the file.</p>\n<div style="padding:11.2px 14px;border-radius:8px;background:var(--color-surface);box-shadow:var(--shadow-sm);font-size:12.5px">A good first pass: leave the filters empty, skim <strong>Hierarchy</strong> to see which repositories carry the work, then hit <strong>Where time goes</strong> to see how much of that wall-clock time was idle.</div>\n</div>'
-  },
-  header: {
-    title: 'The header row',
-    body: '<div style="display:flex;flex-direction:column;gap:11.2px;font-size:13.5px;line-height:1.65;color:color-mix(in srgb,var(--color-text) 82%,transparent)">\n<p style="margin:0">The header is the only global control surface. Left to right:</p>\n<table class="table"><thead><tr><th>Control</th><th>What it does</th></tr></thead><tbody>\n<tr><td>Page tabs</td><td>Hierarchy, Chronology, Where time goes, Metrics, Maintenance. The count on Hierarchy is the number of rows passing the current filters.</td></tr>\n<tr><td>Shown / total</td><td>Rows in scope versus rows in the database — the fastest way to tell a filter is still on.</td></tr>\n<tr><td>CSV · JSON</td><td>Export the rows currently in scope, columns verbatim from the table.</td></tr>\n<tr><td>Refresh</td><td>Re-read the open file. On the demo dataset it just restamps the note.</td></tr>\n<tr><td>Data source</td><td>Status dot plus a menu: open a file, toggle auto-poll, save a copy of the database.</td></tr>\n<tr><td>?</td><td>This guide.</td></tr>\n</tbody></table>\n<p style="margin:0">Status dot: accent means a real database is loaded, grey means demo data, red means the last file could not be read — the menu shows the error.</p>\n</div>'
-  },
-  sidebar: {
-    title: 'Filters and the tree',
-    body: '<div style="display:flex;flex-direction:column;gap:11.2px;font-size:13.5px;line-height:1.65;color:color-mix(in srgb,var(--color-text) 82%,transparent)">\n<p style="margin:0">The left panel holds two collapsible sections: <strong>Filters</strong> and <strong>Navigation</strong>. Both narrow what every page shows.</p>\n<p style="margin:0"><strong>Filters</strong> are a flat AND of search text, repository, branch, agent, log type, git action, level, status, priority and a date range. Each active filter appears as a chip you can dismiss; the count next to the section title tells you how many are on even when the section is collapsed.</p>\n<p style="margin:0"><strong>Navigation</strong> is the repository → branch → task → agent tree. A single click scopes the whole dashboard to that node and writes it into the breadcrumb; a double click scopes it and collapses the node so you keep your place. Clicking an agent toggles that agent on and off within its task.</p>\n<p style="margin:0">The tree is deliberately built from the filtered set <em>before</em> your drill scope is applied, so every sibling stays visible and one click away — you never have to walk back up the breadcrumb to move sideways. <strong>All repositories</strong> clears the drill; the breadcrumb above the content does the same at any depth.</p>\n<p style="margin:0">The <strong>«</strong> button collapses the panel to a rail; the filter icon on the rail brings it back with the filter section open.</p>\n</div>'
-  },
-  hierarchy: {
-    title: 'Hierarchy page',
-    body: '<div style="display:flex;flex-direction:column;gap:11.2px;font-size:13.5px;line-height:1.65;color:color-mix(in srgb,var(--color-text) 82%,transparent)">\n<p style="margin:0">The default page: one card per repository, nested down through branches, tasks and finally the individual log entries.</p>\n<p style="margin:0">Every level carries the same summary vocabulary — a stacked bar showing how its wall-clock time splits into activity, issue, decision, GitHub and idle, then the wall-clock total and the idle share. Badges count logs and issues. <strong>Time →</strong> jumps to <em>Where time goes</em> already scoped to that node.</p>\n<p style="margin:0">Task rows list entries in ascending time with type, agent, title, a description snippet and level. Clicking a row opens the detail panel on the right; the row grid drops to time / type / entry while the panel is open so nothing is truncated.</p>\n<p style="margin:0"><strong>Expand all</strong> and <strong>Collapse all</strong> act on the rows in scope only — the navigation tree keeps its own open state.</p>\n</div>'
-  },
-  chronology: {
-    title: 'Chronology page',
-    body: '<div style="display:flex;flex-direction:column;gap:11.2px;font-size:13.5px;line-height:1.65;color:color-mix(in srgb,var(--color-text) 82%,transparent)">\n<p style="margin:0">One flat timeline across everything in scope, so interleaved agents read in the order they actually ran. Day headers carry the entry count; each entry shows its clock time, a coloured dot for its type, the agent, where it ran and how long its slice of the run lasted.</p>\n<p style="margin:0">Idle stretches are rows in their own right — a dashed rule labelled with the duration and the branch and task nobody was logging against. That is the point of this page: the silence is as legible as the activity.</p>\n<p style="margin:0">Order is newest-first by default. The stream renders the first 500 rows in scope; narrow the filters or drill down if you hit that ceiling.</p>\n</div>'
-  },
-  timegoes: {
-    title: 'Where time goes',
-    body: '<div style="display:flex;flex-direction:column;gap:11.2px;font-size:13.5px;line-height:1.65;color:color-mix(in srgb,var(--color-text) 82%,transparent)">\n<p style="margin:0">Where the wall-clock time went, with idle treated as a first-class category rather than a residual.</p>\n<p style="margin:0">The stat cards give totals for the scope: wall-clock, agent time (agents overlap, so this can exceed wall-clock), idle, issue time and GitHub time. Below them, one bar per item at whatever level you have drilled to — repositories, then branches of a repository, then tasks on a branch, then agents on a task. Clicking a bar drills one level further.</p>\n<p style="margin:0">Drilled to a single task, the <strong>waterfall</strong> appears: one row per agent run, indented by <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">agent_path</span>, positioned horizontally by real clock time and segmented by log type. The idle row underneath shows the gaps no run covers, and the largest single gap is called out in words.</p>\n<p style="margin:0">The closing table ranks the longest idle gaps anywhere in scope; each row jumps to its task.</p>\n</div>'
-  },
-  metrics: {
-    title: 'Metrics page',
-    body: '<div style="display:flex;flex-direction:column;gap:11.2px;font-size:13.5px;line-height:1.65;color:color-mix(in srgb,var(--color-text) 82%,transparent)">\n<p style="margin:0">Aggregates over the same filter and drill scope as everything else — nothing here is computed over the whole database unless the scope is the whole database.</p>\n<ul style="margin:0;padding-left:22.4px;display:flex;flex-direction:column;gap:5.6px">\n<li>Task counts by state: open, completed, failed, plus the idle share of wall-clock.</li>\n<li>Entries by log type, and GitHub operations broken down by git action (read from the tags on each <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">github</span> log).</li>\n<li>Median task duration per repository — median, not mean, because one abandoned task otherwise dominates.</li>\n<li>Open issues and escalations as cards; clicking one jumps to that entry in the hierarchy with its ancestors expanded.</li>\n<li>Agent time by <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">agent_path</span>, with the entry count alongside.</li>\n</ul>\n</div>'
-  },
-  maint: {
-    title: 'Maintenance page',
-    body: '<div style="display:flex;flex-direction:column;gap:11.2px;font-size:13.5px;line-height:1.65;color:color-mix(in srgb,var(--color-text) 82%,transparent)">\n<p style="margin:0">Logs are retained until you delete them — there is no automatic rotation, on purpose.</p>\n<p style="margin:0"><strong>Delete</strong> takes its own scope (repository, branch, older-than date, log type) that is independent of the page filters, shows how many rows match, and asks for confirmation before removing them. Rows are deleted from the database held in memory; use <strong>Save database copy</strong> to write the shrunken file back out. Nothing on disk changes until you save.</p>\n<p style="margin:0"><strong>Export</strong> honours the page filters and drill scope instead, so you can carve out one branch or one date range as CSV or JSON.</p>\n<p style="margin:0">The <strong>stored volume</strong> table is the only view that always reads the entire database: rows and issue counts per repository and branch with the oldest and newest timestamps, so you can see what is worth pruning.</p>\n</div>'
-  },
-  detail: {
-    title: 'Entry detail panel',
-    body: '<div style="display:flex;flex-direction:column;gap:11.2px;font-size:13.5px;line-height:1.65;color:color-mix(in srgb,var(--color-text) 82%,transparent)">\n<p style="margin:0">Clicking any entry — in the hierarchy, the chronology, a metrics card or the waterfall — opens the detail panel on the right.</p>\n<p style="margin:0">It shows the full description, tags, the raw error text when the entry carries one, and the agent path as a chain from the root agent down to the one that wrote the log. The <strong>Record</strong> grid lists the stored fields verbatim, including anything parsed out of <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">performance_metrics</span>: execution time, tokens, CPU and memory.</p>\n<p style="margin:0">Underneath, the <strong>trace timeline</strong> lists every entry sharing this <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">trace_id</span> with offsets from the first one, so a multi-agent run reads as a single sequence. <strong>Prev</strong> and <strong>Next in trace</strong> step through it without leaving the panel.</p>\n</div>'
-  },
-  architecture: {
-    title: 'Architecture',
-    body: '<p>A static page over a local SQLite file. No backend, no build step, no network calls except the one CDN fetch for the SQLite engine.</p>\n<pre>activity_logs.db  (written by the agents)\n      │\n      │  File System Access handle, or a file input\n      ▼\nsql.js (SQLite compiled to WASM, loaded from CDN)\n      │  SELECT * FROM logs ORDER BY timestamp DESC\n      ▼\nrows: plain objects, held in component state\n      │\n      ├─ filters + drill scope  → rows in scope\n      ├─ time-model.js          → tasks, runs, gaps, totals\n      └─ five pages + detail panel render from those</pre>\n<p>The database is read once per load or poll and never queried per view — every page is a pure function of the in-memory row array. That keeps interaction instant and means a 50k-row file behaves the same as a 500-row one.</p>\n<p>Deletions execute against the in-memory database as well as the row array; <strong>Save database copy</strong> exports the mutated bytes. The original file is never written to.</p>\n<p><strong>Libraries.</strong> sql.js 1.10.3 (CDN), React 18 (UMD), design-system bundle, time-model.js (local). Nothing else: no charting library, no date library, no icon package, no CSS framework. Bars, timelines and the waterfall are DOM elements with percentage widths; timestamps are handled with native <code>Date</code>; exports use <code>Blob</code> and an object URL.</p>\n<p>If the page must run fully offline, vendor <code>sql-wasm.js</code> and <code>sql-wasm.wasm</code> next to the page and point the loader\'s <code>locateFile</code> at them — that is the only remote dependency.</p>'
-  },
-  datamodel: {
-    title: 'Data model',
-    body: '<p>One table, <code>logs</code>, one row per event. Nothing is normalised away: repository, branch, task and agent identity live on every row so a single append is always sufficient.</p>\n<table><thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead><tbody>\n<tr><td>id</td><td>INTEGER PK</td><td>Autoincrement.</td></tr>\n<tr><td>timestamp</td><td>TEXT</td><td><code>YYYY-MM-DD HH:MM:SS</code>, UTC. Sorts lexically.</td></tr>\n<tr><td>repo_name / branch_name</td><td>TEXT</td><td>Verbatim identifiers, never humanised in the UI.</td></tr>\n<tr><td>task_title</td><td>TEXT</td><td>The unit of work. Empty rows group as "Untitled task".</td></tr>\n<tr><td>log_type</td><td>TEXT</td><td>start · end · activity · issue · decision · github</td></tr>\n<tr><td>log_title</td><td>TEXT</td><td>One line, imperative or past-tense. Shown in every list.</td></tr>\n<tr><td>log_description</td><td>TEXT</td><td>The prose. Snippets are truncated in lists, full text in the panel.</td></tr>\n<tr><td>log_level</td><td>TEXT</td><td>debug · info · warning · error</td></tr>\n<tr><td>status</td><td>TEXT</td><td>pending · in_progress · failed · completed</td></tr>\n<tr><td>priority</td><td>TEXT</td><td>low · medium · high · critical</td></tr>\n<tr><td>agent_name</td><td>TEXT</td><td>The agent that wrote the row.</td></tr>\n<tr><td>agent_path</td><td>TEXT</td><td>Slash-delimited lineage, e.g. <code>lead_architect/handler_dev</code>. Depth drives indentation.</td></tr>\n<tr><td>trace_id / parent_trace_id</td><td>TEXT</td><td>Shared by every row of one multi-agent run; the parent links a spawned run to its caller.</td></tr>\n<tr><td>user_id</td><td>TEXT</td><td>Who or what initiated the work.</td></tr>\n<tr><td>tags</td><td>TEXT</td><td>Comma-separated <code>#hash</code> tokens. On a github log one tag is the git action.</td></tr>\n<tr><td>error_details</td><td>TEXT</td><td>Raw exception or stderr. Rendered monospace, unmodified.</td></tr>\n<tr><td>resolved_by / resolution_time</td><td>TEXT</td><td>Set when a later step closes out an issue.</td></tr>\n<tr><td>performance_metrics</td><td>TEXT (JSON)</td><td>execution_ms, tokens, cpu_pct, memory_mb — all optional.</td></tr>\n<tr><td>input_output_hash</td><td>TEXT</td><td>Optional fingerprint for deduplication and replay.</td></tr>\n</tbody></table>\n<p><strong>The one hard invariant:</strong> each agent brackets its work with a <code>start</code> row and an <code>end</code> row carrying the same repo, branch, task and agent_path. Durations and idle gaps are derived from those pairs; without them a run has no span and contributes no time.</p>'
-  },
-  queries: {
-    title: 'Queries',
-    body: '<p>The dashboard issues exactly two statements. Everything else is computed in JavaScript over the result of the first.</p>\n<pre>-- read (on load, on Refresh, on each poll tick)\nSELECT * FROM logs ORDER BY timestamp DESC;\n\n-- delete (Maintenance, after confirmation; in memory until saved)\nDELETE FROM logs WHERE id IN (…);</pre>\n<p>Filtering in SQL was rejected deliberately: round-tripping WASM per keystroke is slower than filtering an array, and a single read keeps the file lock brief while agents are writing.</p>\n<p>If you would rather query the file directly, these mirror what the pages show.</p>\n<pre>-- run spans per agent (the basis of every duration)\nSELECT repo_name, branch_name, task_title, agent_path,\n       MIN(timestamp) AS started, MAX(timestamp) AS ended,\n       COUNT(*)       AS entries\nFROM logs\nGROUP BY repo_name, branch_name, task_title, agent_path\nORDER BY started;\n\n-- unresolved issues, worst first\nSELECT timestamp, repo_name, branch_name, agent_name, log_title, error_details\nFROM logs\nWHERE log_type = \'issue\' AND resolved_by IS NULL\nORDER BY CASE log_level WHEN \'error\' THEN 0 WHEN \'warning\' THEN 1 ELSE 2 END,\n         timestamp DESC;\n\n-- git activity by action\nSELECT CASE WHEN tags LIKE \'%#push%\'   THEN \'push\'\n            WHEN tags LIKE \'%#pull%\'   THEN \'pull\'\n            WHEN tags LIKE \'%#commit%\' THEN \'commit\'\n            ELSE \'other\' END AS action, COUNT(*) AS n\nFROM logs WHERE log_type = \'github\' GROUP BY action ORDER BY n DESC;</pre>\n<p>Two indexes are worth having on a large file: <code>(timestamp)</code> for the read, and <code>(repo_name, branch_name, task_title)</code> for grouped queries. Writers should run in WAL mode with a busy timeout so a poll never blocks an agent.</p>'
-  },
-  timemodel: {
-    title: 'Duration and idle model',
-    body: '<p>Durations are never stored — they are derived, in <code>time-model.js</code>, so that any log file produces the same numbers.</p>\n<ul>\n<li><strong>Run</strong> — one <code>start</code>→<code>end</code> pair for one agent_path within one task. Its length is the run\'s agent time.</li>\n<li><strong>Segments</strong> — the entries inside a run split it into consecutive slices, each attributed to the log type that opened it: activity, issue, decision or github. That is what colours every stacked bar.</li>\n<li><strong>Wall-clock</strong> — first to last event of the task, regardless of who was working.</li>\n<li><strong>Idle</strong> — the complement of the union of all runs inside that wall-clock span. Overlapping agents are unioned first, so parallel work never manufactures idle time.</li>\n<li><strong>Agent time</strong> — the sum of run lengths. It can exceed wall-clock when agents overlap; that ratio is shown on the stat card.</li>\n</ul>\n<p>Branch, repository and global totals are sums of task totals, so an idle share is always comparable across levels. The largest gap per task is kept separately for the waterfall callout and the gaps table.</p>\n<p>Consequences worth knowing: a run whose <code>end</code> row never arrived contributes no time; a task with a single entry has zero wall-clock; and time spent by a process that logs nothing counts as idle, which is the honest reading.</p>'
-  },
-  design: {
-    title: 'Page design',
-    body: '<p>The interface follows a near-neutral dark ground, medium-weight sans, 8px radii, and the accent used as a line, a tint or a glow — never as a flood. Every colour, size and space comes from the design tokens.</p>\n<p>Five categories carry a fixed colour across every chart, bar, dot and legend, and they never mean anything else:</p>\n<div style="display:flex;flex-wrap:wrap;gap:14px;padding:5.6px 0;font-size:12.5px">\n<span style="display:flex;align-items:center;gap:5.6px"><span style="width:10px;height:10px;flex:none;border-radius:2px;background:var(--activity)"></span>Activity</span>\n<span style="display:flex;align-items:center;gap:5.6px"><span style="width:10px;height:10px;flex:none;border-radius:2px;background:var(--issue)"></span>Issue</span>\n<span style="display:flex;align-items:center;gap:5.6px"><span style="width:10px;height:10px;flex:none;border-radius:2px;background:var(--decision)"></span>Decision</span>\n<span style="display:flex;align-items:center;gap:5.6px"><span style="width:10px;height:10px;flex:none;border-radius:2px;background:var(--github)"></span>GitHub</span>\n<span style="display:flex;align-items:center;gap:5.6px"><span style="width:10px;height:10px;flex:none;border-radius:2px;background:repeating-linear-gradient(135deg,rgba(255,255,255,0.3) 0 3px,transparent 3px 6px)"></span>Idle</span>\n</div>\n<p>Idle is hatched rather than coloured — absence should not read as another kind of work.</p>\n<p>Layout rules the pages share: one scroll region per page under a fixed header and breadcrumb; numbers tabular-figure and right-aligned; identifiers (repository, branch, agent) monospace and verbatim while closed enums are humanised; a single accent left border marks the selected row; and tags carry level, status and type rather than coloured text.</p>\n<p>The six pages that follow document the shell and each menu page as a wireframe plus the interaction rules behind it.</p>'
-  },
-  dsmaster: {
-    title: 'Master layout',
-    body: '<p>One shell holds every page. Only the content region changes; the header, the left panel, the breadcrumb strip and the detail panel are shared and keep their state across page switches.</p>\n<pre>┌────────────────────────────────────────────────────────────────────────────┐\n│ LogReporter      [Hierarchy 128][Chronology][Time][Metrics][Maint]         │\n│ Local monitor                    128/240 logs [CSV][JSON][Refresh][●Db▾][?]│\n├──────────────────┬─────────────────────────────────────────┬───────────────┤\n│ ▾ FILTERS    (3) │ All repos ▸ nocturne-web ▸ feat/… ▸ task │ ACTIVITY      │\n│ [search………]      │ Page title                              │ Entry title   │\n│  Repository  ▾   │ one-line explanation of this page        │ [‹Prev][Next›]│\n│  Branch      ▾   │─────────────────────────────────────────│ description…  │\n│  Agent       ▾   │ legend / page controls        [⋯][⋯]    │ #tags         │\n│  Log type    ▾   │                                         │ error_details │\n│  … 6 more        │                                         │ AGENT PATH    │\n│  [chips ✕][clear]│           content region                │ RECORD grid   │\n│                  │        (the only scroll area)            │ TRACE timeline│\n│ ▾ NAVIGATION     │                                         │               │\n│  All repositories│                                         │               │\n│  ▾ nocturne-web  │                                         │               │\n│    ▾ feat/telem… │                                         │               │\n│      ▾ Ship inge…│                                         │               │\n│        lead_arch…│                                         │               │\n│ «                │                                         │               │\n└──────────────────┴─────────────────────────────────────────┴───────────────┘\n   262px, collapses to 46px rail        fluid            372px, only when a\n                                                         row is selected</pre>\n<p><strong>What clicking does, shell-wide:</strong></p>\n<ul>\n<li><strong>A page tab</strong> — swaps the content region only. Filters, drill scope, tree open/closed state and the selected entry all survive, so switching pages is a change of lens, never a reset.</li>\n<li><strong>A tree node</strong> — single click sets the drill scope (and writes the breadcrumb); double click does that and collapses the node. An agent leaf toggles.</li>\n<li><strong>A breadcrumb</strong> — truncates the drill to that depth. <em>All repos</em> clears it.</li>\n<li><strong>A filter or chip</strong> — recomputes rows in scope; the header count and every page follow within the same frame.</li>\n<li><strong>Any entry row, anywhere</strong> — selects it and opens the detail panel; the content region reflows narrower rather than being overlaid, and dense row grids drop their optional columns.</li>\n<li><strong>The « rail button</strong> — collapses the left panel to a 46px rail carrying just the filter badge; the filter icon restores it with filters open.</li>\n<li><strong>?</strong> — replaces the whole body with this guide and remembers the page you left, which <em>Back to dashboard</em> returns to.</li>\n</ul>\n<p>Only one element scrolls per page: the content region. Header, breadcrumb and legend rows are fixed so the columns you are reading against never leave the screen.</p>'
-  },
-  dshierarchy: {
-    title: 'Hierarchy layout',
-    body: '<p>Four nesting levels in one scroll: repository card → branch band → task row → entry rows. Every level repeats the same right-hand summary vocabulary so they can be compared by eye.</p>\n<pre>● Activity ● Issue ● Decision ● GitHub ▨ Idle      [Expand all][Collapse all]\n┌────────────────────────────────────────────────────────────────────────────┐\n│ ▾ nocturne-web   2 branches   ▮▮▮▮▮▮▨▨▨   4h 12m · 38% idle  [12 logs][Time→]│\n│ ├─ ▾ feat/telemetry-ingest  3 tasks   ▮▮▮▨▨   2h 40m            [Time→]     │\n│ │   ├─ ▾ Ship telemetry ingest endpoint  [in progress]                      │\n│ │   │      9 entries · 1h 58m · 3 agents   [22m idle]           [Time→]     │\n│ │   │   TIME    TYPE      AGENT        ENTRY                     LEVEL      │\n│ │   │   09:02   Start     lead_arch…   Task accepted: telemet…   info       │\n│ │   │ ┃ 09:18   Activity  ·· handler…  Implemented POST /v1/i…   info       │\n│ │   │   09:26   Issue     ·· handler…  Retry 2/5 — SQLITE_BUSY   warning    │\n│ │   └─ ▸ Load-test the ingest path     [completed]                          │\n│ └─ ▸ main   1 task                    ▮▮▨      31m              [Time→]     │\n└────────────────────────────────────────────────────────────────────────────┘</pre>\n<p>┃ marks the selected row — a 2px accent left border plus a 12% accent wash.</p>\n<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>\n<tr><td>Caret or title, any level</td><td>Expands / collapses that node in place. Scroll position is preserved; nothing else changes.</td></tr>\n<tr><td><strong>Time →</strong></td><td>Sets the drill scope to that repository, branch or task <em>and</em> switches to Where time goes. The one cross-page jump on this page.</td></tr>\n<tr><td>Entry row</td><td>Selects the entry and opens the detail panel. The row grid collapses from five columns to time / type / entry so titles stay readable at the narrower width.</td></tr>\n<tr><td>Same row again / panel ✕</td><td>Closes the panel; the five-column grid returns.</td></tr>\n<tr><td>Expand all / Collapse all</td><td>Acts only on nodes holding rows in the current scope. The navigation tree keeps its own independent open state.</td></tr>\n</tbody></table>\n<p>Task rows sort entries ascending — you read a task the way it happened — while repositories keep the newest-first ordering of the underlying read.</p>'
-  },
-  dschrono: {
-    title: 'Chronology layout',
-    body: '<p>A three-column grid — clock gutter, rail, entry — repeated for every row, so time reads down a single edge regardless of who logged what.</p>\n<pre>● Activity ● Issue ● Decision ● GitHub ● Start/end ▨ Idle   142 entries\n                                              [Newest first][Oldest first]\n  WED 29 JUL ──────────────────────────────────────────────  38 entries\n  09:02  ●  [Start] Task accepted: telemetry ingest         1m\n         │  lead_architect · nocturne-web · feat/telemetry-ingest\n  09:18  ●  [Activity] Implemented POST /v1/ingest          6m\n         │  handler_dev · nocturne-web · feat/… · batch of up to 500 …\n  09:26  ●  [Issue] Retry 2/5 — SQLITE_BUSY                 2m\n         ┆  ▨ Idle 41m   no agent logged on feat/telemetry-ingest · Ship…\n  10:12  ●  [Decision] Write contention resolved with WAL    4m\n  TUE 28 JUL ──────────────────────────────────────────────  104 entries</pre>\n<p>Solid rail = an agent was logging. Dashed rail + hatched pill = nobody was. The idle row names the branch and task that went quiet, which is usually enough to explain it without opening anything.</p>\n<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>\n<tr><td>Entry block</td><td>Selects it and opens the detail panel — the fastest route from "something happened here" to the full record and its trace.</td></tr>\n<tr><td>Newest / Oldest first</td><td>Reverses the stream. Day headers and idle rows are recomputed, not merely flipped.</td></tr>\n<tr><td>Idle row</td><td>Inert by design. It is evidence, not a destination; drill to the task in the tree if you want its waterfall.</td></tr>\n<tr><td>Any filter or drill change</td><td>Rebuilds the stream, including which gaps count as idle — narrowing to one agent does <em>not</em> invent idle time for the others, because gaps come from the task model.</td></tr>\n</tbody></table>\n<p>The stream renders the first 500 rows in scope and says so in the header row when it truncates.</p>'
-  },
-  dstime: {
-    title: 'Where time goes layout',
-    body: '<p>The only page whose shape follows the drill depth. Stat cards, then one bar per item at the current level, then — at task level — the waterfall.</p>\n<pre>┌ Wall-clock ┐┌ Agent time ┐┌ Idle ──────┐┌ Issue time ┐┌ GitHub ────┐\n│ 8h 41m     ││ 6h 12m     ││ 2h 29m     ││ 44m        ││ 18m        │\n│ 12 tasks   ││ 71% of wall││ 29% of wall││ 9 issues   ││ 3% of wall │\n└────────────┘└────────────┘└────────────┘└────────────┘└────────────┘\nWhere time goes — tasks on feat/telemetry-ingest\nShip telemetry ingest [in progress] ▮▮▮▮▮▨▨▨  1h 58m  22% idle  3 agents\nLoad-test the ingest path [completed] ▮▮▮▨     41m     8% idle  2 agents\n\nWaterfall — Ship telemetry ingest endpoint   trace c41f8a0e\nAGENT                 09:02   09:31   10:00   10:29   10:58        SPAN\n· lead_architect      ▮▮▮▮▮                              ▮▮▮       12m\n  └ schema_designer      ▮▮▮▮▮▮                                     8m\n  └ handler_dev              ▮▮▮▮▮▮▮▮▮▮▮▮▮                         22m\nIDLE                              ▨▨▨▨▨          ▨▨▨▨            22m\nLargest single gap: 18m with no agent logging.\n\nLongest idle gaps in view\nREPO           BRANCH              TASK              FROM    TO     IDLE\nnocturne-web   feat/telemetry-…    Ship telemetry…   09:44   10:02  18m</pre>\n<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>\n<tr><td>A bar row</td><td>Drills one level deeper and re-renders this page at that level: repositories → branches → tasks → agents. Nothing else on screen moves.</td></tr>\n<tr><td>Breadcrumb / tree</td><td>The way back up. The page\'s level is always exactly the drill depth — there is no separate level control to fall out of sync.</td></tr>\n<tr><td>An agent bar (deepest level)</td><td>Toggles that agent as a filter within the task, so the waterfall and stats narrow to its runs.</td></tr>\n<tr><td>A waterfall row</td><td>Selects that run\'s opening entry and opens the detail panel — the bridge from "this agent took 22 minutes" to what it actually did.</td></tr>\n<tr><td>A gaps-table row</td><td>Drills to the repository, branch and task of that gap, which brings up its waterfall below.</td></tr>\n</tbody></table>\n<p>Bar segments are always ordered activity → issue → decision → GitHub → idle, so the same visual position means the same category on every row of every level.</p>'
-  },
-  dsmetrics: {
-    title: 'Metrics layout',
-    body: '<p>A two-column report: counted distributions on the left, things needing a person on the right. Static layout — it does not change with drill depth, only its numbers do.</p>\n<pre>┌ Open tasks ┐┌ Completed ─┐┌ Failed ────┐┌ Idle share ┐\n│ 4          ││ 7          ││ 1          ││ 29%        │\n│ 12 in view ││ 3 repos    ││ 9 issues   ││ 2h 29m     │\n└────────────┘└────────────┘└────────────┘└────────────┘\nEntries by log type                 │ Open issues and escalations\n● Start/end ● Activity ● Issue …    │ ┌──────────────────────────────┐\nActivity   ▮▮▮▮▮▮▮▮▮▮▮▮▮▮  64       │ │ nocturne-web · feat/telemet… │\nGitHub     ▮▮▮▮▮▮▮         31       │ │ Retry 2/5 — SQLITE_BUSY      │\nIssue      ▮▮▮▮            18       │ │ Concurrent writer held the…  │\nDecision   ▮▮▮             12       │ │ [warning][handler_dev]       │\n                                    │ └──────────────────────────────┘\nGitHub operations                   │ ┌ … 3 more ───────────────────┐\nPush       ▮▮▮▮▮▮▮▮▮▮      14       │\nCommit     ▮▮▮▮▮▮▮          9       │ Agent time\nPull       ▮▮▮▮             6       │ lead_architect/handler_dev  22m  41\n                                    │ lead_architect/schema_desi…  8m  12\nMedian task duration by repository  │ lead_architect              12m   9\nnocturne-web  ▮▮▮▮▮▮▮▮▮   1h 12m    │</pre>\n<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>\n<tr><td>An issue card</td><td>Jumps to Hierarchy with that entry selected and its repository, branch and task expanded around it — the one deep link on the page.</td></tr>\n<tr><td>Bars and stat cards</td><td>Read-only. They report the scope; they do not set it. Use the filters or the tree to change what is counted.</td></tr>\n<tr><td>Filters / drill</td><td>Every number here is scoped. Drill to a branch and "median task duration by repository" shows exactly one row — that is correct, not a bug.</td></tr>\n</tbody></table>\n<p>Bars are scaled against the largest value in view, not against a fixed maximum, so a distribution stays legible whether the scope holds 40 rows or 40,000. Zero-count rows are dropped rather than drawn empty.</p>'
-  },
-  dsmaint: {
-    title: 'Maintenance layout',
-    body: '<p>A narrow single column of destructive and export actions, capped at 900px so no control sits far from its label. Deliberately the plainest page in the app.</p>\n<pre>┌────────────────────────────────────────────────────────────────────┐\n│ Delete logs                                                        │\n│ Logs are retained until deleted here. Scope, review, confirm.      │\n│ ┌ Repository ▾┐┌ Branch ▾────┐┌ Older than ──┐┌ Log type ▾──┐      │\n│ 38 of 240 logs match this scope.            [Delete 38 logs]       │\n└────────────────────────────────────────────────────────────────────┘\n┌────────────────────────────────────────────────────────────────────┐\n│ Export — honours the page filters and drill scope, 128 rows        │\n│ [Export CSV] [Export JSON] [Save database copy]                    │\n└────────────────────────────────────────────────────────────────────┘\nStored volume        (always the whole database, never the scope)\nREPO           BRANCH            LOGS  ISSUES  OLDEST      NEWEST\nnocturne-web   feat/telemetry…    128      12  2026-07-28  2026-07-29\n\n                    ┌ Delete 38 logs? ───────────────────┐\n                    │ 38 logs in 2 repositories will be  │\n                    │ removed. This cannot be undone…    │\n                    │              [Cancel][Delete logs] │\n                    └────────────────────────────────────┘</pre>\n<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>\n<tr><td>A delete-scope field</td><td>Recomputes the match count immediately. This scope is <em>independent</em> of the page filters — deletion must be stated explicitly, never inherited from whatever you were browsing.</td></tr>\n<tr><td>Delete N logs</td><td>Opens the confirmation dialog restating the count and how many repositories it touches. No deletion happens yet.</td></tr>\n<tr><td>Confirm</td><td>Removes the rows from the in-memory database and the row array. Every page updates; the note tells you to save a copy to persist. The file on disk is untouched.</td></tr>\n<tr><td>Export CSV / JSON</td><td>Writes the rows in the current <em>filter and drill</em> scope, columns verbatim — the opposite scoping rule to delete, which is why the two live in separate cards with separate labels.</td></tr>\n<tr><td>Save database copy</td><td>Exports the mutated database bytes as a download. The only way a deletion becomes permanent.</td></tr>\n</tbody></table>'
-  },
-  prompts: {
-    title: 'Agent logging prompts',
-    body: '<p>The dashboard is only as good as the rows agents write. Give every agent this contract — as a system prompt fragment or a tool description — and the derived views work without further configuration.</p>\n<pre>You write an activity log to SQLite (table: logs) as you work.\n\nBRACKET YOUR WORK\n- First action on a task: append a `start` row.\n- Last action, always, even on failure: append an `end` row with the\n  final status. Durations and idle time are derived from this pair —\n  a missing `end` erases your work from every time view.\n\nWHILE WORKING, append one row per meaningful step:\n- activity  what you did (a file read, a build, an edit)\n- decision  a choice between alternatives — record the alternatives\n            and why you rejected them, not just the outcome\n- issue     a failure, retry or block; put the raw error text in\n            error_details; when it is later fixed, set resolved_by\n- github    any git operation; tag the action: #pull #push #commit\n            #add #delete\n\nON EVERY ROW\n- timestamp    UTC, \'YYYY-MM-DD HH:MM:SS\'\n- repo_name, branch_name, task_title  identical for every row of one\n  task, character for character — they are the grouping keys\n- agent_name   your name\n- agent_path   your lineage, e.g. lead_architect/handler_dev\n- trace_id     shared by every agent on this task; pass it to any\n               subagent you spawn and set its parent_trace_id\n- log_title    one line, specific: "Chose append-only over upsert",\n               not "Made a decision"\n- log_level    debug | info | warning | error\n- status       pending | in_progress | failed | completed\n- priority     low | medium | high | critical\n- tags         comma-separated #tokens\n\nDO NOT log per token, per line or inside tight loops. One row per\nstep a human would want to see. Silence between rows is reported as\nidle time, so log when you begin waiting on something slow.</pre>\n<p>The lead architect — the root agent, the only one with no parent — owns trace identity. Append this to its prompt only:</p>\n<pre>YOU OWN trace_id. Subagents never mint one.\n\nMINT A NEW trace_id (random hex, 8+ chars) WHEN:\n- You accept a new task — one trace per task_title, created on the\n  `start` row and reused by every row of that task, yours and your\n  subagents\'.\n- The same task is retried as a fresh attempt after an `end` row was\n  already written: new trace, and set parent_trace_id to the trace of\n  the attempt it replaces.\n- Work splits into an independent task that will be reported on its\n  own — its own task_title, its own trace, parent_trace_id set to\n  yours.\n\nREUSE THE CURRENT trace_id WHEN:\n- You spawn a subagent for this task. Pass your trace_id down; the\n  subagent writes it verbatim and sets parent_trace_id to your\n  trace_id. Never mint a trace per subagent — the trace timeline is\n  how a multi-agent run is read as one sequence.\n- You resume the same task after an idle stretch, a retry of a step,\n  or a handoff back from a subagent.\n- Anything you log about the same task_title, however far apart.\n\nNEVER: reuse a trace across different task_titles, mint one per log\nrow or per tool call, or leave trace_id empty — untraced rows still\nappear in the lists but drop out of trace navigation.\n\nLog the mint itself: on the `start` row that opens a new trace, say\nso in log_description (e.g. "trace 9f2c41a8 opened for this task;\nparent 4d10be77") so the lineage is legible without a join.</pre>\n<p>The append itself, with the columns in the order the dashboard expects:</p>\n<pre>INSERT INTO logs (\n  timestamp, repo_name, branch_name, task_title,\n  log_type, log_title, log_description, log_level,\n  status, priority, agent_name, agent_path,\n  trace_id, parent_trace_id, user_id, tags,\n  error_details, resolved_by, resolution_time,\n  performance_metrics, input_output_hash\n) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);</pre>\n<p>Write in WAL mode with a busy timeout of a few seconds so concurrent agents and the dashboard\'s polling never fight over the lock. Keep <code>performance_metrics</code> a small JSON object — execution_ms, tokens, cpu_pct, memory_mb — and omit it rather than writing nulls.</p>'
-  }
+/* --- Topic manifest. One HTML fragment per topic under docs/. Only the
+   titles and the nav order live here; the prose is edited as HTML. --- */
+const TITLES = {
+  started: 'Getting started',
+  header: 'The header row',
+  sidebar: 'Filters and the tree',
+  hierarchy: 'Hierarchy page',
+  chronology: 'Chronology page',
+  timegoes: 'Where time goes',
+  metrics: 'Metrics page',
+  maint: 'Maintenance page',
+  detail: 'Entry detail panel',
+  architecture: 'Architecture',
+  datamodel: 'Data model',
+  queries: 'Queries',
+  timemodel: 'Duration and idle model',
+  design: 'Page design',
+  dsmaster: 'Master layout',
+  dshierarchy: 'Hierarchy layout',
+  dschrono: 'Chronology layout',
+  dstime: 'Where time goes layout',
+  dsmetrics: 'Metrics layout',
+  dsmaint: 'Maintenance layout',
+  prompts: 'Agent logging prompts'
 };
 
 /* --- Nav structure --- */
@@ -95,85 +34,208 @@ const USER_GUIDE = ['started', 'header', 'sidebar', 'hierarchy', 'chronology', '
 const DEV_GUIDE = ['architecture', 'datamodel', 'queries', 'timemodel', 'design', 'dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmaint', 'prompts'];
 const SUB_ITEMS = new Set(['dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmaint']);
 const FLAT = USER_GUIDE.concat(DEV_GUIDE);
+const DOC_VERSION = 4;
 
-class LogHelp extends LogComponent {
-  _currentTopic() {
-    const s = window.LogApp;
-    return (s && s.state && s.state.helpTopic) || 'started';
+// Fragments are fetched once and kept, so revisiting a topic re-renders
+// synchronously — both components re-render on every state update. `text` is
+// the tag-stripped fragment, which is what the search box matches against.
+const cache = new Map();
+const text = new Map();
+let prefetched = false;
+
+async function loadDoc(id) {
+  if (cache.has(id)) return cache.get(id);
+  const res = await fetch('docs/' + id + '.html?v=' + DOC_VERSION);
+  if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+  const html = await res.text();
+  cache.set(id, html);
+  const el = document.createElement('div');
+  el.innerHTML = html;
+  text.set(id, (el.textContent || '').replace(/\s+/g, ' ').toLowerCase());
+  return html;
+}
+
+// Search matches prose, not just headings, so every fragment has to be in
+// memory. They are small and static; fetch them once, one at a time so the
+// visible topic is never queued behind twenty others.
+async function prefetchAll(onDone) {
+  if (prefetched) return;
+  prefetched = true;
+  for (const id of FLAT) {
+    try { await loadDoc(id); } catch (e) { /* a missing file just cannot match */ }
+  }
+  onDone();
+}
+
+// Search state is local to the nav: typing must not re-render the dashboard,
+// and the input itself is never rebuilt while the results below it are.
+let query = '';
+let searchFocused = false;
+
+const currentTopic = () => {
+  const id = window.LogApp?.state?.helpTopic;
+  return TITLES[id] ? id : 'started';
+};
+
+/* --- The outline, shown in the sidebar in place of the filters --- */
+class LogHelpNav extends LogComponent {
+  render() {
+    return `
+      <input class="filter-search" placeholder="Search the guide" data-help-search="1" value="${esc(query)}">
+      <div class="help-nav-results">${this._resultsHTML()}</div>`;
   }
 
-  render() {
-    const current = this._currentTopic();
+  _matches() {
+    const q = query.trim().toLowerCase();
+    if (!q) return null; // no search: show everything
+    const hits = new Map();
+    for (const id of FLAT) {
+      const inTitle = TITLES[id].toLowerCase().includes(q);
+      const inBody = (text.get(id) || '').includes(q);
+      if (inTitle || inBody) hits.set(id, inTitle ? 'title' : 'text');
+    }
+    return hits;
+  }
+
+  _resultsHTML() {
+    const current = currentTopic();
+    const hits = this._matches();
+    const q = query.trim();
+
     const navItem = (id) => {
-      const t = TOPICS[id];
-      if (!t) return '';
+      if (hits && !hits.has(id)) return '';
       const sub = SUB_ITEMS.has(id) ? ' help-nav-sub' : '';
       const active = id === current ? ' active' : '';
-      return '<button class="help-nav-item' + sub + active + '" data-topic="' + id + '">' + t.title + '</button>';
+      const label = q ? this._mark(TITLES[id], q) : esc(TITLES[id]);
+      const hint = hits && hits.get(id) === 'text' ? '<span class="help-nav-hint">in text</span>' : '';
+      return `<button class="help-nav-item${sub}${active}" data-topic="${id}">${label}${hint}</button>`;
+    };
+    const group = (heading, ids) => {
+      const items = ids.map(navItem).join('');
+      if (!items) return '';
+      return `
+        <div class="help-nav-group">
+          <div class="help-nav-heading">${heading}</div>
+          ${items}
+        </div>`;
     };
 
-    const userItems = USER_GUIDE.map(navItem).join('');
-    const devItems = DEV_GUIDE.map(navItem).join('');
-
-    return '\
-      <button class="help-back" data-back="1">← Back to dashboard</button>\
-      <div class="help-nav-group">\
-        <div class="help-nav-heading">User Guide</div>\
-        ' + userItems + '\
-      </div>\
-      <div class="help-nav-group">\
-        <div class="help-nav-heading">Developer Guide</div>\
-        ' + devItems + '\
-      </div>';
+    const groups = group('User Guide', USER_GUIDE) + group('Developer Guide', DEV_GUIDE);
+    if (!q) return groups;
+    const count = hits.size;
+    const pending = prefetched && text.size < FLAT.length ? ' · still indexing' : '';
+    return `
+      <div class="help-nav-count">
+        <span>${count} of ${FLAT.length} topics${pending}</span>
+        <button class="help-nav-clear" data-clear-search="1">Clear</button>
+      </div>
+      ${groups || '<div class="help-nav-empty">Nothing matches “' + esc(q) + '”.</div>'}`;
   }
 
-  _articleHTML() {
-    const current = this._currentTopic();
-    const topic = TOPICS[current] || TOPICS['started'];
-    const idx = FLAT.indexOf(current);
-    const prev = idx > 0 ? FLAT[idx - 1] : null;
-    const next = idx < FLAT.length - 1 ? FLAT[idx + 1] : null;
-
-    let footer = '<div class="help-article-footer">';
-    if (prev) {
-      footer += '<button class="help-prev" data-prev="' + prev + '">← ' + TOPICS[prev].title + '</button>';
-    } else {
-      footer += '<span></span>';
-    }
-    if (next) {
-      footer += '<button class="help-next" data-next="' + next + '">' + TOPICS[next].title + ' →</button>';
-    } else {
-      footer += '<span></span>';
-    }
-    footer += '</div>';
-
-    return '<h1 class="help-article-title">' + topic.title + '</h1>' + topic.body + footer;
+  // Highlight the hit inside a title. The title is escaped first, so the query
+  // is matched against escaped text — fine for words, which is what titles are.
+  _mark(title, q) {
+    const safe = esc(title);
+    const i = safe.toLowerCase().indexOf(q.toLowerCase());
+    if (i < 0) return safe;
+    return safe.slice(0, i) + '<mark>' + safe.slice(i, i + q.length) + '</mark>' + safe.slice(i + q.length);
   }
 
   attach() {
-    // Wire the back button
-    const back = this.querySelector('[data-back]');
-    if (back) back.onclick = () => window.LogApp.closeHelp();
+    this._wireResults();
 
-    // Wire nav item clicks
+    const search = this.querySelector('[data-help-search]');
+    if (search) {
+      // Filtering is local, so it can run per keystroke: only the results
+      // below the input are repainted, and the caret is never disturbed.
+      search.oninput = () => { query = search.value; this._paint(); };
+      search.onfocus = () => { searchFocused = true; };
+      search.onblur = () => { searchFocused = false; };
+      search.onkeydown = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); query = ''; search.value = ''; this._paint(); }
+      };
+      // A background re-render (poll tick, page switch) rebuilds this input.
+      if (searchFocused) {
+        search.focus();
+        const n = search.value.length;
+        search.setSelectionRange(n, n);
+      }
+    }
+
+    prefetchAll(() => { if (this.isConnected && query.trim()) this._paint(); });
+  }
+
+  _paint() {
+    const host = this.querySelector('.help-nav-results');
+    if (!host) return;
+    host.innerHTML = this._resultsHTML();
+    this._wireResults();
+  }
+
+  _wireResults() {
     this.querySelectorAll('[data-topic]').forEach((el) => {
       el.onclick = () => window.LogApp.setHelpTopic(el.getAttribute('data-topic'));
     });
-
-    // Populate the article sibling (#help-article)
-    const article = document.querySelector('#help-article');
-    if (article) {
-      article.innerHTML = this._articleHTML();
-      article.scrollTop = 0;
-
-      // Wire prev/next buttons
-      const prevBtn = article.querySelector('[data-prev]');
-      if (prevBtn) prevBtn.onclick = () => window.LogApp.setHelpTopic(prevBtn.getAttribute('data-prev'));
-      const nextBtn = article.querySelector('[data-next]');
-      if (nextBtn) nextBtn.onclick = () => window.LogApp.setHelpTopic(nextBtn.getAttribute('data-next'));
-    }
+    const clear = this.querySelector('[data-clear-search]');
+    if (clear) clear.onclick = () => {
+      query = '';
+      const search = this.querySelector('[data-help-search]');
+      if (search) search.value = '';
+      this._paint();
+    };
   }
 }
 
+/* --- The article, shown in the content region like any other page --- */
+class LogHelp extends LogComponent {
+  render() {
+    const current = currentTopic();
+    return `
+      <article class="help-article">
+        <h1 class="help-article-title">${esc(TITLES[current])}</h1>
+        <div class="help-article-body">${cache.get(current) ?? '<p class="help-loading">Loading…</p>'}</div>
+        ${this._footerHTML(current)}
+      </article>`;
+  }
+
+  _footerHTML(current) {
+    const idx = FLAT.indexOf(current);
+    const prev = idx > 0 ? FLAT[idx - 1] : null;
+    const next = idx < FLAT.length - 1 ? FLAT[idx + 1] : null;
+    return `
+      <div class="help-article-footer">
+        ${prev ? `<button class="help-prev" data-prev="${prev}">← ${esc(TITLES[prev])}</button>` : '<span></span>'}
+        ${next ? `<button class="help-next" data-next="${next}">${esc(TITLES[next])} →</button>` : '<span></span>'}
+      </div>`;
+  }
+
+  attach() {
+    const prevBtn = this.querySelector('[data-prev]');
+    if (prevBtn) prevBtn.onclick = () => window.LogApp.setHelpTopic(prevBtn.getAttribute('data-prev'));
+    const nextBtn = this.querySelector('[data-next]');
+    if (nextBtn) nextBtn.onclick = () => window.LogApp.setHelpTopic(nextBtn.getAttribute('data-next'));
+
+    const current = currentTopic();
+    // Only a genuine topic change goes back to the top; a poll tick must not
+    // yank the page out from under whoever is reading it.
+    if (current !== this._lastTopic) {
+      const host = this.closest('.page-host');
+      if (host) host.scrollTop = 0;
+      this._lastTopic = current;
+    }
+
+    if (cache.has(current)) return;
+    const body = this.querySelector('.help-article-body');
+    loadDoc(current).then((html) => {
+      // A later topic may have been selected while this fetch was in flight.
+      if (!body.isConnected || currentTopic() !== current) return;
+      body.innerHTML = html;
+    }).catch((e) => {
+      if (body.isConnected) body.innerHTML = `<p class="help-loading">Could not load docs/${current}.html (${esc(e.message)}).</p>`;
+    });
+  }
+}
+
+customElements.define('log-help-nav', LogHelpNav);
 customElements.define('log-help', LogHelp);
 })(window);

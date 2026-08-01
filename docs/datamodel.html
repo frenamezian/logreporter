@@ -1,0 +1,23 @@
+<p>One table, <code>logs</code>, one row per event. Nothing is normalised away: repository, branch, task and agent identity live on every row so a single append is always sufficient.</p>
+<table><thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead><tbody>
+<tr><td>id</td><td>INTEGER PK</td><td>Autoincrement.</td></tr>
+<tr><td>timestamp</td><td>TEXT</td><td><code>YYYY-MM-DD HH:MM:SS</code>, UTC. Sorts lexically.</td></tr>
+<tr><td>repo_name / branch_name</td><td>TEXT</td><td>Verbatim identifiers, never humanised in the UI.</td></tr>
+<tr><td>task_title</td><td>TEXT</td><td>The unit of work. Empty rows group as "Untitled task".</td></tr>
+<tr><td>log_type</td><td>TEXT</td><td>start · end · activity · issue · decision · github</td></tr>
+<tr><td>log_title</td><td>TEXT</td><td>One line, imperative or past-tense. Shown in every list.</td></tr>
+<tr><td>log_description</td><td>TEXT</td><td>The prose. Snippets are truncated in lists, full text in the panel.</td></tr>
+<tr><td>log_level</td><td>TEXT</td><td>debug · info · warning · error</td></tr>
+<tr><td>status</td><td>TEXT</td><td>pending · in_progress · failed · completed</td></tr>
+<tr><td>priority</td><td>TEXT</td><td>low · medium · high · critical</td></tr>
+<tr><td>agent_name</td><td>TEXT</td><td>The agent that wrote the row.</td></tr>
+<tr><td>agent_path</td><td>TEXT</td><td>Slash-delimited lineage, e.g. <code>lead_architect/handler_dev</code>. Depth drives indentation.</td></tr>
+<tr><td>trace_id / parent_trace_id</td><td>TEXT</td><td>Shared by every row of one multi-agent run; the parent links a spawned run to its caller.</td></tr>
+<tr><td>user_id</td><td>TEXT</td><td>Who or what initiated the work.</td></tr>
+<tr><td>tags</td><td>TEXT</td><td>Comma-separated <code>#hash</code> tokens. On a github log one tag is the git action.</td></tr>
+<tr><td>error_details</td><td>TEXT</td><td>Raw exception or stderr. Rendered monospace, unmodified.</td></tr>
+<tr><td>resolved_by / resolution_time</td><td>TEXT</td><td>Set when a later step closes out an issue.</td></tr>
+<tr><td>performance_metrics</td><td>TEXT (JSON)</td><td>execution_ms, tokens, cpu_pct, memory_mb — all optional.</td></tr>
+<tr><td>input_output_hash</td><td>TEXT</td><td>Optional fingerprint for deduplication and replay.</td></tr>
+</tbody></table>
+<p><strong>The one hard invariant:</strong> each agent brackets its work with a <code>start</code> row and an <code>end</code> row carrying the same repo, branch, task and agent_path. Durations and idle gaps are derived from those pairs; without them a run has no span and contributes no time.</p>

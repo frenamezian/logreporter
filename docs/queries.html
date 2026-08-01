@@ -1,0 +1,30 @@
+<p>The dashboard issues exactly two statements. Everything else is computed in JavaScript over the result of the first.</p>
+<pre>-- read (on load, on Refresh, on each poll tick)
+SELECT * FROM logs ORDER BY timestamp DESC;
+
+-- delete (Maintenance, after confirmation; in memory until saved)
+DELETE FROM logs WHERE id IN (…);</pre>
+<p>Filtering in SQL was rejected deliberately: round-tripping WASM per keystroke is slower than filtering an array, and a single read keeps the file lock brief while agents are writing.</p>
+<p>If you would rather query the file directly, these mirror what the pages show.</p>
+<pre>-- run spans per agent (the basis of every duration)
+SELECT repo_name, branch_name, task_title, agent_path,
+       MIN(timestamp) AS started, MAX(timestamp) AS ended,
+       COUNT(*)       AS entries
+FROM logs
+GROUP BY repo_name, branch_name, task_title, agent_path
+ORDER BY started;
+
+-- unresolved issues, worst first
+SELECT timestamp, repo_name, branch_name, agent_name, log_title, error_details
+FROM logs
+WHERE log_type = 'issue' AND resolved_by IS NULL
+ORDER BY CASE log_level WHEN 'error' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,
+         timestamp DESC;
+
+-- git activity by action
+SELECT CASE WHEN tags LIKE '%#push%'   THEN 'push'
+            WHEN tags LIKE '%#pull%'   THEN 'pull'
+            WHEN tags LIKE '%#commit%' THEN 'commit'
+            ELSE 'other' END AS action, COUNT(*) AS n
+FROM logs WHERE log_type = 'github' GROUP BY action ORDER BY n DESC;</pre>
+<p>Two indexes are worth having on a large file: <code>(timestamp)</code> for the read, and <code>(repo_name, branch_name, task_title)</code> for grouped queries. Writers should run in WAL mode with a busy timeout so a poll never blocks an agent.</p>

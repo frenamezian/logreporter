@@ -1,0 +1,23 @@
+<p>Four nesting levels in one scroll: repository card → branch band → task row → entry rows. Every level repeats the same right-hand summary vocabulary so they can be compared by eye.</p>
+<pre>● Activity ● Issue ● Decision ● GitHub ▨ Idle      [Expand all][Collapse all]
+┌────────────────────────────────────────────────────────────────────────────┐
+│ ▾ nocturne-web   2 branches   ▮▮▮▮▮▮▨▨▨   4h 12m · 38% idle  [12 logs][Time→]│
+│ ├─ ▾ feat/telemetry-ingest  3 tasks   ▮▮▮▨▨   2h 40m            [Time→]     │
+│ │   ├─ ▾ Ship telemetry ingest endpoint  [in progress]                      │
+│ │   │      9 entries · 1h 58m · 3 agents   [22m idle]           [Time→]     │
+│ │   │   TIME    TYPE      AGENT        ENTRY                     LEVEL      │
+│ │   │   09:02   Start     lead_arch…   Task accepted: telemet…   info       │
+│ │   │ ┃ 09:18   Activity  ·· handler…  Implemented POST /v1/i…   info       │
+│ │   │   09:26   Issue     ·· handler…  Retry 2/5 — SQLITE_BUSY   warning    │
+│ │   └─ ▸ Load-test the ingest path     [completed]                          │
+│ └─ ▸ main   1 task                    ▮▮▨      31m              [Time→]     │
+└────────────────────────────────────────────────────────────────────────────┘</pre>
+<p>┃ marks the selected row — a 2px accent left border plus a 12% accent wash.</p>
+<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
+<tr><td>Caret or title, any level</td><td>Expands / collapses that node in place. Scroll position is preserved; nothing else changes.</td></tr>
+<tr><td><strong>Time →</strong></td><td>Sets the drill scope to that repository, branch or task <em>and</em> switches to Where time goes. The one cross-page jump on this page.</td></tr>
+<tr><td>Entry row</td><td>Selects the entry and opens the detail panel. The row grid collapses from five columns to time / type / entry so titles stay readable at the narrower width.</td></tr>
+<tr><td>Same row again / panel ✕</td><td>Closes the panel; the five-column grid returns.</td></tr>
+<tr><td>Expand all / Collapse all</td><td>Acts only on nodes holding rows in the current scope. The navigation tree keeps its own independent open state.</td></tr>
+</tbody></table>
+<p>Task rows sort entries ascending — you read a task the way it happened — while repositories keep the newest-first ordering of the underlying read.</p>

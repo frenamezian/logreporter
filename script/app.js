@@ -45,12 +45,17 @@ window.LogApp = {
     poll: false,
     order: 'newest',
     helpTopic: 'started',
-    prevPage: 'hierarchy',
     confirm: null,
+    selectedRun: null, // waterfall run whose logs are listed below it
     fileHandle: null,
     navOpen: new Set(), // navigation tree expand/collapse state (persists across re-renders)
     treeOpen: new Set(), // hierarchy tree expand/collapse state (persists across re-renders)
-    detailWidth: 372 // right detail panel width (drag to resize)
+    detailWidth: 372, // right detail panel width (drag to resize)
+    sidebarWidth: 320, // left sidebar width (drag to resize)
+    // Search box text the user is still typing. The filter itself is only
+    // applied on Enter, so this draft has to survive shell re-renders.
+    searchDraft: null,
+    searchFocused: false
   },
 
   async init() {
@@ -69,7 +74,6 @@ window.LogApp = {
   },
 
   setPage(page) {
-    if (page === 'help' && this.state.page !== 'help') this.state.prevPage = this.state.page;
     this.state.page = page;
     if (page === 'help' || page === 'maintenance') this.state.selectedLog = null;
     this.state.srcOpen = false;
@@ -79,6 +83,7 @@ window.LogApp = {
   setFilter(key, value) {
     // Respect the key's default type (array vs string) when clearing
     this.state.filter[key] = value || (Array.isArray(DEFAULT_FILTER[key]) ? [] : '');
+    if (key === 'search') this.state.searchDraft = null;
     this.state.drill = {}; // changing filters clears drill
     this.state.selectedLog = null;
     this.update();
@@ -101,6 +106,7 @@ window.LogApp = {
     // level clears deeper keys (e.g. clicking a task clears a stale agent).
     this.state.drill = { ...drill };
     this.state.selectedLog = null;
+    this.state.selectedRun = null;
     this.update();
   },
 
@@ -171,15 +177,6 @@ window.LogApp = {
     this.state.helpTopic = id;
     this.render();
   },
-  closeHelp() {
-    this.setPage(this.state.prevPage || 'hierarchy');
-  },
-  drillCollapse(key, repo, branch, task) {
-    this.setDrill({ repo, branch, task });
-    const tree = document.querySelector('log-tree');
-    if (tree && tree._open) tree._open.delete(key);
-    this.update();
-  },
   expandAll() {
     if (!this.state.treeOpen) this.state.treeOpen = new Set();
     const s = this.state;
@@ -200,15 +197,41 @@ window.LogApp = {
 
   selectLog(log) {
     this.state.selectedLog = log;
+    if (log) {
+      // Prev/Next in trace can walk into another task. Follow it, so the
+      // waterfall keeps showing the entry that is open on the right instead of
+      // silently leaving the scope behind.
+      const task = log.task_title || 'Untitled task';
+      const d = this.state.drill || {};
+      if (d.task && d.task !== task) {
+        this.state.drill = { repo: log.repo_name, branch: log.branch_name, task };
+        this.recompute();
+      }
+      // The run log list below the waterfall follows the selected entry
+      this.state.selectedRun = this.runOf(log);
+    }
     this.render();
   },
 
-  update() {
+  // The run (agent start→end pair) that contains a given log, as {path, from}
+  runOf(log) {
+    const wanted = log.task_title || 'Untitled task';
+    const task = (this.state.model.tasks || []).find((t) =>
+      t.repo === log.repo_name && t.branch === log.branch_name && t.title === wanted);
+    const run = task?.runs.find((r) => r.events.some((e) => e.id === log.id));
+    return run ? { path: run.path, from: run.from } : null;
+  },
+
+  recompute() {
     const s = this.state;
     s.filtered = applyFilters(s.rows, s.filter);
     s.inScope = drillRows(s.filtered, s.drill);
     s.treeModel = buildModel(s.filtered);
     s.model = buildModel(s.inScope);
+  },
+
+  update() {
+    this.recompute();
     this.render();
   },
 

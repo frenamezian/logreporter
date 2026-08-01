@@ -8,8 +8,11 @@ class LogDetails extends LogComponent {
     const l = window.LogApp.state.selectedLog;
     if (!l) return '<div class="empty">Select a log to see details</div>';
 
-    // §9.3 — trace siblings (same trace_id, sorted by timestamp)
-    const trace = (l.trace_id && window.LogApp.state.inScope.filter((x) => x.trace_id && x.trace_id === l.trace_id)) || [];
+    // §9.3 — trace siblings (same trace_id, sorted by timestamp). Built from the
+    // filtered rows rather than the drilled ones: a trace is a single run of
+    // work and can cross tasks, and cutting it at the drill boundary would hide
+    // the other half of the story. LogApp.selectLog re-scopes to follow.
+    const trace = (l.trace_id && window.LogApp.state.filtered.filter((x) => x.trace_id && x.trace_id === l.trace_id)) || [];
     trace.sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
     const idx = trace.findIndex((x) => x.id === l.id);
     const hasPrev = idx > 0;
@@ -52,6 +55,11 @@ class LogDetails extends LogComponent {
             <button class="trace-nav-btn" data-act="prev" ${hasPrev ? '' : 'disabled'}>‹ Prev in trace</button>
             <button class="trace-nav-btn" data-act="next" ${hasNext ? '' : 'disabled'}>Next in trace ›</button>
           </div>
+          ${l.task_title ? `
+            <div class="detail-task">
+              <span class="detail-task-label">Task</span>
+              <span class="detail-task-name">${esc(l.task_title)}</span>
+            </div>` : ''}
           ${l.log_description ? `<p class="detail-desc">${esc(l.log_description)}</p>` : ''}
           ${tags.length ? `<div class="tag-row">${tags.map((t) => `<span class="tag tag-accent">${esc(t)}</span>`).join('')}</div>` : ''}
           ${l.error_details ? `
@@ -103,7 +111,7 @@ class LogDetails extends LogComponent {
   attach() {
     const l = window.LogApp.state.selectedLog;
     if (!l) return;
-    const trace = (l.trace_id && window.LogApp.state.inScope.filter((x) => x.trace_id && x.trace_id === l.trace_id)) || [];
+    const trace = (l.trace_id && window.LogApp.state.filtered.filter((x) => x.trace_id && x.trace_id === l.trace_id)) || [];
     trace.sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
     const idx = trace.findIndex((x) => x.id === l.id);
 

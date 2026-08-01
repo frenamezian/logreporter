@@ -10,6 +10,16 @@ const FILTER_LABELS = [
   ['priority', 'Priority'], ['from', 'From'], ['to', 'To']
 ];
 
+// Hierarchy levels, in order. The volume table groups by the level just below
+// the current drill scope, so drilling one step down always answers "and what
+// is that count made of?".
+const LEVELS = [
+  { key: 'repo', label: 'Repo', of: (l) => l.repo_name || '—' },
+  { key: 'branch', label: 'Branch', of: (l) => l.branch_name || '—' },
+  { key: 'task', label: 'Task', of: (l) => l.task_title || 'Untitled task' },
+  { key: 'agent', label: 'Agent path', of: (l) => l.agent_path || l.agent_name || '—' }
+];
+
 class LogMaintenance extends LogComponent {
   render() {
     const s = window.LogApp.state;
@@ -30,64 +40,110 @@ class LogMaintenance extends LogComponent {
 
     // Active filter + drill summary (read-only chips reflecting the left sidebar)
     const filterChips = this._filterChips(s);
-    const drillChips = this._drillChips(s);
-
-    // stored-volume table (scoped to the current drill/filter)
-    const byRepo = new Map();
-    rows.forEach((l) => {
-      const k = l.repo_name + '\0' + l.branch_name;
-      if (!byRepo.has(k)) byRepo.set(k, { repo: l.repo_name, branch: l.branch_name, n: 0, issues: 0, oldest: l.timestamp, newest: l.timestamp });
-      const v = byRepo.get(k);
-      v.n++; if (l.log_type === 'issue') v.issues++;
-      if (l.timestamp < v.oldest) v.oldest = l.timestamp;
-      if (l.timestamp > v.newest) v.newest = l.timestamp;
-    });
-    const vols = Array.from(byRepo.values()).sort((a, b) => b.n - a.n);
 
     const confirm = s.confirm;
 
     return `
-      <div class="tree-card" style="padding:14px">
-        <h4>Delete logs</h4>
-        <p class="maint-note">Uses the same filters and drill scope as the left panel.</p>
-        ${filterChips || drillChips ? `<div class="maint-scope-summary">${drillChips}${filterChips}</div>` : '<p class="maint-no-filter">No filters active — all logs in scope.</p>'}
-        <div class="maint-del-extra">
-          <label>Older than</label>
-          <input type="date" data-del="olderThan" value="${esc(olderThan)}">
+      ${this._scopeBar(s)}
+      <div class="maint-row">
+        <div class="tree-card maint-card">
+          <h4>Delete logs</h4>
+          <p class="maint-note">Uses the same filters and drill scope as the left panel.</p>
+          <div class="maint-card-mid">
+            ${filterChips ? `<div class="maint-scope-summary">${filterChips}</div>` : '<p class="maint-no-filter">No filters active — all logs in scope.</p>'}
+            <div class="maint-del-extra">
+              <label>Older than</label>
+              <input type="date" data-del="olderThan" value="${esc(olderThan)}">
+            </div>
+          </div>
+          <div class="maint-card-actions">
+            <span data-match class="maint-match">${n} of ${total} logs match${n ? ` in ${repoCount} ${repoCount === 1 ? 'repository' : 'repositories'}` : ''}</span>
+            <button class="primary" data-delete="1"${n ? '' : ' disabled'}>Delete ${n} logs</button>
+          </div>
         </div>
-        <div class="maint-del-row">
-          <button class="primary" data-delete="1"${n ? '' : ' disabled'}>Delete ${n} logs</button>
-          <span data-match class="maint-match">${n} of ${total} logs match${n ? ` in ${repoCount} ${repoCount === 1 ? 'repository' : 'repositories'}` : ''}</span>
+        <div class="tree-card maint-card">
+          <h4>Export</h4>
+          <p class="maint-note">Honours the page filters and drill scope, ${rows.length} rows in scope.</p>
+          <div class="maint-card-mid"></div>
+          <div class="maint-card-actions">
+            <button class="small" data-csv="1">Export CSV (filtered)</button>
+            <button class="small" data-json="1">Export JSON (filtered)</button>
+            <button class="small" data-save="1">Save database copy</button>
+          </div>
         </div>
       </div>
-      <div class="tree-card" style="padding:14px;margin-top:12px">
-        <h4>Export</h4>
-        <p class="maint-note">Honours the page filters and drill scope, ${rows.length} rows in scope.</p>
-        <div class="maint-export-row">
-          <button class="small" data-csv="1">Export CSV (filtered)</button>
-          <button class="small" data-json="1">Export JSON (filtered)</button>
-          <button class="small" data-save="1">Save database copy</button>
-        </div>
-      </div>
-      <h4 class="maint-vol-head">Stored volume <span class="maint-vol-note">(scoped to the current filter and drill)</span></h4>
-      <table class="log-table">
-        <thead><tr><th>Repo</th><th>Branch</th><th>Logs</th><th>Issues</th><th>Oldest</th><th>Newest</th></tr></thead>
-        <tbody>${vols.map((v) => `<tr><td>${esc(v.repo)}</td><td>${esc(v.branch)}</td><td>${v.n}</td><td>${v.issues}</td><td class="mono">${v.oldest}</td><td class="mono">${v.newest}</td></tr>`).join('')}</tbody>
-      </table>
+      ${this._volumeTable(rows, s)}
       ${confirm ? this._confirmModal(confirm) : ''}
     `;
   }
 
-  // Read-only chips showing the current drill scope (from the nav tree / breadcrumb)
-  _drillChips(s) {
+  // §7a — the scope trail, as clickable pills with chevrons, above everything
+  // else on the page: it is what every count below is counting.
+  _scopeBar(s) {
     const d = s.drill || {};
-    const parts = [];
-    if (d.repo) parts.push('Repo: ' + d.repo);
-    if (d.branch) parts.push('Branch: ' + d.branch);
-    if (d.task) parts.push('Task: ' + d.task);
-    if (d.agent) parts.push('Agent: ' + d.agent);
-    if (!parts.length) return '';
-    return '<span class="maint-chip-group">' + parts.map((p) => `<span class="chip maint-chip">${esc(p)}</span>`).join('') + '</span>';
+    const crumbs = [{ label: 'All repos', kind: '', drill: {} }];
+    if (d.repo) crumbs.push({ label: d.repo, kind: 'Repo', drill: { repo: d.repo } });
+    if (d.branch) crumbs.push({ label: d.branch, kind: 'Branch', drill: { repo: d.repo, branch: d.branch } });
+    if (d.task) crumbs.push({ label: d.task, kind: 'Task', drill: { repo: d.repo, branch: d.branch, task: d.task } });
+    if (d.agent) crumbs.push({ label: d.agent, kind: 'Agent', drill: { repo: d.repo, branch: d.branch, task: d.task, agent: d.agent } });
+    const pills = crumbs.map((c, i) => `
+      ${i ? '<span class="scope-chev">›</span>' : ''}
+      <button class="scope-pill${i === crumbs.length - 1 ? ' current' : ''}" data-scope='${esc(JSON.stringify(c.drill))}'>
+        ${c.kind ? `<span class="scope-pill-kind">${esc(c.kind)}</span>` : ''}${esc(c.label)}
+      </button>`).join('');
+    return `
+      <div class="maint-scope-bar">
+        <span class="scope-label">Scope</span>
+        <div class="scope-trail">${pills}</div>
+        <button class="small scope-reset" data-see-all="1"${crumbs.length > 1 ? '' : ' disabled'}>See all repos</button>
+      </div>
+    `;
+  }
+
+  // §7b — total in scope, broken down by the next level below the drill scope.
+  // Columns above that level repeat the scope value; columns below it read
+  // "All", because the row aggregates every value they could take.
+  _volumeTable(rows, s) {
+    const d = s.drill || {};
+    // Deepest drilled level; group by the one under it (agent is the floor).
+    let depth = 0;
+    if (d.repo) depth = 1;
+    if (d.branch) depth = 2;
+    if (d.task) depth = 3;
+    if (d.agent) depth = 3;
+    const gi = Math.min(depth, LEVELS.length - 1);
+    const level = LEVELS[gi];
+
+    const groups = new Map();
+    rows.forEach((l) => {
+      const k = level.of(l);
+      if (!groups.has(k)) groups.set(k, { k, n: 0, issues: 0, oldest: l.timestamp, newest: l.timestamp });
+      const v = groups.get(k);
+      v.n++;
+      if (l.log_type === 'issue') v.issues++;
+      if (l.timestamp < v.oldest) v.oldest = l.timestamp;
+      if (l.timestamp > v.newest) v.newest = l.timestamp;
+    });
+    const vols = Array.from(groups.values()).sort((a, b) => b.n - a.n);
+
+    const cells = (v) => LEVELS.map((lv, i) => {
+      if (i === gi) return `<td>${esc(v.k)}</td>`;
+      if (i > gi) return '<td class="dim">All</td>';
+      return `<td class="dim">${esc(d[lv.key] || 'All')}</td>`;
+    }).join('');
+
+    const head = LEVELS.map((lv) => `<th>${lv.label}</th>`).join('');
+    return `
+      <h4 class="maint-vol-head">Total Log Count: ${rows.length}
+        <span class="maint-vol-note">by ${esc(level.label.toLowerCase())}, within the current scope and filters</span>
+      </h4>
+      <table class="log-table">
+        <thead><tr>${head}<th>Logs</th><th>Issues</th><th>Oldest</th><th>Newest</th></tr></thead>
+        <tbody>${vols.length
+          ? vols.map((v) => `<tr>${cells(v)}<td>${v.n}</td><td>${v.issues}</td><td class="mono">${v.oldest}</td><td class="mono">${v.newest}</td></tr>`).join('')
+          : `<tr><td colspan="${LEVELS.length + 4}" class="dim">No logs in scope</td></tr>`}</tbody>
+      </table>
+    `;
   }
 
   // Read-only chips showing the active left-sidebar filters
@@ -126,6 +182,15 @@ class LogMaintenance extends LogComponent {
   }
 
   attach() {
+    // Scope trail: a pill drills to that level, "See all repos" clears the
+    // drill entirely — which also deselects the node in the navigation tree,
+    // since that highlight is driven by the drill state.
+    this.querySelectorAll('[data-scope]').forEach((pill) => {
+      pill.onclick = () => window.LogApp.setDrill(JSON.parse(pill.getAttribute('data-scope')));
+    });
+    const seeAll = this.querySelector('[data-see-all]');
+    if (seeAll) seeAll.onclick = () => window.LogApp.clearDrill();
+
     // "Older than" date — the only delete-specific control
     const olderInput = this.querySelector('[data-del="olderThan"]');
     if (olderInput) {

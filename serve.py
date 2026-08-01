@@ -130,11 +130,15 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    # The database changes under the page constantly, and the dashboard's own
+    # sources change whenever it is edited. http.server sends no Cache-Control,
+    # which lets Chrome apply heuristic freshness and serve a stale copy — for
+    # the sources that means the browser quietly runs an old build.
+    NO_STORE_SUFFIXES = (".db", ".html", ".js", ".css")
+
     def end_headers(self):
-        # The database changes under the page constantly, and http.server sends
-        # no Cache-Control, which lets Chrome apply heuristic freshness and
-        # serve a stale copy. Never cache the database itself.
-        if self.path.split("?")[0].endswith(".db"):
+        path = self.path.split("?")[0]
+        if path.endswith(self.NO_STORE_SUFFIXES) or path.endswith("/"):
             self.send_header("Cache-Control", "no-store")
         super().end_headers()
 

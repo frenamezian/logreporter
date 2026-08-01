@@ -1,0 +1,4 @@
+<p>Logs are retained until you delete them — there is no automatic rotation, on purpose.</p>
+<p><strong>Delete</strong> takes its own scope (repository, branch, older-than date, log type) that is independent of the page filters, shows how many rows match, and asks for confirmation before removing them. Rows are deleted from the database held in memory; use <strong>Save database copy</strong> to write the shrunken file back out. Nothing on disk changes until you save.</p>
+<p><strong>Export</strong> honours the page filters and drill scope instead, so you can carve out one branch or one date range as CSV or JSON.</p>
+<p>The <strong>stored volume</strong> table is the only view that always reads the entire database: rows and issue counts per repository and branch with the oldest and newest timestamps, so you can see what is worth pruning.</p>

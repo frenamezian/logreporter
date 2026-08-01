@@ -1,0 +1,4 @@
+<p>Where the wall-clock time went, with idle treated as a first-class category rather than a residual.</p>
+<p>The stat cards give totals for the scope: wall-clock, agent time (agents overlap, so this can exceed wall-clock), idle, issue time and GitHub time. Below them, one bar per item at whatever level you have drilled to — repositories, then branches of a repository, then tasks on a branch, then agents on a task. Clicking a bar drills one level further.</p>
+<p>Drilled to a single task, the <strong>waterfall</strong> appears: one row per agent run, indented by <code>agent_path</code>, positioned horizontally by real clock time and segmented by log type. The idle row underneath shows the gaps no run covers, and the largest single gap is called out in words.</p>
+<p>The closing table ranks the longest idle gaps anywhere in scope; each row jumps to its task.</p>

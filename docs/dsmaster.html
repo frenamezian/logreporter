@@ -1,0 +1,35 @@
+<p>One shell holds every page. Only the content region changes; the header, the left panel, the breadcrumb strip and the detail panel are shared and keep their state across page switches.</p>
+<pre>┌────────────────────────────────────────────────────────────────────────────┐
+│ LogReporter      [Hierarchy 128][Chronology][Time][Metrics][Maint][Help]   │
+│ Local monitor                    128/240 logs [CSV][JSON][Refresh][●Db▾][?]│
+├──────────────────┬─────────────────────────────────────────┬───────────────┤
+│ ▾ FILTERS    (3) │ All repos ▸ nocturne-web ▸ feat/… ▸ task │ ACTIVITY      │
+│ [search………]      │ Page title                              │ Entry title   │
+│  Repository  ▾   │ one-line explanation of this page        │ [‹Prev][Next›]│
+│  Branch      ▾   │─────────────────────────────────────────│ description…  │
+│  Agent       ▾   │ legend / page controls        [⋯][⋯]    │ #tags         │
+│  Log type    ▾   │                                         │ error_details │
+│  … 6 more        │                                         │ AGENT PATH    │
+│  [chips ✕][clear]│           content region                │ RECORD grid   │
+│                  │        (the only scroll area)            │ TRACE timeline│
+│ ▾ NAVIGATION     │                                         │               │
+│  All repositories│                                         │               │
+│  ▾ nocturne-web  │                                         │               │
+│    ▾ feat/telem… │                                         │               │
+│      ▾ Ship inge…│                                         │               │
+│        lead_arch…│                                         │               │
+│ «                │                                         │               │
+└──────────────────┴─────────────────────────────────────────┴───────────────┘
+   262px, collapses to 46px rail        fluid            372px, only when a
+                                                         row is selected</pre>
+<p><strong>What clicking does, shell-wide:</strong></p>
+<ul>
+<li><strong>A page tab</strong> — swaps the content region only. Filters, drill scope, tree open/closed state and the selected entry all survive, so switching pages is a change of lens, never a reset.</li>
+<li><strong>A tree node</strong> — single click sets the drill scope (and writes the breadcrumb); double click does that and collapses the node. An agent leaf toggles.</li>
+<li><strong>A breadcrumb</strong> — truncates the drill to that depth. <em>All repos</em> clears it.</li>
+<li><strong>A filter or chip</strong> — recomputes rows in scope; the header count and every page follow within the same frame.</li>
+<li><strong>Any entry row, anywhere</strong> — selects it and opens the detail panel; the content region reflows narrower rather than being overlaid, and dense row grids drop their optional columns.</li>
+<li><strong>The « rail button</strong> — collapses the left panel to a 46px rail carrying just the filter badge; the filter icon restores it with filters open.</li>
+<li><strong>?</strong> — opens the Help page. It is a page like any other: the header, the left panel and the breadcrumb stay put, and the tab you came from is one click away.</li>
+</ul>
+<p>Only one element scrolls per page: the content region. Header, breadcrumb and legend rows are fixed so the columns you are reading against never leave the screen.</p>

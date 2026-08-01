@@ -1,0 +1,76 @@
+<p>The dashboard is only as good as the rows agents write. Give every agent this contract — as a system prompt fragment or a tool description — and the derived views work without further configuration.</p>
+<pre>You write an activity log to SQLite (table: logs) as you work.
+
+BRACKET YOUR WORK
+- First action on a task: append a `start` row.
+- Last action, always, even on failure: append an `end` row with the
+  final status. Durations and idle time are derived from this pair —
+  a missing `end` erases your work from every time view.
+
+WHILE WORKING, append one row per meaningful step:
+- activity  what you did (a file read, a build, an edit)
+- decision  a choice between alternatives — record the alternatives
+            and why you rejected them, not just the outcome
+- issue     a failure, retry or block; put the raw error text in
+            error_details; when it is later fixed, set resolved_by
+- github    any git operation; tag the action: #pull #push #commit
+            #add #delete
+
+ON EVERY ROW
+- timestamp    UTC, 'YYYY-MM-DD HH:MM:SS'
+- repo_name, branch_name, task_title  identical for every row of one
+  task, character for character — they are the grouping keys
+- agent_name   your name
+- agent_path   your lineage, e.g. lead_architect/handler_dev
+- trace_id     shared by every agent on this task; pass it to any
+               subagent you spawn and set its parent_trace_id
+- log_title    one line, specific: "Chose append-only over upsert",
+               not "Made a decision"
+- log_level    debug | info | warning | error
+- status       pending | in_progress | failed | completed
+- priority     low | medium | high | critical
+- tags         comma-separated #tokens
+
+DO NOT log per token, per line or inside tight loops. One row per
+step a human would want to see. Silence between rows is reported as
+idle time, so log when you begin waiting on something slow.</pre>
+<p>The lead architect — the root agent, the only one with no parent — owns trace identity. Append this to its prompt only:</p>
+<pre>YOU OWN trace_id. Subagents never mint one.
+
+MINT A NEW trace_id (random hex, 8+ chars) WHEN:
+- You accept a new task — one trace per task_title, created on the
+  `start` row and reused by every row of that task, yours and your
+  subagents'.
+- The same task is retried as a fresh attempt after an `end` row was
+  already written: new trace, and set parent_trace_id to the trace of
+  the attempt it replaces.
+- Work splits into an independent task that will be reported on its
+  own — its own task_title, its own trace, parent_trace_id set to
+  yours.
+
+REUSE THE CURRENT trace_id WHEN:
+- You spawn a subagent for this task. Pass your trace_id down; the
+  subagent writes it verbatim and sets parent_trace_id to your
+  trace_id. Never mint a trace per subagent — the trace timeline is
+  how a multi-agent run is read as one sequence.
+- You resume the same task after an idle stretch, a retry of a step,
+  or a handoff back from a subagent.
+- Anything you log about the same task_title, however far apart.
+
+NEVER: reuse a trace across different task_titles, mint one per log
+row or per tool call, or leave trace_id empty — untraced rows still
+appear in the lists but drop out of trace navigation.
+
+Log the mint itself: on the `start` row that opens a new trace, say
+so in log_description (e.g. "trace 9f2c41a8 opened for this task;
+parent 4d10be77") so the lineage is legible without a join.</pre>
+<p>The append itself, with the columns in the order the dashboard expects:</p>
+<pre>INSERT INTO logs (
+  timestamp, repo_name, branch_name, task_title,
+  log_type, log_title, log_description, log_level,
+  status, priority, agent_name, agent_path,
+  trace_id, parent_trace_id, user_id, tags,
+  error_details, resolved_by, resolution_time,
+  performance_metrics, input_output_hash
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);</pre>
+<p>Write in WAL mode with a busy timeout of a few seconds so concurrent agents and the dashboard's polling never fight over the lock. Keep <code>performance_metrics</code> a small JSON object — execution_ms, tokens, cpu_pct, memory_mb — and omit it rather than writing nulls.</p>

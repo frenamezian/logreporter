@@ -1,0 +1,20 @@
+<p>A three-column grid — clock gutter, rail, entry — repeated for every row, so time reads down a single edge regardless of who logged what.</p>
+<pre>● Activity ● Issue ● Decision ● GitHub ● Start/end ▨ Idle   142 entries
+                                              [Newest first][Oldest first]
+  WED 29 JUL ──────────────────────────────────────────────  38 entries
+  09:02  ●  [Start] Task accepted: telemetry ingest         1m
+         │  lead_architect · nocturne-web · feat/telemetry-ingest
+  09:18  ●  [Activity] Implemented POST /v1/ingest          6m
+         │  handler_dev · nocturne-web · feat/… · batch of up to 500 …
+  09:26  ●  [Issue] Retry 2/5 — SQLITE_BUSY                 2m
+         ┆  ▨ Idle 41m   no agent logged on feat/telemetry-ingest · Ship…
+  10:12  ●  [Decision] Write contention resolved with WAL    4m
+  TUE 28 JUL ──────────────────────────────────────────────  104 entries</pre>
+<p>Solid rail = an agent was logging. Dashed rail + hatched pill = nobody was. The idle row names the branch and task that went quiet, which is usually enough to explain it without opening anything.</p>
+<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
+<tr><td>Entry block</td><td>Selects it and opens the detail panel — the fastest route from "something happened here" to the full record and its trace.</td></tr>
+<tr><td>Newest / Oldest first</td><td>Reverses the stream. Day headers and idle rows are recomputed, not merely flipped.</td></tr>
+<tr><td>Idle row</td><td>Inert by design. It is evidence, not a destination; drill to the task in the tree if you want its waterfall.</td></tr>
+<tr><td>Any filter or drill change</td><td>Rebuilds the stream, including which gaps count as idle — narrowing to one agent does <em>not</em> invent idle time for the others, because gaps come from the task model.</td></tr>
+</tbody></table>
+<p>The stream renders the first 500 rows in scope and says so in the header row when it truncates.</p>

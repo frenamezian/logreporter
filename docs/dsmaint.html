@@ -1,0 +1,27 @@
+<p>A narrow single column of destructive and export actions, capped at 900px so no control sits far from its label. Deliberately the plainest page in the app.</p>
+<pre>┌────────────────────────────────────────────────────────────────────┐
+│ Delete logs                                                        │
+│ Logs are retained until deleted here. Scope, review, confirm.      │
+│ ┌ Repository ▾┐┌ Branch ▾────┐┌ Older than ──┐┌ Log type ▾──┐      │
+│ 38 of 240 logs match this scope.            [Delete 38 logs]       │
+└────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│ Export — honours the page filters and drill scope, 128 rows        │
+│ [Export CSV] [Export JSON] [Save database copy]                    │
+└────────────────────────────────────────────────────────────────────┘
+Stored volume        (always the whole database, never the scope)
+REPO           BRANCH            LOGS  ISSUES  OLDEST      NEWEST
+nocturne-web   feat/telemetry…    128      12  2026-07-28  2026-07-29
+
+                    ┌ Delete 38 logs? ───────────────────┐
+                    │ 38 logs in 2 repositories will be  │
+                    │ removed. This cannot be undone…    │
+                    │              [Cancel][Delete logs] │
+                    └────────────────────────────────────┘</pre>
+<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
+<tr><td>A delete-scope field</td><td>Recomputes the match count immediately. This scope is <em>independent</em> of the page filters — deletion must be stated explicitly, never inherited from whatever you were browsing.</td></tr>
+<tr><td>Delete N logs</td><td>Opens the confirmation dialog restating the count and how many repositories it touches. No deletion happens yet.</td></tr>
+<tr><td>Confirm</td><td>Removes the rows from the in-memory database and the row array. Every page updates; the note tells you to save a copy to persist. The file on disk is untouched.</td></tr>
+<tr><td>Export CSV / JSON</td><td>Writes the rows in the current <em>filter and drill</em> scope, columns verbatim — the opposite scoping rule to delete, which is why the two live in separate cards with separate labels.</td></tr>
+<tr><td>Save database copy</td><td>Exports the mutated database bytes as a download. The only way a deletion becomes permanent.</td></tr>
+</tbody></table>

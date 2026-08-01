@@ -65,23 +65,41 @@ function runsFor(logs) {
     if (r.to == null) r.to = at(r.events[r.events.length - 1].timestamp);
     r.ms = Math.max(0, r.to - r.from);
     r.depth = (r.path || '').split('/').length - 1;
-    // attribute each stretch to the type of the event that opened it
+    // Attribute each stretch to the type of the event that opened it. Events
+    // with nothing after them — the closing `end` log, or two logs sharing a
+    // timestamp — get a zero-length segment flagged as a point rather than
+    // being dropped: they still have to be selectable and highlightable, they
+    // just account for no time.
     const segs = [];
     r.events.forEach((e, i) => {
       const from = at(e.timestamp);
       const to = i + 1 < r.events.length ? at(r.events[i + 1].timestamp) : r.to;
       const cat = e.log_type === 'issue' ? 'issue' : e.log_type === 'decision' ? 'decision' : e.log_type === 'github' ? 'github' : 'activity';
-      if (to > from) segs.push({from, to, ms: to - from, cat, log: e});
+      segs.push({from, to: Math.max(to, from), ms: Math.max(0, to - from), cat, point: to <= from, log: e});
     });
     r.segments = segs;
     r.by = {activity: 0, issue: 0, decision: 0, github: 0};
     segs.forEach((sg) => { r.by[sg.cat] += sg.ms; });
   });
+  // Exclusive ("self") time. A parent agent stays open while its subagents
+  // work, so its run contains theirs and r.ms double counts the delegation.
+  // Subtracting the union of the descendants' runs leaves the time the agent
+  // spent on its own work; parent self + children then add up to the span the
+  // parent covers. Sibling agents running in true parallel are NOT subtracted
+  // from each other — that overlap is real concurrency, not nesting.
+  runs.forEach((r) => {
+    const kids = runs.filter((o) => o !== r && o.path && r.path && o.path.startsWith(r.path + '/'));
+    const clipped = kids
+      .map((k) => ({from: Math.max(k.from, r.from), to: Math.min(k.to, r.to)}))
+      .filter((iv) => iv.to > iv.from);
+    r.childMs = union(clipped).reduce((n, iv) => n + (iv.to - iv.from), 0);
+    r.selfMs = Math.max(0, r.ms - r.childMs);
+  });
   return runs.sort((a, b) => a.from - b.from || a.depth - b.depth);
 }
 
-function blank() { return {activity: 0, issue: 0, decision: 0, github: 0, idle: 0, wall: 0, agentMs: 0, logs: 0, issues: 0}; }
-function add(a, b) { CATEGORIES.forEach((c) => { a[c] += b[c]; }); a.wall += b.wall; a.agentMs += b.agentMs; a.logs += b.logs; a.issues += b.issues; return a; }
+function blank() { return {activity: 0, issue: 0, decision: 0, github: 0, idle: 0, wall: 0, agentMs: 0, selfMs: 0, logs: 0, issues: 0}; }
+function add(a, b) { CATEGORIES.forEach((c) => { a[c] += b[c]; }); a.wall += b.wall; a.agentMs += b.agentMs; a.selfMs += b.selfMs; a.logs += b.logs; a.issues += b.issues; return a; }
 
 function buildModel(logs) {
   const tasksMap = new Map();
@@ -112,6 +130,7 @@ function buildModel(logs) {
       decision: Math.round(busy * agentBy.decision / sum),
       github: Math.round(busy * agentBy.github / sum),
       idle, wall: span.to - span.from, agentMs,
+      selfMs: runs.reduce((n, r) => n + r.selfMs, 0),
       logs: ls.length, issues: ls.filter((l) => l.log_type === 'issue').length,
     };
     const ends = ls.filter((l) => l.log_type === 'end' && l.status);

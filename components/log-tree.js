@@ -20,14 +20,22 @@ class LogTree extends LogComponent {
 
   render() {
     const s = window.LogApp.state;
+    // Task lookup by row key, so entry rows can be rendered lazily when a task
+    // row is opened without re-rendering the whole tree.
+    this._taskByKey = new Map();
     // Use the drill-applied model so the hierarchy stays consistent with every
     // other panel (chronology, where-time-goes, metrics). The navigation tree
     // in the sidebar keeps using treeModel (un-drilled) so siblings stay visible.
     const model = s.model;
     if (!model?.repos?.length) return '<div class="empty">No data</div>';
-    // Auto-expand the drilled path so the user sees the entries immediately
+    // Auto-expand the drilled path, but only when the drill scope actually
+    // changed. Re-applying it on every render would fight the user: a row
+    // collapsed by hand would spring back open on the next re-render.
     const d = s.drill || {};
-    if (d.repo) {
+    const drillKey = JSON.stringify([d.repo || '', d.branch || '', d.task || '', d.agent || '']);
+    const drillChanged = s.treeDrillKey !== drillKey;
+    s.treeDrillKey = drillKey;
+    if (drillChanged && d.repo) {
       model.repos.forEach((r) => {
         this._open.add('r:' + r.name);
         if (d.branch || d.task || d.agent) {
@@ -70,7 +78,7 @@ class LogTree extends LogComponent {
     const ish = idleShare(r.ms);
     return `
       <div class="tree-card">
-        <div class="tree-head" data-key="${esc(key)}" data-dbl="${esc(key)}" data-repo="${esc(r.name)}">
+        <div class="tree-head" data-key="${esc(key)}" data-repo="${esc(r.name)}">
           <span class="caret">${open ? '▾' : '▸'}</span>
           <span class="name">${esc(r.name)}</span>
           <span class="meta">${r.branches.length} branches · ${fmt(r.ms.wall)}${ish ? ' · ' + ish + '% idle' : ''}</span>
@@ -90,7 +98,7 @@ class LogTree extends LogComponent {
     const open = this._open.has(key);
     const ish = idleShare(b.ms);
     return `
-      <div class="tree-head branch-head" data-key="${esc(key)}" data-dbl="${esc(key)}" data-repo="${esc(r.name)}" data-branch="${esc(b.name)}" style="padding-left:28px">
+      <div class="tree-head branch-head" data-key="${esc(key)}" data-repo="${esc(r.name)}" data-branch="${esc(b.name)}" style="padding-left:28px">
         <span class="caret">${open ? '▾' : '▸'}</span>
         <span class="name mono">${esc(b.name)}</span>
         <span class="meta">${b.tasks.length} tasks · ${fmt(b.ms.wall)}${ish ? ' · ' + ish + '% idle' : ''}</span>
@@ -109,11 +117,12 @@ class LogTree extends LogComponent {
     const open = this._open.has(key);
     const ish = idleShare(t.ms);
     const drill = JSON.stringify({ repo: r.name, branch: b.name, task: t.title });
+    this._taskByKey.set(key, t);
     return `
       <div class="tree-task">
-        <div class="tree-head task-head" data-key="${esc(key)}" data-dbl="${esc(key)}" data-repo="${esc(r.name)}" data-branch="${esc(b.name)}" data-task="${esc(t.title)}" style="padding-left:40px">
-          <span class="caret" data-toggle="1">${open ? '▾' : '▸'}</span>
-          <span class="name" data-drill='${esc(drill)}'>${esc(t.title)} ${statusBadge(t.status)}</span>
+        <div class="tree-head task-head" data-key="${esc(key)}" data-repo="${esc(r.name)}" data-branch="${esc(b.name)}" data-task="${esc(t.title)}" style="padding-left:40px">
+          <span class="caret">${open ? '▾' : '▸'}</span>
+          <span class="name">${esc(t.title)} ${statusBadge(t.status)}</span>
           <span class="meta">${t.ms.logs} entries · ${fmt(t.ms.wall)} · ${(t.agents || []).length} agents</span>
           <div style="width:160px">${bar(t.ms, Math.max(t.ms.wall, 1))}</div>
           <span class="tree-badges">${this.badges(t.ms)}</span>
@@ -162,49 +171,50 @@ class LogTree extends LogComponent {
     return out.join('');
   }
 
+  // Open or close one row by patching the DOM in place. Expanding must NOT go
+  // through a full app re-render: that would replace this element between the
+  // two clicks of a double click, so the dblclick event would never fire.
+  setRowOpen(head, open) {
+    const key = head.getAttribute('data-key');
+    if (open) this._open.add(key); else this._open.delete(key);
+    const caret = head.querySelector('.caret');
+    if (caret) caret.textContent = open ? '▾' : '▸';
+    const body = head.nextElementSibling;
+    if (!body?.classList.contains('tree-body')) return;
+    body.hidden = !open;
+    // Task entry rows are rendered lazily the first time the row is opened
+    if (open && body.classList.contains('entry-body') && !body.firstElementChild) {
+      const t = this._taskByKey.get(key);
+      if (t) {
+        body.innerHTML = this.entryRows(t, window.LogApp.state);
+        this.wireEntryRows(body);
+      }
+    }
+  }
+
   attach() {
-    // Single click on any tree-head: expand the node + drill to it
-    // Double click on any tree-head: collapse the node + drill to it
-    // A click timer is used so the single-click action (which triggers a full
-    // re-render via setDrill) is delayed; if a dblclick arrives first, the
-    // timer is cancelled and the collapse action runs instead. Without this,
-    // the re-render would destroy the DOM element between the two clicks and
-    // dblclick would never fire.
-    const DBLCLICK_MS = 220;
-    this._clickTimers = this._clickTimers || new Map();
+    // Single click on a row toggles it: opens a closed row, collapses an open one.
+    // Double click always ends collapsed (the second click reopens, then this
+    // handler closes it again).
+    // Both act on the DOM directly, so they are instant and the element stays
+    // alive between the two clicks of a double click.
     this.querySelectorAll('.tree-head[data-key]').forEach((h) => {
-      const k = h.getAttribute('data-key');
-      const repo = h.getAttribute('data-repo') || '';
-      const branch = h.getAttribute('data-branch') || '';
-      const task = h.getAttribute('data-task') || '';
-      const buildDrill = () => {
-        const drill = {};
-        if (repo) drill.repo = repo;
-        if (branch) drill.branch = branch;
-        if (task) drill.task = task;
-        return drill;
-      };
+      const inRowButton = (e) => !!e.target.closest('[data-time]');
+
+      // Suppress the text selection the second click of a double click makes
+      h.onmousedown = (e) => { if (e.detail > 1) e.preventDefault(); };
 
       h.onclick = (e) => {
-        if (e.target.closest('[data-time]')) return;
+        if (inRowButton(e)) return;
         e.stopPropagation();
-        // Delay the single-click action to see if a dblclick follows
-        if (this._clickTimers.has(k)) clearTimeout(this._clickTimers.get(k));
-        this._clickTimers.set(k, setTimeout(() => {
-          this._clickTimers.delete(k);
-          this._open.add(k);
-          window.LogApp.setDrill(buildDrill());
-        }, DBLCLICK_MS));
+        this.setRowOpen(h, !this._open.has(h.getAttribute('data-key')));
       };
 
       h.ondblclick = (e) => {
-        if (e.target.closest('[data-time]')) return;
+        if (inRowButton(e)) return;
         e.preventDefault();
         e.stopPropagation();
-        // Cancel the pending single-click action
-        if (this._clickTimers.has(k)) { clearTimeout(this._clickTimers.get(k)); this._clickTimers.delete(k); }
-        this._open.delete(k);
-        window.LogApp.setDrill(buildDrill());
+        this.setRowOpen(h, false);
       };
     });
 
@@ -227,8 +237,13 @@ class LogTree extends LogComponent {
     });
 
     // §4.3 — entry row click selects the log and opens the detail panel
-    this.querySelectorAll('.entry-row[data-id]').forEach((row) => {
-      row.onclick = () => {
+    this.wireEntryRows(this);
+  }
+
+  wireEntryRows(root) {
+    root.querySelectorAll('.entry-row[data-id]').forEach((row) => {
+      row.onclick = (e) => {
+        e.stopPropagation();
         const id = +row.getAttribute('data-id');
         const s = window.LogApp.state;
         const log = s.inScope.find((l) => l.id === id);

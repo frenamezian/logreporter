@@ -3,18 +3,30 @@
 const LogComponent = window.LogComponent;
 const { esc, fmt, bar, fmtTs, statusBadge } = window.LRC;
 
+// Categories in stacking order, matching the legend
+const CATS = ['activity', 'issue', 'decision', 'github', 'idle'];
+// A per-category duration bucket holding a single value
+const only = (cat, ms) => ({ activity: 0, issue: 0, decision: 0, github: 0, idle: 0, [cat]: ms });
+
 class LogTimegoes extends LogComponent {
   render() {
     const s = window.LogApp.state;
     const m = s.model;
     const t = m.totals || {};
-    const pct = (v, base) => base ? Math.max(0, Math.min(100, (v / base) * 100)).toFixed(1) : '0.0';
     const wall = t.wall || 0;
-    const sec = (v) => v ? pct(v, wall) + '% of wall' : '0% of wall';
+    // Unclamped: agent time legitimately exceeds wall clock when agents nest or
+    // run in parallel, and that ratio is the interesting number. Clamping it to
+    // 100% used to hide exactly that.
+    const ratio = (v) => wall ? ((v / wall) * 100).toFixed(1) + '% of wall' : '—';
+    const sec = (v) => v ? ratio(v) : '0% of wall';
     return `
       <div class="metrics-grid" style="grid-template-columns:repeat(5,1fr)">
         <div class="metric-card"><div class="metric-value">${fmt(t.wall)}</div><div class="metric-label">Wall clock</div><div class="metric-sub">${t.tasks || 0} tasks</div></div>
-        <div class="metric-card"><div class="metric-value">${fmt(t.agentMs)}</div><div class="metric-label">Agent time</div><div class="metric-sub">${sec(t.agentMs)}</div></div>
+        <div class="metric-card" title="Sum of every agent run. A parent stays open while its subagents work, so nested and parallel time is counted more than once — over 100% of wall clock means agents overlapped.">
+          <div class="metric-value">${fmt(t.agentMs)}</div>
+          <div class="metric-label">Agent time <span class="metric-hint">sum of runs</span></div>
+          <div class="metric-sub">${sec(t.agentMs)} · ${fmt(t.selfMs)} excl. subagents</div>
+        </div>
         <div class="metric-card"><div class="metric-value">${fmt(t.idle)}</div><div class="metric-label">Idle</div><div class="metric-sub">${sec(t.idle)}</div></div>
         <div class="metric-card"><div class="metric-value">${fmt(t.issue)}</div><div class="metric-label">Issue time</div><div class="metric-sub">${t.issues || 0} issues</div></div>
         <div class="metric-card"><div class="metric-value">${fmt(t.github)}</div><div class="metric-label">GitHub time</div><div class="metric-sub">${sec(t.github)}</div></div>
@@ -25,7 +37,9 @@ class LogTimegoes extends LogComponent {
     `;
   }
 
-  // §6.3 — clickable bar rows that drill one level deeper
+  // §6.3 — clickable bar rows. Above the agent level a click drills one level
+  // deeper; at the agent level there is nowhere left to drill, so a click only
+  // moves the focus of the waterfall and the run log list below it.
   renderBars(m) {
     if (!m.repos?.length) return '<div class="empty">No data</div>';
     const s = window.LogApp.state;
@@ -37,32 +51,85 @@ class LogTimegoes extends LogComponent {
       // at task level, bars are per-agent runs (agent level)
       items = t ? t.runs.map((run) => ({
         label: run.agent || run.path,
+        depth: run.depth, // subagents are indented rather than drilled into
         ms: { activity: run.by.activity, issue: run.by.issue, decision: run.by.decision, github: run.by.github, idle: 0, wall: run.ms },
-        drill: { repo: s.drill.repo, branch: s.drill.branch, task: s.drill.task, agent: run.agent || run.path.split('/').pop() },
+        // Time the agent spent outside its subagents' runs
+        self: run.childMs ? run.selfMs : null,
+        run: { path: run.path, from: run.from },
+        // an agent's bar is made of its individual log entries
+        parts: run.segments.filter((sg) => sg.ms > 0).map((sg) => ({ label: sg.log.log_title || sg.log.log_type, ms: only(sg.cat, sg.ms) })),
       })) : [];
     } else if (s.drill.branch) {
       items = m.repos.find((x) => x.name === s.drill.repo)?.branches.find((x) => x.name === s.drill.branch)?.tasks.map((t) => ({
         label: t.title,
         ms: t.ms,
         drill: { repo: s.drill.repo, branch: s.drill.branch, task: t.title },
+        parts: t.runs.map((run) => ({
+          label: run.agent || run.path,
+          ms: { activity: run.by.activity, issue: run.by.issue, decision: run.by.decision, github: run.by.github, idle: 0 },
+        })),
       })) || [];
     } else if (s.drill.repo) {
       items = m.repos.find((x) => x.name === s.drill.repo)?.branches.map((b) => ({
         label: b.name,
         ms: b.ms,
         drill: { repo: s.drill.repo, branch: b.name },
+        parts: b.tasks.map((t) => ({ label: t.title, ms: t.ms })),
       })) || [];
     } else {
-      items = m.repos.map((r) => ({ label: r.name, ms: r.ms, drill: { repo: r.name } }));
+      items = m.repos.map((r) => ({
+        label: r.name, ms: r.ms, drill: { repo: r.name },
+        parts: r.branches.map((b) => ({ label: b.name, ms: b.ms })),
+      }));
     }
     const max = Math.max(1, ...items.map((x) => x.ms.wall || 0));
-    return `<div class="bars">${items.map((x) => `
-      <div class="bar-row bar-clickable" data-drill='${esc(JSON.stringify(x.drill))}'>
-        <div class="bar-label">${esc(x.label)}</div>
-        <div style="flex:1">${bar(x.ms, max)}</div>
-        <div class="bar-val">${fmt(x.ms.wall)}</div>
-      </div>
-    `).join('')}</div>`;
+    const sel = s.selectedRun || {};
+    return `<div class="bars">${items.map((x) => {
+      const active = x.run && sel.path === x.run.path && sel.from === x.run.from;
+      const attrs = x.run
+        ? `data-run-path="${esc(x.run.path)}" data-run-from="${esc(String(x.run.from))}"`
+        : `data-drill='${esc(JSON.stringify(x.drill))}'`;
+      const indent = x.depth ? `<span class="bar-indent">${'└'.padStart(x.depth * 2, ' ')}</span>` : '';
+      return `
+      <div class="bar-row bar-clickable${active ? ' bar-row-active' : ''}" ${attrs}>
+        <div class="bar-label" style="padding-left:${(x.depth || 0) * 14}px" title="${esc(x.run ? x.run.path : x.label)}">${indent}${esc(x.label)}</div>
+        <div style="flex:1">${this.partedBar(x, max)}</div>
+        <div class="bar-val">${fmt(x.ms.wall)}${x.self != null ? `<span class="bar-self" title="Excluding its subagents' runs">${fmt(x.self)} own</span>` : ''}</div>
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  // A stacked bar whose colour blocks are subdivided by whatever makes them up
+  // — branches of a repo, tasks of a branch, agents of a task, log entries of
+  // an agent — with a hairline between neighbours. Category order is unchanged,
+  // so the bar still reads as activity / issue / decision / github / idle; the
+  // hairlines only reveal that a block is several things, not one.
+  partedBar(item, max) {
+    const parts = item.parts || [];
+    if (!parts.length) return bar(item.ms, max);
+    const w = (v) => Math.max(0, Math.min(100, (v / max) * 100)).toFixed(3);
+    const segs = [];
+    CATS.forEach((cat) => {
+      const total = item.ms[cat] || 0;
+      if (total <= 0) return;
+      const sum = parts.reduce((n, p) => n + (p.ms[cat] || 0), 0);
+      // Idle belongs to the task as a whole — no child owns it — so it stays one block
+      if (sum <= 0) {
+        segs.push(`<div class="bar-seg bar-part ${cat}" style="width:${w(total)}%" title="${esc(cat)} ${esc(fmt(total))}"></div>`);
+        return;
+      }
+      // A parent's category total is an apportioned figure (see time-model.js)
+      // while children carry raw sums, and nested agents are counted twice in
+      // those sums. Scale the children onto the parent's total so subdividing a
+      // bar never changes its length.
+      const k = total / sum;
+      parts.forEach((p) => {
+        const v = (p.ms[cat] || 0) * k;
+        if (v <= 0) return;
+        segs.push(`<div class="bar-seg bar-part ${cat}" style="width:${w(v)}%" title="${esc(p.label)} · ${esc(cat)} ${esc(fmt(v))}"></div>`);
+      });
+    });
+    return `<div class="bar-track">${segs.join('')}</div>`;
   }
 
   // §6.1 — waterfall at task level
@@ -80,26 +147,48 @@ class LogTimegoes extends LogComponent {
       const d = new Date(span.from + total * i / 4);
       return d.toISOString().slice(11, 16);
     });
+    const sel = s.selectedRun || {};
+    // The log open in the detail panel, and its trace. Highlighting both makes
+    // the Prev/Next-in-trace buttons legible on the waterfall: the whole trace
+    // stays lit and the current step is outlined as it moves.
+    const selLog = s.selectedLog;
+    const traceId = selLog?.trace_id || '';
     const rows = task.runs.map((run) => {
       const indent = run.depth ? '└' + ' '.repeat(run.depth * 2 - 1) : '·';
       const left = pct(run.from - span.from);
       const width = pct(run.to - run.from);
+      // One segment is exactly one log: it spans from that log to the next one
+      // in the same run. Clicking it opens that log on the right.
       const segs = run.segments.map((sg) => {
         const sl = pct(sg.from - run.from);
-        const sw = pct(sg.ms);
-        return `<div class="wf-seg ${sg.cat}" style="left:${sl}%;width:${sw}%"></div>`;
+        const inTrace = traceId && sg.log.trace_id === traceId;
+        const current = selLog && sg.log.id === selLog.id;
+        const cls = `wf-seg ${sg.cat}${sg.point ? ' wf-point' : ''}${inTrace ? ' in-trace' : ''}${current ? ' current' : ''}`;
+        // A point (an `end` log, or logs sharing a timestamp) has no width of
+        // its own, so it is drawn as a tick — otherwise it would be invisible
+        // and unselectable, which is why `end` entries never lit up. The bar
+        // clips its children, so a tick sitting on the closing edge is pinned
+        // with `right` instead of `left`.
+        const style = !sg.point ? `left:${sl}%;width:${pct(sg.ms)}%`
+          : (parseFloat(sl) > 99 ? 'right:0' : `left:${sl}%`);
+        return `<div class="${cls}" style="${style}" data-seg-id="${sg.log.id}"
+                     title="${esc(sg.log.log_type)} · ${esc(sg.log.log_title || '')}${sg.point ? '' : ` — ${esc(fmt(sg.ms))}`}"></div>`;
       }).join('');
+      const active = sel.path === run.path && sel.from === run.from;
+      const hasSel = selLog && run.events.some((e) => e.id === selLog.id);
       return `
-        <div class="wf-row" data-run-id="${esc(String(run.from))}">
+        <div class="wf-row${active ? ' wf-row-active' : ''}${hasSel ? ' wf-row-current' : ''}" data-run-id="${esc(String(run.from))}" data-run-path="${esc(run.path)}">
           <div class="wf-agent">
             <span class="wf-indent">${esc(indent)}</span>
             <span class="wf-name">${esc(run.agent || run.path)}</span>
             ${run.status ? statusBadge(run.status) : ''}
+            <span class="wf-count">${run.events.length} logs</span>
           </div>
           <div class="wf-track">
             <div class="wf-bar" style="left:${left}%;width:${width}%">${segs}</div>
           </div>
           <div class="wf-span">${fmt(run.ms)}</div>
+          <div class="wf-span wf-self">${run.childMs ? fmt(run.selfMs) : '—'}</div>
         </div>`;
     }).join('');
     // IDLE row showing gaps
@@ -113,12 +202,13 @@ class LogTimegoes extends LogComponent {
         <div class="wf-agent"><span class="wf-name">IDLE</span></div>
         <div class="wf-track">${gapsHtml}</div>
         <div class="wf-span">${fmt(task.ms.idle)}</div>
+        <div class="wf-span wf-self">—</div>
       </div>`;
     return `
-      <div class="waterfall">
+      <div class="waterfall${selLog ? ' wf-focus' : ''}">
         <div class="wf-head">
           <h4>Waterfall — ${esc(task.title)}</h4>
-          <span class="wf-sub">trace ${esc(task.trace || 'none')} · indentation is agent_path · horizontal position is wall-clock</span>
+          <span class="wf-sub">trace ${esc(task.trace || 'none')} · indentation is agent_path · horizontal position is wall-clock · one segment is one log</span>
         </div>
         <div class="wf-legend">
           <span><span class="wf-dot activity"></span>Activity</span>
@@ -126,14 +216,48 @@ class LogTimegoes extends LogComponent {
           <span><span class="wf-dot decision"></span>Decision</span>
           <span><span class="wf-dot github"></span>GitHub</span>
           <span><span class="wf-dot idle"></span>Idle</span>
+          ${selLog ? `<span class="wf-legend-focus">lit = trace ${esc(selLog.trace_id || 'none')} · outlined = open entry</span>` : ''}
         </div>
         <div class="wf-axis">
           <span>Agent</span>
           <span class="wf-axis-ticks">${axis.map((a) => `<span>${a}</span>`).join('')}</span>
           <span class="wf-axis-end">Span</span>
+          <span class="wf-axis-end" title="Span minus the runs of its subagents">Own</span>
         </div>
         ${rows}
         ${idleRow}
+        ${this.renderRunLogs(task)}
+      </div>`;
+  }
+
+  // The logs behind one run. A waterfall segment is a single log (it runs from
+  // that log to the next one), so the useful breakdown is the whole run: click
+  // a row to list every log in it, with the stretch each one accounts for.
+  renderRunLogs(task) {
+    const sel = window.LogApp.state.selectedRun;
+    if (!sel) return '';
+    const run = task.runs.find((r) => r.path === sel.path && r.from === sel.from);
+    if (!run) return '';
+    const selId = window.LogApp.state.selectedLog?.id;
+    const rows = run.segments.map((sg) => `
+      <tr class="run-log-row${selId === sg.log.id ? ' current' : ''}" data-log-id="${sg.log.id}">
+        <td class="mono">${esc(fmtTs(sg.log.timestamp))}</td>
+        <td><span class="wf-dot ${sg.cat}"></span>${esc(sg.log.log_type)}</td>
+        <td class="run-log-title">${esc(sg.log.log_title || '')}</td>
+        <td>${esc(sg.log.log_level || '')}</td>
+        <td class="run-log-ms">${sg.point ? '—' : fmt(sg.ms)}</td>
+      </tr>`).join('');
+    return `
+      <div class="run-logs">
+        <div class="run-logs-head">
+          <h4>Logs in this run — ${esc(run.agent || run.path)}</h4>
+          <span class="run-logs-sub">${run.events.length} logs · ${fmt(run.ms)} span${run.childMs ? ` · ${fmt(run.selfMs)} excluding subagents` : ''}</span>
+          <button class="small" data-run-close="1">Close</button>
+        </div>
+        <table class="gaps-table">
+          <thead><tr><th>Time</th><th>Type</th><th>Entry</th><th>Level</th><th>Accounts for</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="5">No logs</td></tr>'}</tbody>
+        </table>
       </div>`;
   }
 
@@ -161,35 +285,57 @@ class LogTimegoes extends LogComponent {
   }
 
   attach() {
-    // §6.3 — clickable bar rows drill one level deeper
-    this.querySelectorAll('.bar-clickable').forEach((el) => {
+    // §6.3 — bar rows above the agent level drill one level deeper
+    this.querySelectorAll('.bar-clickable[data-drill]').forEach((el) => {
       el.onclick = () => {
         let drill;
         try { drill = JSON.parse(el.getAttribute('data-drill')); } catch { return; }
-        const s = window.LogApp.state;
-        // at agent level (task drilled), toggle agent filter
-        if (drill.agent) {
-          const next = Object.assign({}, s.drill);
-          if (next.agent === drill.agent) delete next.agent;
-          else next.agent = drill.agent;
-          window.LogApp.setDrill(next);
-          return;
-        }
         window.LogApp.setDrill(drill);
       };
     });
-    // §6.1 — clicking a waterfall row selects that run's opening entry
-    this.querySelectorAll('.wf-row[data-run-id]').forEach((el) => {
+    // Agent-level bars are the bottom of the hierarchy: clicking one focuses
+    // that run in the waterfall and lists its logs, without narrowing scope.
+    this.querySelectorAll('.bar-clickable[data-run-path]').forEach((el) => {
       el.onclick = () => {
-        const fromTs = +el.getAttribute('data-run-id');
         const s = window.LogApp.state;
-        const r = s.model.repos.find((x) => x.name === s.drill.repo);
-        const b = r?.branches.find((x) => x.name === s.drill.branch);
-        const task = b?.tasks.find((x) => x.title === s.drill.task);
-        const run = task?.runs.find((rn) => rn.from === fromTs);
-        if (run && run.events[0]) window.LogApp.selectLog(run.events[0]);
+        const path = el.getAttribute('data-run-path');
+        const from = +el.getAttribute('data-run-from');
+        const cur = s.selectedRun;
+        s.selectedRun = (cur && cur.path === path && cur.from === from) ? null : { path, from };
+        window.LogApp.render();
       };
     });
+    // §6.1 — clicking a waterfall row opens the list of logs behind that run
+    this.querySelectorAll('.wf-row[data-run-id]').forEach((el) => {
+      el.onclick = (e) => {
+        const s = window.LogApp.state;
+        const from = +el.getAttribute('data-run-id');
+        const path = el.getAttribute('data-run-path');
+        // A segment is one log — clicking it opens that log directly
+        const seg = e.target.closest('[data-seg-id]');
+        if (seg) {
+          const log = s.inScope.find((l) => l.id === +seg.getAttribute('data-seg-id'));
+          s.selectedRun = { path, from };
+          if (log) return window.LogApp.selectLog(log);
+        }
+        const cur = s.selectedRun;
+        s.selectedRun = (cur && cur.path === path && cur.from === from) ? null : { path, from };
+        window.LogApp.render();
+      };
+    });
+    // Rows of the run log list open that entry in the detail panel
+    this.querySelectorAll('.run-log-row').forEach((el) => {
+      el.onclick = () => {
+        const log = window.LogApp.state.inScope.find((l) => l.id === +el.getAttribute('data-log-id'));
+        if (log) window.LogApp.selectLog(log);
+      };
+    });
+    const runClose = this.querySelector('[data-run-close]');
+    if (runClose) runClose.onclick = (e) => {
+      e.stopPropagation();
+      window.LogApp.state.selectedRun = null;
+      window.LogApp.render();
+    };
     // §6.2 — clicking a gaps row drills to that task
     this.querySelectorAll('.gap-row').forEach((el) => {
       el.onclick = () => {

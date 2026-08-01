@@ -1,0 +1,28 @@
+<p>The only page whose shape follows the drill depth. Stat cards, then one bar per item at the current level, then — at task level — the waterfall.</p>
+<pre>┌ Wall-clock ┐┌ Agent time ┐┌ Idle ──────┐┌ Issue time ┐┌ GitHub ────┐
+│ 8h 41m     ││ 6h 12m     ││ 2h 29m     ││ 44m        ││ 18m        │
+│ 12 tasks   ││ 71% of wall││ 29% of wall││ 9 issues   ││ 3% of wall │
+└────────────┘└────────────┘└────────────┘└────────────┘└────────────┘
+Where time goes — tasks on feat/telemetry-ingest
+Ship telemetry ingest [in progress] ▮▮▮▮▮▨▨▨  1h 58m  22% idle  3 agents
+Load-test the ingest path [completed] ▮▮▮▨     41m     8% idle  2 agents
+
+Waterfall — Ship telemetry ingest endpoint   trace c41f8a0e
+AGENT                 09:02   09:31   10:00   10:29   10:58        SPAN
+· lead_architect      ▮▮▮▮▮                              ▮▮▮       12m
+  └ schema_designer      ▮▮▮▮▮▮                                     8m
+  └ handler_dev              ▮▮▮▮▮▮▮▮▮▮▮▮▮                         22m
+IDLE                              ▨▨▨▨▨          ▨▨▨▨            22m
+Largest single gap: 18m with no agent logging.
+
+Longest idle gaps in view
+REPO           BRANCH              TASK              FROM    TO     IDLE
+nocturne-web   feat/telemetry-…    Ship telemetry…   09:44   10:02  18m</pre>
+<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
+<tr><td>A bar row</td><td>Drills one level deeper and re-renders this page at that level: repositories → branches → tasks → agents. Nothing else on screen moves.</td></tr>
+<tr><td>Breadcrumb / tree</td><td>The way back up. The page's level is always exactly the drill depth — there is no separate level control to fall out of sync.</td></tr>
+<tr><td>An agent bar (deepest level)</td><td>Toggles that agent as a filter within the task, so the waterfall and stats narrow to its runs.</td></tr>
+<tr><td>A waterfall row</td><td>Selects that run's opening entry and opens the detail panel — the bridge from "this agent took 22 minutes" to what it actually did.</td></tr>
+<tr><td>A gaps-table row</td><td>Drills to the repository, branch and task of that gap, which brings up its waterfall below.</td></tr>
+</tbody></table>
+<p>Bar segments are always ordered activity → issue → decision → GitHub → idle, so the same visual position means the same category on every row of every level.</p>

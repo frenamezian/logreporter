@@ -1,0 +1,8 @@
+<p>Aggregates over the same filter and drill scope as everything else — nothing here is computed over the whole database unless the scope is the whole database.</p>
+<ul>
+<li>Task counts by state: open, completed, failed, plus the idle share of wall-clock.</li>
+<li>Entries by log type, and GitHub operations broken down by git action (read from the tags on each <code>github</code> log).</li>
+<li>Median task duration per repository — median, not mean, because one abandoned task otherwise dominates.</li>
+<li>Open issues and escalations as cards; clicking one jumps to that entry in the hierarchy with its ancestors expanded.</li>
+<li>Agent time by <code>agent_path</code>, with the entry count alongside.</li>
+</ul>

@@ -1,0 +1,10 @@
+<p>LogReporter is a single static page that reads an agent activity log — a SQLite file, <code>activity_logs.db</code> — directly in your browser. There is no server and no upload: the file is parsed in place and every view is computed from the rows in memory.</p>
+<p>On first load you are looking at the bundled demo dataset, so every page has something in it. To read your own log:</p>
+<ol>
+<li>Open the data-source button in the header — it reads <em>Demo data</em> until a file is loaded.</li>
+<li>Choose <strong>Open activity_logs.db</strong> and pick your file (<code>.db</code>, <code>.sqlite</code>, <code>.sqlite3</code>).</li>
+<li>The status dot turns accent-coloured and the row count appears. Every page now reflects your data.</li>
+<li>Turn on <strong>Auto-poll</strong> if agents are still writing — the file is re-read whenever its modified time changes.</li>
+</ol>
+<p>Auto-poll needs a browser that supports file handles (Chromium-based). Elsewhere, press <strong>Refresh</strong> and re-pick the file.</p>
+<div class="help-callout">A good first pass: leave the filters empty, skim <strong>Hierarchy</strong> to see which repositories carry the work, then hit <strong>Where time goes</strong> to see how much of that wall-clock time was idle.</div>

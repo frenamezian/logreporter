@@ -4,27 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LogReporter</title>
-  <link rel="stylesheet" href="style.css">
+  <!-- Bump ?v= on every asset when shipping a change: browsers keep serving a
+       cached copy of these files otherwise, and the dashboard silently runs
+       last week's code. -->
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <!-- data layer first -->
-  <script src="script/sample-logs.js"></script>
-  <script src="script/time-model.js"></script>
-  <script src="script/filters.js"></script>
-  <script src="script/db.js"></script>
-  <script src="script/app.js"></script>
+  <script src="script/sample-logs.js?v=4"></script>
+  <script src="script/time-model.js?v=4"></script>
+  <script src="script/filters.js?v=4"></script>
+  <script src="script/db.js?v=4"></script>
+  <script src="script/app.js?v=4"></script>
   <!-- components: base + helpers first, app-shell last -->
-  <script src="components/log-component.js"></script>
-  <script src="components/log-header.js"></script>
-  <script src="components/log-filters.js"></script>
-  <script src="components/log-tree.js"></script>
-  <script src="components/log-list.js"></script>
-  <script src="components/log-details.js"></script>
-  <script src="components/log-timeline.js"></script>
-  <script src="components/log-timegoes.js"></script>
-  <script src="components/log-metrics.js"></script>
-  <script src="components/log-maintenance.js"></script>
-  <script src="components/log-help.js"></script>
-  <script src="components/app-shell.js"></script>
+  <script src="components/log-component.js?v=4"></script>
+  <script src="components/log-header.js?v=4"></script>
+  <script src="components/log-filters.js?v=4"></script>
+  <script src="components/log-tree.js?v=4"></script>
+  <script src="components/log-list.js?v=4"></script>
+  <script src="components/log-details.js?v=4"></script>
+  <script src="components/log-timeline.js?v=4"></script>
+  <script src="components/log-timegoes.js?v=4"></script>
+  <script src="components/log-metrics.js?v=4"></script>
+  <script src="components/log-maintenance.js?v=4"></script>
+  <script src="components/log-help.js?v=4"></script>
+  <script src="components/app-shell.js?v=4"></script>
 </body>
 </html>
