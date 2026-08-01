@@ -1,10 +1,22 @@
-<p>The header is the only global control surface. Left to right:</p>
+<p>The header is the only global control surface: it never changes with the page, and nothing it does is scoped to one view.</p>
 <table><thead><tr><th>Control</th><th>What it does</th></tr></thead><tbody>
-<tr><td>Page tabs</td><td>Hierarchy, Chronology, Where time goes, Metrics, Maintenance, Help. The count on Hierarchy is the number of rows passing the current filters.</td></tr>
-<tr><td>Shown / total</td><td>Rows in scope versus rows in the database — the fastest way to tell a filter is still on.</td></tr>
-<tr><td>CSV · JSON</td><td>Export the rows currently in scope, columns verbatim from the table.</td></tr>
-<tr><td>Refresh</td><td>Re-read the open file. On the demo dataset it just restamps the note.</td></tr>
-<tr><td>Data source</td><td>Status dot plus a menu: open a file, toggle auto-poll, save a copy of the database.</td></tr>
-<tr><td>?</td><td>This guide — the same page as the Help tab.</td></tr>
+<tr><td><strong>Page tabs</strong></td><td>Hierarchy, Chronology, Where time goes, Metrics, Maintenance, Help. Switching a tab changes the middle column only — filters, drill scope, tree state and the open entry all survive.</td></tr>
+<tr><td><strong>The badge on Hierarchy</strong></td><td>How many rows are in scope right now (filters and drill applied). It is on that tab because Hierarchy is where those rows are listed.</td></tr>
+<tr><td><strong>N / M logs</strong></td><td>Rows in scope versus rows in the database. When the two differ, something is narrowing the view — the fastest way to notice a filter you forgot about.</td></tr>
+<tr><td><strong>CSV · JSON</strong></td><td>Download the rows in scope. Columns are written verbatim in the table's own order; JSON is the row objects as read.</td></tr>
+<tr><td><strong>Refresh</strong></td><td>Re-reads the database <em>from its source</em>, not from the copy in memory — a file you opened by hand is re-opened through its handle, otherwise <code>activity_logs.db</code> is fetched again. This is what surfaces rows agents appended while you were reading.</td></tr>
+<tr><td><strong>Data source</strong></td><td>The status dot, the current file name, and a menu (below).</td></tr>
+<tr><td><strong>?</strong></td><td>This guide. It is the Help page, not a popup — the same tab, reachable either way.</td></tr>
 </tbody></table>
-<p>Status dot: accent means a real database is loaded, grey means demo data, red means the last file could not be read — the menu shows the error.</p>
+
+<h3>The data-source menu</h3>
+<figure class="help-figure help-figure-sm">
+  <a href="docs/img/datasource.png" target="_blank" rel="noopener"><img src="docs/img/datasource.png" alt="The data source dropdown showing the file name, row count, and three actions"></a>
+  <figcaption>The menu names the file, how many rows it holds and where they came from.</figcaption>
+</figure>
+<ul>
+<li><strong>Open activity_logs.db</strong> — picks a database anywhere on disk. Where the browser supports file handles (Chromium-based), the handle is kept so Refresh and Auto-poll can re-read it without asking again; elsewhere a plain file input is used and you re-pick the file each time.</li>
+<li><strong>Auto-poll on / off</strong> — checks the source every five seconds. For a file you opened by hand, the check is cheap: the file is only re-parsed when its modified time has changed. For the served <code>activity_logs.db</code> it is re-fetched each tick, with caching disabled so a stale copy can never be served.</li>
+<li><strong>Save database copy</strong> — downloads the in-memory database as a <code>.db</code> file. It never overwrites the file you opened.</li>
+</ul>
+<p>The dot's colour is the load state: lit means a real database is loaded, grey means the bundled demo data, red means the last read failed. The line under the file name always says which, with the error text when there is one.</p>

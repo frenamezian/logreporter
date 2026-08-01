@@ -1,23 +1,35 @@
-<p>One table, <code>logs</code>, one row per event. Nothing is normalised away: repository, branch, task and agent identity live on every row so a single append is always sufficient.</p>
+<p>One table, <code>logs</code>, one row per event. Nothing is normalised away: repository, branch, task and agent identity live on every row, so a single append is always sufficient and no writer ever has to read before it writes.</p>
 <table><thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead><tbody>
-<tr><td>id</td><td>INTEGER PK</td><td>Autoincrement.</td></tr>
-<tr><td>timestamp</td><td>TEXT</td><td><code>YYYY-MM-DD HH:MM:SS</code>, UTC. Sorts lexically.</td></tr>
-<tr><td>repo_name / branch_name</td><td>TEXT</td><td>Verbatim identifiers, never humanised in the UI.</td></tr>
-<tr><td>task_title</td><td>TEXT</td><td>The unit of work. Empty rows group as "Untitled task".</td></tr>
+<tr><td>id</td><td>INTEGER PK</td><td>Rowid. The only key the UI uses to identify a row.</td></tr>
+<tr><td>timestamp</td><td>TEXT</td><td><code>YYYY-MM-DD HH:MM:SS</code>, UTC. Sorts lexically; parsed as UTC by the time model.</td></tr>
+<tr><td>repo_name / branch_name</td><td>TEXT</td><td>Verbatim identifiers, never humanised in the UI. <code>log_activity.py</code> derives them from git when omitted.</td></tr>
+<tr><td>task_title</td><td>TEXT</td><td>The unit of work, and part of the grouping key. Empty rows group as "Untitled task".</td></tr>
 <tr><td>log_type</td><td>TEXT</td><td>start · end · activity · issue · decision · github</td></tr>
-<tr><td>log_title</td><td>TEXT</td><td>One line, imperative or past-tense. Shown in every list.</td></tr>
-<tr><td>log_description</td><td>TEXT</td><td>The prose. Snippets are truncated in lists, full text in the panel.</td></tr>
+<tr><td>log_title</td><td>TEXT</td><td>One line, specific. Shown in every list.</td></tr>
+<tr><td>log_description</td><td>TEXT</td><td>The prose. A snippet in lists, in full in the detail panel.</td></tr>
 <tr><td>log_level</td><td>TEXT</td><td>debug · info · warning · error</td></tr>
-<tr><td>status</td><td>TEXT</td><td>pending · in_progress · failed · completed</td></tr>
+<tr><td>status</td><td>TEXT</td><td>pending · in_progress · failed · completed. Only read on <code>end</code> rows, where it becomes the task's state.</td></tr>
 <tr><td>priority</td><td>TEXT</td><td>low · medium · high · critical</td></tr>
-<tr><td>agent_name</td><td>TEXT</td><td>The agent that wrote the row.</td></tr>
-<tr><td>agent_path</td><td>TEXT</td><td>Slash-delimited lineage, e.g. <code>lead_architect/handler_dev</code>. Depth drives indentation.</td></tr>
-<tr><td>trace_id / parent_trace_id</td><td>TEXT</td><td>Shared by every row of one multi-agent run; the parent links a spawned run to its caller.</td></tr>
+<tr><td>agent_name</td><td>TEXT</td><td>The agent that wrote the row; shown in the entry lists.</td></tr>
+<tr><td>agent_path</td><td>TEXT</td><td>Slash-delimited lineage, e.g. <code>lead_architect/task_executor</code>. Groups runs, drives indentation, and is what "own time" subtracts along.</td></tr>
+<tr><td>trace_id / parent_trace_id</td><td>TEXT</td><td>Shared by every row of one run of work; the parent links a spawned or retried run to its caller.</td></tr>
 <tr><td>user_id</td><td>TEXT</td><td>Who or what initiated the work.</td></tr>
-<tr><td>tags</td><td>TEXT</td><td>Comma-separated <code>#hash</code> tokens. On a github log one tag is the git action.</td></tr>
+<tr><td>tags</td><td>TEXT</td><td>Comma-separated <code>#hash</code> tokens. On a <code>github</code> row one of them names the git action.</td></tr>
 <tr><td>error_details</td><td>TEXT</td><td>Raw exception or stderr. Rendered monospace, unmodified.</td></tr>
-<tr><td>resolved_by / resolution_time</td><td>TEXT</td><td>Set when a later step closes out an issue.</td></tr>
-<tr><td>performance_metrics</td><td>TEXT (JSON)</td><td>execution_ms, tokens, cpu_pct, memory_mb — all optional.</td></tr>
+<tr><td>resolved_by / resolution_time</td><td>TEXT</td><td>Set when a later step closes out an issue. An <code>issue</code> row with no <code>resolved_by</code> is what Metrics calls open.</td></tr>
+<tr><td>performance_metrics</td><td>TEXT (JSON)</td><td>A small object — execution_ms, tokens, cpu_pct, memory_mb — shown verbatim in the record grid.</td></tr>
 <tr><td>input_output_hash</td><td>TEXT</td><td>Optional fingerprint for deduplication and replay.</td></tr>
+<tr><td>commit_reference</td><td>TEXT</td><td>Short SHA for a <code>github</code> commit row. Written by <code>log_activity.py</code>; read back by <code>SELECT *</code> but not yet surfaced in the record grid or the CSV column list.</td></tr>
 </tbody></table>
-<p><strong>The one hard invariant:</strong> each agent brackets its work with a <code>start</code> row and an <code>end</code> row carrying the same repo, branch, task and agent_path. Durations and idle gaps are derived from those pairs; without them a run has no span and contributes no time.</p>
+
+<h3>The three keys everything is built on</h3>
+<ul>
+<li><strong>(repo_name, branch_name, task_title)</strong> groups rows into a task. Character for character — a task title that drifts by one space becomes two tasks with two separate wall clocks.</li>
+<li><strong>agent_path</strong> groups rows within a task into runs, and its <code>/</code> depth defines the parent-child relationship the waterfall indents and "own time" corrects for.</li>
+<li><strong>trace_id</strong> links rows into one narrative for the detail panel's trace timeline. It is the only key that is allowed to cross tasks.</li>
+</ul>
+
+<div class="help-callout"><strong>The one hard invariant:</strong> each agent brackets its work with a <code>start</code> row and an <code>end</code> row carrying the same repo, branch, task and <code>agent_path</code>. Every duration and every idle gap is derived from those pairs. A run whose <code>end</code> never arrived is closed at its last event, so the work after that point simply disappears from the time views.</div>
+
+<h3>Indexes</h3>
+<p>The shipped file has none, which is fine at this size — the dashboard issues one unindexed full scan per load. On a large file, <code>(timestamp)</code> helps the read and <code>(repo_name, branch_name, task_title)</code> helps any grouped query you run against the file directly.</p>

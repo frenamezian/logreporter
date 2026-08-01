@@ -1,27 +1,40 @@
-<p>A narrow single column of destructive and export actions, capped at 900px so no control sits far from its label. Deliberately the plainest page in the app.</p>
-<pre>┌────────────────────────────────────────────────────────────────────┐
-│ Delete logs                                                        │
-│ Logs are retained until deleted here. Scope, review, confirm.      │
-│ ┌ Repository ▾┐┌ Branch ▾────┐┌ Older than ──┐┌ Log type ▾──┐      │
-│ 38 of 240 logs match this scope.            [Delete 38 logs]       │
-└────────────────────────────────────────────────────────────────────┘
-┌────────────────────────────────────────────────────────────────────┐
-│ Export — honours the page filters and drill scope, 128 rows        │
-│ [Export CSV] [Export JSON] [Save database copy]                    │
-└────────────────────────────────────────────────────────────────────┘
-Stored volume        (always the whole database, never the scope)
-REPO           BRANCH            LOGS  ISSUES  OLDEST      NEWEST
-nocturne-web   feat/telemetry…    128      12  2026-07-28  2026-07-29
+<p>A scope trail, two side-by-side cards, and a volume table. Deliberately the plainest page in the app: every destructive control sits next to the count it is about to act on.</p>
+<pre>┃ SCOPE [All repos] › [REPO Playground] › [BRANCH harness] › [TASK task_0340…]
+┃                                                            [See all repos]
 
-                    ┌ Delete 38 logs? ───────────────────┐
-                    │ 38 logs in 2 repositories will be  │
-                    │ removed. This cannot be undone…    │
-                    │              [Cancel][Delete logs] │
-                    └────────────────────────────────────┘</pre>
+┌ Delete logs ───────────────────────┐┌ Export ────────────────────────────┐
+│ Uses the same filters and drill    ││ Honours the page filters and drill │
+│ scope as the left panel.           ││ scope, 25 rows in scope.           │
+│                                    ││                                    │
+│ [Search: foo ×][Level: warning ×]  ││                                    │
+│  — or — No filters active …        ││                                    │
+│ Older than [dd/mm/yyyy]            ││                                    │
+│                                    ││                                    │
+│ 25 of 189 logs match  [Delete 25]  ││ [CSV][JSON][Save database copy]    │
+└────────────────────────────────────┘└────────────────────────────────────┘
+
+Total Log Count: 25   by agent path, within the current scope and filters
+REPO        BRANCH   TASK        AGENT PATH               LOGS ISSUES OLDEST
+Playground  harness  task_0340…  lead_architect/task_ex…    11      2 …
+Playground  harness  task_0340…  …/task_executor/code_r…     6      0 …
+
+                 ┌ Delete 25 logs? ────────────────────┐
+                 │ 25 logs in 1 repository will be     │
+                 │ removed. This cannot be undone.     │
+                 │                 [Cancel][Delete 25] │
+                 └─────────────────────────────────────┘</pre>
+
+<h3>One scope, stated three times</h3>
+<p>Delete and export both use the page's filter and drill scope — the same rows every other page is showing. That was a deliberate reversal of an earlier design where delete carried its own hidden scope: two scoping rules on one page meant the count under the button never matched the count in the header. Now the scope trail restates the drill as pills, the delete card restates the active filters as read-only chips, and the volume table counts exactly that. <strong>Older than</strong> is the single delete-only refinement.</p>
+
 <table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
-<tr><td>A delete-scope field</td><td>Recomputes the match count immediately. This scope is <em>independent</em> of the page filters — deletion must be stated explicitly, never inherited from whatever you were browsing.</td></tr>
-<tr><td>Delete N logs</td><td>Opens the confirmation dialog restating the count and how many repositories it touches. No deletion happens yet.</td></tr>
-<tr><td>Confirm</td><td>Removes the rows from the in-memory database and the row array. Every page updates; the note tells you to save a copy to persist. The file on disk is untouched.</td></tr>
-<tr><td>Export CSV / JSON</td><td>Writes the rows in the current <em>filter and drill</em> scope, columns verbatim — the opposite scoping rule to delete, which is why the two live in separate cards with separate labels.</td></tr>
-<tr><td>Save database copy</td><td>Exports the mutated database bytes as a download. The only way a deletion becomes permanent.</td></tr>
+<tr><td>A scope pill</td><td>Drills to that level. <strong>See all repos</strong> clears the drill, which also deselects the node in the navigation tree — that highlight is driven by the drill state.</td></tr>
+<tr><td><strong>Older than</strong></td><td>Recomputes the match count immediately; the card re-renders on its own without touching the rest of the app.</td></tr>
+<tr><td><strong>Delete N logs</strong></td><td>Opens the confirmation restating the count and how many repositories it touches. Nothing is removed yet. The backdrop or <strong>Cancel</strong> dismisses it.</td></tr>
+<tr><td>Confirm</td><td>POSTs the ids to <code>serve.py</code>, which deletes them from <code>activity_logs.db</code> and checkpoints the WAL; the page then re-reads the database so the screen matches the file. On demo data, or when the endpoint is missing, it falls back to the in-memory copy and says so — in the second case in red, because a refresh will bring the rows straight back.</td></tr>
+<tr><td><strong>Export CSV / JSON</strong></td><td>Writes the rows in scope, columns verbatim — identical to the header's CSV and JSON buttons.</td></tr>
+<tr><td><strong>Save database copy</strong></td><td>Downloads the in-memory database bytes. It never overwrites the file that was opened.</td></tr>
 </tbody></table>
+
+<h3>The volume table</h3>
+<p>It groups by the level just <em>below</em> the deepest drilled one — repo → branch → task → <code>agent_path</code>, which is the floor — so drilling one step always answers "and what is that count made of?". Columns above the grouping level repeat the scope's value; columns below it read <em>All</em>, because the row aggregates every value they could take. Groups are sorted by row count, and each carries its issue count and its oldest and newest timestamps.</p>

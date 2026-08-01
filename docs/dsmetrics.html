@@ -1,25 +1,36 @@
-<p>A two-column report: counted distributions on the left, things needing a person on the right. Static layout — it does not change with drill depth, only its numbers do.</p>
-<pre>┌ Open tasks ┐┌ Completed ─┐┌ Failed ────┐┌ Idle share ┐
-│ 4          ││ 7          ││ 1          ││ 29%        │
-│ 12 in view ││ 3 repos    ││ 9 issues   ││ 2h 29m     │
+<p>A two-column report: counted distributions on the left, things needing a person on the right. The layout is static — it does not change with drill depth, only its numbers do.</p>
+<pre>┌────────────┐┌────────────┐┌────────────┐┌────────────┐
+│ 0          ││ 1          ││ 0          ││ 0s         │
+│ OPEN       ││ COMPLETED  ││ FAILED     ││ IDLE       │
 └────────────┘└────────────┘└────────────┘└────────────┘
-Entries by log type                 │ Open issues and escalations
-● Start/end ● Activity ● Issue …    │ ┌──────────────────────────────┐
-Activity   ▮▮▮▮▮▮▮▮▮▮▮▮▮▮  64       │ │ nocturne-web · feat/telemet… │
-GitHub     ▮▮▮▮▮▮▮         31       │ │ Retry 2/5 — SQLITE_BUSY      │
-Issue      ▮▮▮▮            18       │ │ Concurrent writer held the…  │
-Decision   ▮▮▮             12       │ │ [warning][handler_dev]       │
-                                    │ └──────────────────────────────┘
-GitHub operations                   │ ┌ … 3 more ───────────────────┐
-Push       ▮▮▮▮▮▮▮▮▮▮      14       │
-Commit     ▮▮▮▮▮▮▮          9       │ Agent time
-Pull       ▮▮▮▮             6       │ lead_architect/handler_dev  22m  41
-                                    │ lead_architect/schema_desi…  8m  12
-Median task duration by repository  │ lead_architect              12m   9
-nocturne-web  ▮▮▮▮▮▮▮▮▮   1h 12m    │</pre>
+Entries by log type                  │ Open issues and escalations
+● end       ███████████████  6       │ ┌───────────────────────────────┐
+● start     ███████████████  6       │ │ Playground · harness          │
+● issue     ██████████        4      │ │ Second consecutive PASS carr… │
+● activity  ███████           3      │ │ [warning][lead_architect]     │
+● github    ███████           3      │ └───────────────────────────────┘
+● decision  ███████           3      │ ┌ … one card per open issue ───┐
+                                     │
+GitHub operations                    │ Agent time
+commit      ███████████████  3       │ lead_architect            1h 16m  1
+                                     │ lead_architect/task_exec… 1h 15m  1
+Median task duration by repository   │ …/task_executor/code_rev…    26m  3
+Playground  ███████████  1h 16m      │ …/task_executor/test_wri…    22m  1
+                                     │            agent_path   time  runs</pre>
+
 <table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
-<tr><td>An issue card</td><td>Jumps to Hierarchy with that entry selected and its repository, branch and task expanded around it — the one deep link on the page.</td></tr>
-<tr><td>Bars and stat cards</td><td>Read-only. They report the scope; they do not set it. Use the filters or the tree to change what is counted.</td></tr>
+<tr><td>An issue card</td><td>The one deep link on the page: switches to Hierarchy, expands the repository, branch and task around that row, and opens it in the detail panel.</td></tr>
+<tr><td>Bars and stat cards</td><td>Read-only. They report the scope; they never set it. Use the filters or the tree to change what is counted.</td></tr>
 <tr><td>Filters / drill</td><td>Every number here is scoped. Drill to a branch and "median task duration by repository" shows exactly one row — that is correct, not a bug.</td></tr>
 </tbody></table>
-<p>Bars are scaled against the largest value in view, not against a fixed maximum, so a distribution stays legible whether the scope holds 40 rows or 40,000. Zero-count rows are dropped rather than drawn empty.</p>
+
+<h3>What each block counts</h3>
+<ul>
+<li><strong>Cards</strong> — tasks by state (open = pending or in progress; a task with no closing <code>end</code> row counts as open), and total idle time as a duration.</li>
+<li><strong>Entries by log type</strong> — raw row counts over the rows in scope, largest first, each bar in its category colour. <code>start</code> and <code>end</code> appear as their own types here, unlike in the time bars where their time is attributed to activity.</li>
+<li><strong>GitHub operations</strong> — <code>github</code> rows bucketed by the action found in <code>tags</code> and <code>log_title</code>: pull, push, commit, add, delete. Rows matching none of them are dropped rather than bucketed as "other".</li>
+<li><strong>Median task duration</strong> — the median of the tasks' wall-clock times per repository. Median, not mean, because one abandoned task that ran overnight otherwise dominates.</li>
+<li><strong>Open issues</strong> — <code>log_type === 'issue'</code> with no <code>resolved_by</code>, in scope order.</li>
+<li><strong>Agent time</strong> — summed run spans per <code>agent_path</code>, the twelve largest, with the number of runs. Nested paths appear separately and overlap by design.</li>
+</ul>
+<p>Bars are scaled against the largest value in view, not a fixed maximum, so a distribution stays legible whether the scope holds 40 rows or 40,000. Zero-count rows are dropped rather than drawn empty.</p>

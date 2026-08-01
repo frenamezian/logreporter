@@ -20,6 +20,9 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
+/* The viewport column: the shell takes what is left, the sponsor strip keeps
+   its band at the bottom. Before the footer existed the shell was itself
+   100vh; it now has to shrink, so the 100vh lives here instead. */
 body {
   background: var(--bg);
   color: var(--text);
@@ -27,6 +30,8 @@ body {
   font-size: 14px;
   line-height: 1.45;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Visible scrollbars on the dark surfaces */
@@ -54,7 +59,7 @@ button.small { padding: 4px 8px; font-size: 12px; }
    to the element itself. Without it the element stays inline, the flex chain
    below never gets a height to work against, and the scrollable panes
    (.page-host, log-details) grow past the clipped body instead of scrolling. */
-app-shell, .app-shell { display: flex; flex-direction: column; height: 100vh; min-height: 0; }
+app-shell, .app-shell { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 
 log-header {
   display: flex;
@@ -672,6 +677,11 @@ log-help-nav .filter-search { flex: 0 0 auto; }
 .help-article-title {
   margin: 0 0 18px; font-size: 22px; font-weight: 600; line-height: 1.3;
 }
+.help-article h3 {
+  margin: 26px 0 10px; font-size: 15px; font-weight: 600; line-height: 1.35;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.help-article h3:first-child { margin-top: 0; }
 .help-article p { margin: 0 0 12px; font-size: 13.5px; line-height: 1.65; color: color-mix(in srgb, var(--text) 85%, transparent); }
 .help-article ul, .help-article ol { margin: 0 0 12px; padding-left: 22px; }
 .help-article ul { display: flex; flex-direction: column; gap: 5.6px; list-style: disc; }
@@ -702,6 +712,22 @@ log-help-nav .filter-search { flex: 0 0 auto; }
 .help-swatch { width: 10px; height: 10px; flex: none; border-radius: 2px; }
 .help-swatch.idle { background: repeating-linear-gradient(135deg, rgba(255,255,255,0.3) 0 3px, transparent 3px 6px); }
 .help-loading { color: var(--text-dim); }
+
+/* Screenshots. The captures are 2x, so they are readable when opened at full
+   size — the link on the frame is the only way to do that from inside the
+   article column, which is narrower than the app it is picturing. */
+.help-figure { margin: 0 0 18px; }
+.help-figure a {
+  display: block; overflow: hidden; line-height: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.help-figure a:hover { border-color: var(--accent); }
+.help-figure img { display: block; width: 100%; height: auto; }
+.help-figure figcaption {
+  margin-top: 7px; font-size: 12px; line-height: 1.55; color: var(--text-dim);
+}
+.help-figure figcaption strong { color: color-mix(in srgb, var(--text) 85%, transparent); }
+.help-figure-sm { max-width: 380px; }
 
 /* --- help article footer: prev / next --- */
 .help-article-footer {
@@ -765,3 +791,71 @@ log-filters .nav-caret-icon {
 log-filters .node { user-select: none; }
 log-filters .node:hover .nav-caret-icon { opacity: 1; color: var(--text); }
 
+
+/* --- sponsor strip (log-footer.js) ---------------------------------------
+   Spans the full width of the app, under the sidebar and the detail panel
+   alike. Height is capped so the strip can never eat more than a tenth of a
+   realistic viewport: 9vh keeps it proportional, the 88px ceiling stops it
+   growing on a tall monitor, and the 48px floor keeps the banner legible on a
+   short window (48px is still under 10% of anything 480px or taller). */
+:root { --footer-h: clamp(48px, 9vh, 88px); }
+
+log-footer {
+  flex: 0 0 auto;
+  height: var(--footer-h);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+.footer-inner {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 16px;
+}
+.footer-label {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-dim);
+  opacity: 0.65;
+}
+
+/* The banner scales by HEIGHT so it always fills the strip; `contain` lets it
+   fall back to scaling by width on a narrow window rather than being cropped.
+   Slides are stacked so a crossfade never changes the layout height. */
+.footer-stage { position: relative; flex: 1 1 auto; height: 100%; min-width: 0; }
+.footer-ad {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; visibility: hidden;
+  transition: opacity 600ms ease;
+  border-radius: 4px;
+}
+.footer-ad.active { opacity: 1; visibility: visible; }
+.footer-ad img { max-height: 100%; max-width: 100%; object-fit: contain; display: block; }
+.footer-ad:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.footer-dots { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; min-width: 34px; justify-content: flex-end; }
+.footer-dot {
+  width: 6px; height: 6px; padding: 0;
+  border-radius: 50%; border: 0; background: var(--border);
+  cursor: pointer; transition: background 200ms ease, transform 200ms ease;
+}
+.footer-dot:hover { background: var(--text-dim); }
+.footer-dot.active { background: var(--accent); transform: scale(1.25); }
+
+/* No manifest, or no ads in it: a single quiet line instead of an empty band. */
+.footer-credit { justify-content: center; }
+.footer-credit-link {
+  font-size: 11.5px; letter-spacing: 0.04em;
+  color: var(--text-dim); text-decoration: none;
+}
+.footer-credit-link:hover { color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .footer-ad { transition: none; }
+  .footer-dot { transition: none; }
+}

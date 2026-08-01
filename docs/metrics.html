@@ -1,8 +1,25 @@
-<p>Aggregates over the same filter and drill scope as everything else — nothing here is computed over the whole database unless the scope is the whole database.</p>
+<p>Counts and distributions over the same filter and drill scope as every other page — nothing here is computed over the whole database unless the scope <em>is</em> the whole database.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/metrics.png" target="_blank" rel="noopener"><img src="docs/img/metrics.png" alt="Metrics page: four stat cards, distributions on the left, open issues and agent time on the right"></a>
+  <figcaption>Scoped to one task. Distributions on the left, the things that need a person on the right.</figcaption>
+</figure>
+
+<h3>The four cards</h3>
+<p>Task counts by state — <strong>Open</strong> (pending or in progress), <strong>Completed</strong>, <strong>Failed</strong> — and total <strong>Idle</strong> time. A task's state is the status on its last <code>end</code> row; a task with no closing row at all counts as open.</p>
+
+<h3>Left column — distributions</h3>
 <ul>
-<li>Task counts by state: open, completed, failed, plus the idle share of wall-clock.</li>
-<li>Entries by log type, and GitHub operations broken down by git action (read from the tags on each <code>github</code> log).</li>
-<li>Median task duration per repository — median, not mean, because one abandoned task otherwise dominates.</li>
-<li>Open issues and escalations as cards; clicking one jumps to that entry in the hierarchy with its ancestors expanded.</li>
-<li>Agent time by <code>agent_path</code>, with the entry count alongside.</li>
+<li><strong>Entries by log type</strong> — how many rows of each type are in scope, largest first, each in its category colour.</li>
+<li><strong>GitHub operations</strong> — <code>github</code> rows broken down by git action. The action is read from the row's tags and title: pull, push, commit, add, delete. Rows with no recognisable action are left out rather than bucketed as "other".</li>
+<li><strong>Median task duration by repository</strong> — the median of the tasks' wall-clock times. Median, not mean, because one abandoned task that ran overnight otherwise dominates the number.</li>
 </ul>
+<p>Bars are scaled against the largest value currently in view, not a fixed maximum, so a distribution stays legible whether the scope holds forty rows or forty thousand. Empty categories are dropped rather than drawn as zero-width bars.</p>
+
+<h3>Right column — what needs a person</h3>
+<ul>
+<li><strong>Open issues and escalations</strong> — every <code>issue</code> row in scope with no <code>resolved_by</code> set, as cards carrying the repository and branch, the title, the description and the level. Clicking a card is the one deep link on this page: it switches to Hierarchy, expands the repository, branch and task around that row, and opens it in the detail panel.</li>
+<li><strong>Agent time</strong> — total run span per <code>agent_path</code>, the twelve largest, with the number of runs alongside. A nested path is listed on its own line, so a parent and its subagent both appear and their times overlap by design — see <em>Where time goes</em> for why.</li>
+</ul>
+
+<div class="help-callout">Everything on this page is read-only. It reports the scope; it never sets it. Drill to a branch and "median task duration by repository" shows exactly one row — that is correct, not a bug.</div>

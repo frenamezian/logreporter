@@ -1,4 +1,92 @@
-<p>Where the wall-clock time went, with idle treated as a first-class category rather than a residual.</p>
-<p>The stat cards give totals for the scope: wall-clock, agent time (agents overlap, so this can exceed wall-clock), idle, issue time and GitHub time. Below them, one bar per item at whatever level you have drilled to — repositories, then branches of a repository, then tasks on a branch, then agents on a task. Clicking a bar drills one level further.</p>
-<p>Drilled to a single task, the <strong>waterfall</strong> appears: one row per agent run, indented by <code>agent_path</code>, positioned horizontally by real clock time and segmented by log type. The idle row underneath shows the gaps no run covers, and the largest single gap is called out in words.</p>
-<p>The closing table ranks the longest idle gaps anywhere in scope; each row jumps to its task.</p>
+<p>Where the wall-clock time went, with idle treated as a first-class category rather than a residual. This is the only page whose shape follows the drill depth, and the only one where the numbers need explaining — so this topic explains them.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/timegoes.png" target="_blank" rel="noopener"><img src="docs/img/timegoes.png" alt="Where time goes at task level: five stat cards, per-agent bars, the waterfall, and the run log list"></a>
+  <figcaption>Drilled to one task: stat cards, one bar per agent run, the waterfall, and the logs behind the focused run.</figcaption>
+</figure>
+
+<h3>1 · The vocabulary</h3>
+<p>Four words carry all the arithmetic on this page. None of them are stored in the database — every one is derived from the log rows each time the page is drawn.</p>
+<table><thead><tr><th>Term</th><th>Definition</th></tr></thead><tbody>
+<tr><td><strong>Run</strong></td><td>One agent working once inside one task: a <code>start</code> row opens it, the matching <code>end</code> row closes it. Its length is <code>end − start</code>. The same agent dispatched three times is three runs.</td></tr>
+<tr><td><strong>Segment</strong></td><td>The stretch between one log row and the next row of the same run. Every segment belongs to exactly one run and is attributed to the type of the log that <em>opened</em> it.</td></tr>
+<tr><td><strong>Wall clock</strong></td><td>First event to last event of a task, no matter who was working — the elapsed time a person would have watched.</td></tr>
+<tr><td><strong>Idle</strong></td><td>The part of that wall clock covered by no run at all.</td></tr>
+</tbody></table>
+
+<h3>2 · How a segment gets its colour and its length</h3>
+<p>Inside a run, the rows are put in time order and each one claims the time until the next one:</p>
+<pre>run: task_executor      19:26 ───────────────────────────────── 20:57
+
+  19:26  start     ├──────── 13m ────────┤   activity
+  19:39  activity  ├─ 8s ─┤                  activity
+  19:39  decision  ├─ 1s ─┤                  decision
+  19:39  decision  ├──────── 12m ────────┤   decision
+  19:51  issue     ├──────── 22m ────────┤   issue
+  …
+  20:57  end       ┤                         (point — no time)</pre>
+<p>So a log's duration is <em>how long it was the most recent thing that agent said</em>. An <code>issue</code> row followed by nothing for 22 minutes means 22 minutes of issue time, which is exactly the reading you want: the agent was stuck on it.</p>
+<p>The mapping from log type to category is fixed: <code>issue</code> → issue, <code>decision</code> → decision, <code>github</code> → GitHub, and everything else — <code>activity</code>, <code>start</code>, <code>end</code> — → activity. A segment with no time (the closing <code>end</code> row, or two rows sharing a timestamp) is kept as a <em>point</em>: it accounts for zero time but stays visible and clickable in the waterfall, drawn as a tick.</p>
+
+<h3>3 · Own time versus span</h3>
+<p>A parent agent stays open while its subagents work, so its run <em>contains</em> theirs. Counting both would bill the same minutes twice.</p>
+<pre>lead_architect   ├─────────────────────────────────────┤  span 1h 31m
+  task_executor    ├───────────────────────────────┤       span 1h 31m
+    code_reviewer      ├──────┤                            span 12m
+    test_writer                      ├────────┤            span 27m</pre>
+<p>Each run therefore carries two numbers, shown as <strong>SPAN</strong> and <strong>OWN</strong>:</p>
+<ul>
+<li><strong>Span</strong> — <code>end − start</code>, the whole time the agent was open.</li>
+<li><strong>Own</strong> — the span minus the union of its descendants' runs: the time it was working rather than waiting on something it had delegated. A parent's own time plus its children's spans add back up to the parent's span.</li>
+</ul>
+<p>Sibling agents running at the same time are <em>not</em> subtracted from each other. That overlap is real concurrency, not delegation, and hiding it would misreport a genuinely parallel run as a short one.</p>
+
+<h3>4 · From runs to a task</h3>
+<p>A task is every row sharing the same repository, branch and title. Its numbers are built in this order:</p>
+<ol>
+<li><strong>Span</strong> — earliest run start to latest run end. This is the task's <em>wall clock</em>.</li>
+<li><strong>Busy</strong> — the union of all its runs. Overlapping agents are merged first, so two agents working the same ten minutes count as ten minutes of busy, not twenty.</li>
+<li><strong>Idle</strong> — the complement: the parts of the span that busy does not cover. Wall clock = busy + idle, always.</li>
+<li><strong>The four coloured categories</strong> — busy time apportioned across activity / issue / decision / GitHub in the same ratio as the raw segment sums. So the coloured part of a task's bar totals its busy time, and the bar as a whole totals its wall clock.</li>
+<li><strong>Agent time</strong> — the plain sum of every run's span, overlap and nesting included.</li>
+</ol>
+<div class="help-callout"><strong>Why apportion instead of just summing the segments?</strong> Raw segment sums are per-agent, and nested agents double-count: a parent's 22-minute wait and the child's 22-minute run are both real, but they are the same 22 minutes of the clock. Summing them would make a task's coloured bar longer than the task itself. Apportioning keeps every bar honest against wall clock while preserving the <em>shape</em> — which categories dominated — exactly as the segments reported it.</div>
+
+<h3>5 · Rolling up to branches, repositories and the whole scope</h3>
+<p>Branch, repository and page totals are plain sums of the task figures — wall clock, idle, each category, agent time, log and issue counts. Two consequences are worth having in mind:</p>
+<ul>
+<li>A repository's wall clock is the <em>sum of its tasks'</em> wall clocks, not its own first-to-last span. Two tasks running the same afternoon count twice, because the question being answered is "how much task time does this repository represent", not "how long was this repository busy".</li>
+<li>Idle is summed the same way, so the idle share stays comparable at every level. A gap only ever belongs to the task it sits inside; time when a repository had no task running at all is nobody's idle and is not counted.</li>
+</ul>
+
+<h3>6 · The stat cards</h3>
+<table><thead><tr><th>Card</th><th>What it is</th></tr></thead><tbody>
+<tr><td><strong>Wall clock</strong></td><td>Summed task wall clock for everything in scope, with the task count underneath.</td></tr>
+<tr><td><strong>Agent time</strong></td><td>The sum of every run span, with its ratio to wall clock and the "excl. subagents" figure — the sum of own time. The ratio is deliberately not capped at 100%: 268% of wall means agents nested and overlapped that heavily, and that is the interesting number.</td></tr>
+<tr><td><strong>Idle</strong></td><td>Summed idle, as a share of wall clock.</td></tr>
+<tr><td><strong>Issue time</strong></td><td>The issue category's share of busy time, with the issue row count.</td></tr>
+<tr><td><strong>GitHub time</strong></td><td>The GitHub category's share of busy time, as a percentage of wall clock.</td></tr>
+</tbody></table>
+
+<h3>7 · The bars, and what a click does</h3>
+<p>One bar per item at whatever level the drill scope sits: repositories → branches of a repository → tasks on a branch → agent runs of a task. Each bar is subdivided by whatever makes it up — the branches of a repository, the tasks of a branch, the agents of a task, the individual log rows of an agent — with a hairline between neighbours. The category order never changes, so the subdivision reveals that a block is several things without altering what the bar says. Bar lengths are scaled against the largest wall clock in view.</p>
+<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
+<tr><td>A repository, branch or task bar</td><td>Drills one level deeper. The page's level <em>is</em> the drill depth, so the breadcrumb and the tree are the way back up — there is no separate level control to fall out of sync.</td></tr>
+<tr><td>An agent bar (deepest level)</td><td>There is nothing left to drill into, so it focuses that run instead: the waterfall highlights it and the run's logs are listed below. Clicking it again unfocuses.</td></tr>
+<tr><td>A gaps-table row</td><td>Drills to the repository, branch and task of that gap, which brings up its waterfall.</td></tr>
+</tbody></table>
+<p>Agent bars are indented by <code>agent_path</code> depth rather than being drillable, and carry <em>"Xm own"</em> under the span whenever the run had subagents.</p>
+
+<h3>8 · The waterfall</h3>
+<p>At task level the waterfall appears: one row per run, indented by <code>agent_path</code>, positioned horizontally by real clock time against a five-tick axis. <strong>One coloured block is one log row</strong> — it starts at that log and ends at the next log of the same run — so the waterfall is a picture of the segment arithmetic above, not a separate summary.</p>
+<ul>
+<li>The <strong>IDLE</strong> row underneath shows the gaps no run covers, in the same horizontal frame.</li>
+<li>Clicking a block opens that log in the detail panel and focuses its run. Clicking the row anywhere else focuses the run without changing the open entry.</li>
+<li>With an entry open, every block of the same <code>trace_id</code> stays lit and the open one is outlined — so <strong>Prev / Next in trace</strong> in the detail panel walks visibly across the waterfall.</li>
+<li><strong>Logs in this run</strong>, below the waterfall, lists the focused run's rows with the stretch each one accounts for. A point row reads "—".</li>
+</ul>
+
+<h3>9 · Longest idle gaps</h3>
+<p>The closing table ranks the twenty longest gaps anywhere in scope, with the task they belong to and the clock times they span. Clicking a row drills to that task, which brings up its waterfall below.</p>
+
+<div class="help-callout"><strong>Consequences worth knowing.</strong> A run whose <code>end</code> row never arrived is closed at its last event, so it contributes only the time it actually logged. A task with a single entry has zero wall clock. And time an agent spends working without logging is reported as idle — which is the honest reading, and the reason the logging contract asks agents to log when they begin waiting on something slow.</div>

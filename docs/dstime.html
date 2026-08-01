@@ -1,28 +1,58 @@
-<p>The only page whose shape follows the drill depth. Stat cards, then one bar per item at the current level, then — at task level — the waterfall.</p>
-<pre>┌ Wall-clock ┐┌ Agent time ┐┌ Idle ──────┐┌ Issue time ┐┌ GitHub ────┐
-│ 8h 41m     ││ 6h 12m     ││ 2h 29m     ││ 44m        ││ 18m        │
-│ 12 tasks   ││ 71% of wall││ 29% of wall││ 9 issues   ││ 3% of wall │
-└────────────┘└────────────┘└────────────┘└────────────┘└────────────┘
-Where time goes — tasks on feat/telemetry-ingest
-Ship telemetry ingest [in progress] ▮▮▮▮▮▨▨▨  1h 58m  22% idle  3 agents
-Load-test the ingest path [completed] ▮▮▮▨     41m     8% idle  2 agents
+<p>The only page whose shape follows the drill depth: five stat cards, one bar per item at the current level, and — at task level — the waterfall, the focused run's logs, and the idle gaps table.</p>
+<pre>┌───────────────┐┌───────────────┐┌───────────────┐┌───────────────┐┌───────────────┐
+│ 1h 31m        ││ 4h 05m        ││ 0s            ││ 16m           ││ 1m            │
+│ WALL CLOCK    ││ AGENT TIME    ││ IDLE          ││ ISSUE TIME    ││ GITHUB TIME   │
+│ 1 tasks       ││ sum of runs   ││ 0% of wall    ││ 3 issues      ││ 1.4% of wall  │
+│               ││ 268.7% of w.  ││               ││               ││               │
+│               ││ 1h31m ex.sub. ││               ││               ││               │
+└───────────────┘└───────────────┘└───────────────┘└───────────────┘└───────────────┘
 
-Waterfall — Ship telemetry ingest endpoint   trace c41f8a0e
-AGENT                 09:02   09:31   10:00   10:29   10:58        SPAN
-· lead_architect      ▮▮▮▮▮                              ▮▮▮       12m
-  └ schema_designer      ▮▮▮▮▮▮                                     8m
-  └ handler_dev              ▮▮▮▮▮▮▮▮▮▮▮▮▮                         22m
-IDLE                              ▨▨▨▨▨          ▨▨▨▨            22m
-Largest single gap: 18m with no agent logging.
+lead_architect        ███████████████████████████████      1h 31m   2s own
+└ task_executor       █████│████████│████████│███████      1h 31m  28m own
+  └ code_reviewer     █████                                    12m
+  └ test_writer       █████████│█                              27m
+        one bar per run · hairlines subdivide it by its own logs
+
+Waterfall — task_0350 …      trace 1943338f · one segment is one log
+AGENT                        19:26   19:48   20:11   20:34   20:57  SPAN  OWN
+· lead_architect [completed] 3 logs ████████████████████████  1h31m   2s
+│ task_executor  [completed] 10 logs ███│███│█████│█████│██   1h31m  28m
+└ code_reviewer  [completed] 2 logs        ██                    12m   —
+└ test_writer    [completed] 5 logs                 █████       27m   —
+IDLE                                                              0s   —
+
+Logs in this run — task_executor   10 logs · 1h 31m span · 28m excl. sub.
+TIME   TYPE      ENTRY                             LEVEL  ACCOUNTS FOR
+19:26  start     Dispatched executor for 0350      info   12m
+19:39  decision  ISS-015 claims 3 call sites…      info   1s
 
 Longest idle gaps in view
-REPO           BRANCH              TASK              FROM    TO     IDLE
-nocturne-web   feat/telemetry-…    Ship telemetry…   09:44   10:02  18m</pre>
+REPO         BRANCH    TASK             FROM    TO      IDLE</pre>
+
+<h3>Level selection</h3>
+<p>There is no level control: the level <em>is</em> the drill depth. No drill → repositories; <code>drill.repo</code> → its branches; <code>drill.branch</code> → its tasks; <code>drill.task</code> → the runs of that task, at which point the waterfall and gaps table appear. That is why the breadcrumb and the tree are the only way back up — nothing here can fall out of sync with them.</p>
+
+<h3>Bars</h3>
+<p>Each bar is stacked activity → issue → decision → GitHub → idle, scaled against the largest wall clock in view, and then <em>subdivided</em> by whatever makes it up: the branches of a repository, the tasks of a branch, the agents of a task, the individual log rows of a run, each with a hairline between neighbours. Category order is unchanged by the subdivision, so the bar still reads the same way; the hairlines only reveal that a block is several things.</p>
+<p>Subdividing must never change a bar's length, and it does not: a parent's category total is an apportioned figure while its children carry raw per-run sums (which double-count nesting), so the children are scaled onto the parent's total before being drawn. Idle has no child that owns it and stays a single block.</p>
+
+<h3>Interaction</h3>
 <table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
-<tr><td>A bar row</td><td>Drills one level deeper and re-renders this page at that level: repositories → branches → tasks → agents. Nothing else on screen moves.</td></tr>
-<tr><td>Breadcrumb / tree</td><td>The way back up. The page's level is always exactly the drill depth — there is no separate level control to fall out of sync.</td></tr>
-<tr><td>An agent bar (deepest level)</td><td>Toggles that agent as a filter within the task, so the waterfall and stats narrow to its runs.</td></tr>
-<tr><td>A waterfall row</td><td>Selects that run's opening entry and opens the detail panel — the bridge from "this agent took 22 minutes" to what it actually did.</td></tr>
-<tr><td>A gaps-table row</td><td>Drills to the repository, branch and task of that gap, which brings up its waterfall below.</td></tr>
+<tr><td>A repository / branch / task bar</td><td>Drills one level deeper and re-renders the page at that level. Nothing else on screen moves.</td></tr>
+<tr><td>An agent bar (deepest level)</td><td>There is nowhere left to drill, so it focuses that run instead: the waterfall row lights up and the run's logs are listed below. Clicking it again unfocuses. It does <em>not</em> change the scope.</td></tr>
+<tr><td>A waterfall segment</td><td>One segment is one log — it opens that log in the detail panel and focuses its run.</td></tr>
+<tr><td>A waterfall row, anywhere else</td><td>Focuses or unfocuses that run without changing the open entry.</td></tr>
+<tr><td>A row in <em>Logs in this run</em></td><td>Opens that log in the detail panel.</td></tr>
+<tr><td>A gaps-table row</td><td>Drills to the repository, branch and task of that gap, which brings up its waterfall.</td></tr>
 </tbody></table>
-<p>Bar segments are always ordered activity → issue → decision → GitHub → idle, so the same visual position means the same category on every row of every level.</p>
+
+<h3>Trace highlighting</h3>
+<p>With an entry open, every waterfall segment sharing its <code>trace_id</code> keeps a lit treatment and the open one is outlined; the legend says so in words. This is what makes <strong>Prev / Next in trace</strong> in the detail panel legible — the trace stays lit while the outline moves along it. Because <code>selectLog</code> follows a trace into another task, the drill can move under you here, and the waterfall follows rather than being left behind.</p>
+
+<h3>Details that matter when reading the waterfall</h3>
+<ul>
+<li>Indentation is <code>agent_path</code> depth, not nesting in time. Horizontal position is real wall clock, against a five-tick axis spanning the task.</li>
+<li>A zero-length segment — the closing <code>end</code> row, or two rows sharing a timestamp — is drawn as a tick so it stays visible and clickable. A tick landing on the closing edge is pinned to the right edge, because the bar clips its children.</li>
+<li><strong>OWN</strong> reads "—" for a run with no subagents; there is nothing to subtract, so repeating the span would only be noise.</li>
+<li>The <strong>IDLE</strong> row shares the same horizontal frame, so a gap lines up with the runs on either side of it.</li>
+</ul>

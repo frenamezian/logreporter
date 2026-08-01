@@ -1,0 +1,27 @@
+{
+  "label": "LESPIRANT",
+  "link": "https://www.lespirant.com",
+  "rotateMs": 7000,
+  "ads": [
+    {
+      "img": "ad-01.png",
+      "alt": "Photo of a man's bare shoulder with a copper-toned LESPIRANT L-Cut undershirt worn open at the front. Text reads: No Sweat Stains. No Collar. Invisible, even under a thin white shirt. I want my L-Cut.",
+      "href": "https://www.lespirant.com/products/lcut-undershirt"
+    },
+    {
+      "img": "ad-02.png",
+      "alt": "Close-up photo of the TENCEL fabric swing tag pinned to a copper L-Cut undershirt. Text reads: TENCEL Fabric. Softer Than Cotton. Sweat-wicking, odor-resistant, 100% Made in EU. I want my L-Cut.",
+      "href": "https://www.lespirant.com/products/lcut-undershirt"
+    },
+    {
+      "img": "ad-03.png",
+      "alt": "Three flat-lay product photos of the L-Cut undershirt in its Nude, Copper, and Maroon colorways side by side. Text reads: 3 Skin Tones. Always Invisible. Nude, Copper, Maroon. I want my L-Cut.",
+      "href": "https://www.lespirant.com/products/lcut-undershirt"
+    },
+    {
+      "img": "ad-04.png",
+      "alt": "Photo of seamstresses sewing garments in LESPIRANT's EU workshop. Text reads: 100% Made in EU. Living wages, health insurance, fair trade. Sustainability.",
+      "href": "https://www.lespirant.com/pages/sustainability-and-fair-trade"
+    }
+  ]
+}

@@ -1,10 +1,30 @@
-<p>LogReporter is a single static page that reads an agent activity log — a SQLite file, <code>activity_logs.db</code> — directly in your browser. There is no server and no upload: the file is parsed in place and every view is computed from the rows in memory.</p>
-<p>On first load you are looking at the bundled demo dataset, so every page has something in it. To read your own log:</p>
+<p>LogReporter is a single static page that reads an agent activity log — a SQLite file, <code>activity_logs.db</code> — and turns it into five views of the same rows. There is no upload and no server-side query: the file is parsed in the browser and every page is computed from the rows held in memory.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/hierarchy.png" target="_blank" rel="noopener"><img src="docs/img/hierarchy.png" alt="The Hierarchy page with a task drilled and an entry open in the detail panel"></a>
+  <figcaption><strong>The whole app.</strong> Header and page tabs across the top, filters and the navigation tree on the left, the page in the middle, the entry detail panel on the right. Click any screenshot in this guide to open it full size.</figcaption>
+</figure>
+
+<h3>Loading your log</h3>
+<p>When the page is served from the repository — <code>start_LogReporter.bat</code>, or <code>python serve.py</code> — it fetches the <code>activity_logs.db</code> sitting next to it on startup, so you are looking at real rows immediately. The data-source button in the header reads <code>activity_logs.db</code> and the dot beside it is lit.</p>
+<p>To read a database somewhere else:</p>
 <ol>
-<li>Open the data-source button in the header — it reads <em>Demo data</em> until a file is loaded.</li>
+<li>Open the data-source button in the header.</li>
 <li>Choose <strong>Open activity_logs.db</strong> and pick your file (<code>.db</code>, <code>.sqlite</code>, <code>.sqlite3</code>).</li>
-<li>The status dot turns accent-coloured and the row count appears. Every page now reflects your data.</li>
-<li>Turn on <strong>Auto-poll</strong> if agents are still writing — the file is re-read whenever its modified time changes.</li>
+<li>The button takes the file's name and the row count in the header updates. Every page now reflects your data.</li>
+<li>Turn on <strong>Auto-poll</strong> if agents are still writing — the source is checked every five seconds, and a file you picked yourself is only re-parsed when its modified time has changed.</li>
 </ol>
-<p>Auto-poll needs a browser that supports file handles (Chromium-based). Elsewhere, press <strong>Refresh</strong> and re-pick the file.</p>
-<div class="help-callout">A good first pass: leave the filters empty, skim <strong>Hierarchy</strong> to see which repositories carry the work, then hit <strong>Where time goes</strong> to see how much of that wall-clock time was idle.</div>
+<p>If the default database cannot be fetched — the page was opened over <code>file://</code>, or the file is missing — LogReporter falls back to a small bundled demo dataset so every page still has something in it. The dot turns grey and the data-source menu says why.</p>
+
+<h3>What each page answers</h3>
+<table><thead><tr><th>Page</th><th>The question it answers</th></tr></thead><tbody>
+<tr><td><strong>Hierarchy</strong></td><td>What work exists, and how does it nest? Repository → branch → task → the individual log entries.</td></tr>
+<tr><td><strong>Chronology</strong></td><td>What happened, in the order it happened, including the stretches when nothing was logged.</td></tr>
+<tr><td><strong>Where time goes</strong></td><td>Where the wall-clock time went — which agent, which category, and how much of it was nobody working.</td></tr>
+<tr><td><strong>Metrics</strong></td><td>Counts and distributions over the current scope, plus the issues still open.</td></tr>
+<tr><td><strong>Maintenance</strong></td><td>What is stored, and removing or exporting part of it.</td></tr>
+</tbody></table>
+
+<h3>The two things that scope every page</h3>
+<p><strong>Filters</strong> (top of the left panel) narrow the rows. <strong>The navigation tree</strong> (below them) drills into one repository, branch, task or agent. Both apply to every page at once, and the breadcrumb above the content always shows the drill. Changing a filter clears the drill; drilling never changes a filter.</p>
+<div class="help-callout">A good first pass: leave the filters empty, skim <strong>Hierarchy</strong> to see which repositories carry the work, click <strong>Time →</strong> on the task that looks expensive, and read its waterfall on <strong>Where time goes</strong>.</div>

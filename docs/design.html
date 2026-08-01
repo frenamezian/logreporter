@@ -1,12 +1,37 @@
-<p>The interface follows a near-neutral dark ground, medium-weight sans, 8px radii, and the accent used as a line, a tint or a glow — never as a flood. Every colour, size and space comes from the design tokens.</p>
-<p>Five categories carry a fixed colour across every chart, bar, dot and legend, and they never mean anything else:</p>
+<p>A near-neutral dark ground, system sans, 8px radii, and the accent used as a line, a tint or a glow — never as a flood. Every colour, size and space comes from the tokens at the top of <code>style.css</code>.</p>
+<pre>--bg        #0f1115    the page
+--surface   #161821    cards, panels, code blocks
+--surface-2 #1b1d2b    inputs, buttons, table headers
+--text      #e6e6e6    --text-dim  #9aa0b2
+--border    #2a2d3a
+--accent    #5b8def    --accent-2  #8eb6ff
+--radius    8px        --shadow  0 2px 8px rgba(0,0,0,.35)
+--font      system-ui …          --mono  ui-monospace …</pre>
+
+<h3>The five categories</h3>
+<p>Five categories carry a fixed colour across every bar, dot, block and legend, and they never mean anything else:</p>
 <div class="help-legend">
-<span><span class="help-swatch" style="background:var(--activity)"></span>Activity</span>
-<span><span class="help-swatch" style="background:var(--issue)"></span>Issue</span>
-<span><span class="help-swatch" style="background:var(--decision)"></span>Decision</span>
-<span><span class="help-swatch" style="background:var(--github)"></span>GitHub</span>
-<span><span class="help-swatch idle"></span>Idle</span>
+<span><span class="help-swatch" style="background:var(--activity)"></span>Activity <code>#4caf50</code></span>
+<span><span class="help-swatch" style="background:var(--issue)"></span>Issue <code>#f44336</code></span>
+<span><span class="help-swatch" style="background:var(--decision)"></span>Decision <code>#2196f3</code></span>
+<span><span class="help-swatch" style="background:var(--github)"></span>GitHub <code>#4fc3f7</code></span>
+<span><span class="help-swatch idle"></span>Idle — hatched</span>
 </div>
-<p>Idle is hatched rather than coloured — absence should not read as another kind of work.</p>
-<p>Layout rules the pages share: one scroll region per page under a fixed header and breadcrumb; numbers tabular-figure and right-aligned; identifiers (repository, branch, agent) monospace and verbatim while closed enums are humanised; a single accent left border marks the selected row; and tags carry level, status and type rather than coloured text.</p>
-<p>The six pages that follow document the shell and each menu page as a wireframe plus the interaction rules behind it.</p>
+<p>Idle is a diagonal hatch rather than a colour: absence should not read as another kind of work. <code>start</code> and <code>end</code> rows are drawn in the activity colour, because that is the category their time is attributed to.</p>
+<p>Stacking order is always activity → issue → decision → GitHub → idle, on every bar at every level, so the same horizontal position means the same category everywhere.</p>
+
+<h3>Layout rules the pages share</h3>
+<ul>
+<li><strong>One scroll region per page.</strong> The header, the breadcrumb strip, the sidebar and the detail panel are fixed; only the content region scrolls, so the columns you are reading against never leave the screen.</li>
+<li><strong>The detail panel is layout, not overlay.</strong> Opening it makes the content region narrower rather than covering it.</li>
+<li><strong>Identifiers are monospace and verbatim</strong> — repository, branch, agent name, <code>agent_path</code>, timestamps, trace ids. Closed enums (log type, level, status) are shown as written but styled as tags.</li>
+<li><strong>Selection is an accent left border</strong> plus a faint accent wash, never a colour change to the text.</li>
+<li><strong>Durations are always <code>fmt()</code></strong> — "42s", "37m", "1h 31m" — and never raw milliseconds.</li>
+<li><strong>Counts are badges</strong>; issue counts are the only ones that carry the issue colour, so a red badge always means the same thing.</li>
+<li><strong>Empty is stated, not blank.</strong> Zero-value rows are dropped from distributions; missing fields read "—".</li>
+</ul>
+
+<h3>Two panels are resizable</h3>
+<p>The sidebar (default 320px, minimum 220px) and the detail panel (default 372px, minimum 280px) are both drag-resizable from their inner edge, capped at 60% of the window. Both widths live on <code>LogApp.state</code> and survive page switches.</p>
+
+<p>The six topics that follow document the shell and each page as a wireframe of the real layout, plus the interaction rules behind it.</p>

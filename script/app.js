@@ -371,12 +371,15 @@ window.LogApp = {
       this.state.db.deleteByIds(ids);
       this.state.rows = this.state.db.db ? this.state.db.readAll() : this.state.rows.filter((l) => !ids.includes(l.id));
       this.state.src = { ...this.state.src, ok: false,
-        detail: 'NOT saved to the database (' + e.message + ') — start the app with start_dashboard.bat' };
+        detail: 'NOT saved to the database (' + e.message + ') — start the app with start_LogReporter.bat' };
     }
     this.update();
   }
 };
 
-document.body.innerHTML = '<app-shell></app-shell>';
+// The footer is a sibling of the shell, not a child: <app-shell> rewrites its
+// own innerHTML on every render, which would restart the ad rotation and
+// re-request the images on every filter change.
+document.body.innerHTML = '<app-shell></app-shell><log-footer></log-footer>';
 window.LogApp.init();
 })(window);

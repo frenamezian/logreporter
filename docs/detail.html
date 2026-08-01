@@ -1,3 +1,24 @@
-<p>Clicking any entry — in the hierarchy, the chronology, a metrics card or the waterfall — opens the detail panel on the right.</p>
-<p>It shows the full description, tags, the raw error text when the entry carries one, and the agent path as a chain from the root agent down to the one that wrote the log. The <strong>Record</strong> grid lists the stored fields verbatim, including anything parsed out of <code>performance_metrics</code>: execution time, tokens, CPU and memory.</p>
-<p>Underneath, the <strong>trace timeline</strong> lists every entry sharing this <code>trace_id</code> with offsets from the first one, so a multi-agent run reads as a single sequence. <strong>Prev</strong> and <strong>Next in trace</strong> step through it without leaving the panel.</p>
+<p>Clicking any entry — a hierarchy row, a chronology row, a waterfall block, a run-log row or a metrics issue card — opens the detail panel on the right. It is part of the layout, not an overlay: the page beside it reflows narrower rather than being covered.</p>
+
+<figure class="help-figure help-figure-sm">
+  <a href="docs/img/detail.png" target="_blank" rel="noopener"><img src="docs/img/detail.png" alt="The detail panel showing an issue entry with its error details, agent path and record grid"></a>
+  <figcaption>An <code>issue</code> entry: trace navigation on top, then the title, task, tags, the raw error text, the agent path and the record.</figcaption>
+</figure>
+
+<h3>What it shows, top to bottom</h3>
+<ul>
+<li><strong>Prev / Next in trace</strong> — the trace walk, kept at the top so it is reachable without scrolling the panel.</li>
+<li><strong>Type badge and title</strong>, then the task the entry belongs to.</li>
+<li><strong>Description</strong> in full — lists elsewhere truncate it, this never does.</li>
+<li><strong>Tags</strong>, split on commas and spaces.</li>
+<li><strong>Error details</strong> — the raw error text, monospace and unmodified, when the row carries any. It is pulled out of the record grid because it is usually the reason you opened the entry.</li>
+<li><strong>Agent path</strong> — the lineage as an indented chain from the root agent down to the one that wrote the row.</li>
+<li><strong>Record</strong> — every stored field verbatim, including timestamp, trace and parent trace, status, priority, user, resolution fields, <code>performance_metrics</code> and the input/output hash. Empty fields read "—" rather than disappearing, so you can tell "not set" from "not shown".</li>
+<li><strong>Trace timeline</strong> — every entry sharing this <code>trace_id</code>, each with its offset from the first one, so a multi-agent run reads as a single sequence. Clicking a line jumps to that entry.</li>
+</ul>
+
+<h3>Traces cross tasks on purpose</h3>
+<p>The trace list is built from the filtered rows, before the drill scope is applied. A trace is one run of work and can span more than one task; cutting it at the drill boundary would hide half the story. If <strong>Next in trace</strong> steps into another task, the dashboard follows — the drill moves with it, so the waterfall behind the panel keeps showing the entry that is open.</p>
+
+<h3>Closing and resizing</h3>
+<p>The <strong>×</strong> closes the panel, and so does clicking an empty part of the page behind it. Drag the panel's left edge to resize it — 280px minimum, 60% of the window maximum. Switching to Maintenance or Help closes it, since neither page has entries to keep it in sync with.</p>

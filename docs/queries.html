@@ -1,12 +1,20 @@
-<p>The dashboard issues exactly two statements. Everything else is computed in JavaScript over the result of the first.</p>
-<pre>-- read (on load, on Refresh, on each poll tick)
+<p>The dashboard issues exactly two statements. Everything else — filtering, grouping, every duration — is computed in JavaScript over the result of the first.</p>
+<pre>-- read: sql.js, on load, on Refresh, on every poll tick
 SELECT * FROM logs ORDER BY timestamp DESC;
 
--- delete (Maintenance, after confirmation; in memory until saved)
-DELETE FROM logs WHERE id IN (…);</pre>
-<p>Filtering in SQL was rejected deliberately: round-tripping WASM per keystroke is slower than filtering an array, and a single read keeps the file lock brief while agents are writing.</p>
-<p>If you would rather query the file directly, these mirror what the pages show.</p>
-<pre>-- run spans per agent (the basis of every duration)
+-- delete: serve.py, after confirmation, in chunks of 500 ids
+DELETE FROM logs WHERE id IN (?, ?, …);</pre>
+<p>Filtering in SQL was rejected deliberately: round-tripping through WASM per keystroke is slower than filtering an array, and a single read keeps the file lock brief while agents are appending. The delete runs on the server rather than in the page because sql.js only holds a copy of the bytes — a delete applied there is discarded by the next read.</p>
+
+<h3>Concurrency</h3>
+<p>Both the writer (<code>log_activity.py</code>) and the delete endpoint (<code>serve.py</code>) open the database in WAL mode with a 10-second <code>busy_timeout</code>, plus a retry loop for the rare lock that outlives it. The delete path additionally checkpoints <code>TRUNCATE</code>, because the dashboard re-reads the main database file over HTTP and sql.js cannot see a <code>-wal</code> sidecar — a delete still sitting in the WAL would reappear on the very next read and look like the delete had failed.</p>
+
+<h3>Querying the file yourself</h3>
+<p>These mirror what the pages show, closely enough to sanity-check them.</p>
+<pre>-- run spans per agent — the basis of every duration.
+-- NB: this is the coarse version. The dashboard splits an agent's rows
+-- into one run per start/end pair, so an agent dispatched three times
+-- gets three rows there and one row here.
 SELECT repo_name, branch_name, task_title, agent_path,
        MIN(timestamp) AS started, MAX(timestamp) AS ended,
        COUNT(*)       AS entries
@@ -14,17 +22,36 @@ FROM logs
 GROUP BY repo_name, branch_name, task_title, agent_path
 ORDER BY started;
 
+-- task wall clock, newest first
+SELECT repo_name, branch_name, task_title,
+       MIN(timestamp) AS started, MAX(timestamp) AS ended,
+       COUNT(*) AS entries,
+       SUM(log_type = 'issue') AS issues
+FROM logs
+GROUP BY repo_name, branch_name, task_title
+ORDER BY ended DESC;
+
 -- unresolved issues, worst first
 SELECT timestamp, repo_name, branch_name, agent_name, log_title, error_details
 FROM logs
-WHERE log_type = 'issue' AND resolved_by IS NULL
+WHERE log_type = 'issue' AND (resolved_by IS NULL OR resolved_by = '')
 ORDER BY CASE log_level WHEN 'error' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,
          timestamp DESC;
 
--- git activity by action
-SELECT CASE WHEN tags LIKE '%#push%'   THEN 'push'
-            WHEN tags LIKE '%#pull%'   THEN 'pull'
-            WHEN tags LIKE '%#commit%' THEN 'commit'
-            ELSE 'other' END AS action, COUNT(*) AS n
-FROM logs WHERE log_type = 'github' GROUP BY action ORDER BY n DESC;</pre>
-<p>Two indexes are worth having on a large file: <code>(timestamp)</code> for the read, and <code>(repo_name, branch_name, task_title)</code> for grouped queries. Writers should run in WAL mode with a busy timeout so a poll never blocks an agent.</p>
+-- git activity by action. The UI reads the action out of tags AND title,
+-- in this order, and drops rows that match none of them.
+SELECT CASE WHEN tags || ' ' || log_title LIKE '%pull%'   THEN 'pull'
+            WHEN tags || ' ' || log_title LIKE '%push%'   THEN 'push'
+            WHEN tags || ' ' || log_title LIKE '%commit%' THEN 'commit'
+            WHEN tags || ' ' || log_title LIKE '%add%'    THEN 'add'
+            WHEN tags || ' ' || log_title LIKE '%delete%' THEN 'delete'
+            END AS action, COUNT(*) AS n
+FROM logs WHERE log_type = 'github' GROUP BY action ORDER BY n DESC;
+
+-- runs that never closed: the rows that silently cost you time
+SELECT repo_name, branch_name, task_title, agent_path,
+       SUM(log_type = 'start') AS starts, SUM(log_type = 'end') AS ends
+FROM logs
+GROUP BY repo_name, branch_name, task_title, agent_path
+HAVING starts &lt;&gt; ends;</pre>
+<p>Timestamps are UTC text and sort lexically, so <code>MIN</code>/<code>MAX</code> and <code>BETWEEN</code> behave correctly without any date function.</p>

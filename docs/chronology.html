@@ -1,3 +1,19 @@
-<p>One flat timeline across everything in scope, so interleaved agents read in the order they actually ran. Day headers carry the entry count; each entry shows its clock time, a coloured dot for its type, the agent, where it ran and how long its slice of the run lasted.</p>
-<p>Idle stretches are rows in their own right — a dashed rule labelled with the duration and the branch and task nobody was logging against. That is the point of this page: the silence is as legible as the activity.</p>
-<p>Order is newest-first by default. The stream renders the first 500 rows in scope; narrow the filters or drill down if you hit that ceiling.</p>
+<p>One flat stream across everything in scope, so interleaved agents read in the order they actually ran rather than grouped by who wrote them.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/chronology.png" target="_blank" rel="noopener"><img src="docs/img/chronology.png" alt="Chronology page: a single stream of entries, newest first, with the detail panel open on an issue"></a>
+  <figcaption>The same task as a flat stream. Columns are identical to the Hierarchy entry rows — Time, Type, Agent, Entry, Level — so the two pages share one visual language.</figcaption>
+</figure>
+
+<h3>What is in the stream</h3>
+<p>Three kinds of row are interleaved:</p>
+<ul>
+<li><strong>Entries</strong> — one per log row, with a coloured dot for its type and a dimmed snippet of the description after the title. Clicking one opens it in the detail panel.</li>
+<li><strong>Day headers</strong> — the date, inserted wherever the day changes.</li>
+<li><strong>Idle rows</strong> — <em>Idle 41m · repo/branch · task</em>, inserted between two consecutive entries of the same task when no agent was running between them. They come from the task time model, not from the spacing of the rows on screen, which is why narrowing to one agent does not invent idle time for the others.</li>
+</ul>
+<p>The idle rows are the point of this page: the silence is as legible as the activity, and it is labelled with the branch and task that went quiet, which is usually enough to explain it without opening anything.</p>
+
+<h3>Order and the row cap</h3>
+<p>The stream is built in ascending time and then reversed for <strong>Newest first</strong>, which is the default — so day headers and idle rows stay attached to the right entries in both directions rather than being flipped into the wrong place. <strong>Oldest first</strong> reads it as it happened.</p>
+<p>The legend strip counts the entries in scope. The line above the table says how many rows the stream has; past 500 it renders the first 500 and says so. Narrow the filters or drill down if you hit that ceiling.</p>
