@@ -204,5 +204,154 @@ const fmt = (ms) => {
   return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
 };
 
-window.LR = { TYPES, CATEGORIES, GIT_ACTIONS, gitAction, buildModel, stream, fmt };
+// --- attributing token usage to tasks (§7) ----------------------------------
+//
+// A usage row belongs to a task when the repo and branch match and its
+// timestamp falls inside that task's [start, end] span. Tasks already carry
+// that span; nothing new is computed here, it is only exposed and joined.
+//
+// Two honesty rules, both of which cost more code than the alternative:
+//
+//   Rows matching no span go to an explicit Unattributed bucket rather than
+//   being dropped or forced into the nearest task. Agents that worked without
+//   bracketing a task are a real finding — the same position the idle model
+//   takes about time nobody logged — and a large Unattributed share is
+//   information, not a rendering bug.
+//
+//   Rows matching several spans (concurrent agents on one repo and branch) are
+//   split evenly across them and flagged, never counted once per task. The
+//   flag matters: an evenly split row is a guess about attribution, and the
+//   page says so rather than presenting it as measured.
+
+// Usage timestamps are ISO-8601 with a Z; log timestamps are 'YYYY-MM-DD
+// HH:MM:SS' and also UTC (log_activity.py writes utc_now()). Both go through
+// Date, so the join never compares a local time with a UTC one.
+const usageAt = (s) => {
+  const t = new Date(String(s || '')).getTime();
+  return Number.isFinite(t) ? t : null;
+};
+
+function taskSpans(tasks) {
+  return (tasks || []).map((t) => ({
+    key: t.repo + '\u0000' + t.branch + '\u0000' + t.title,
+    repo: t.repo, branch: t.branch, title: t.title,
+    from: t.span.from, to: t.span.to,
+    // The task travels with its span: joining usage to the agent that produced
+    // it needs the task's log rows, which is where the #subagent tags live.
+    task: t
+  }));
+}
+
+function attributeUsage(usageRows, tasks) {
+  const spans = taskSpans(tasks);
+  const byScope = new Map();
+  spans.forEach((s) => {
+    const k = s.repo + '\u0000' + s.branch;
+    if (!byScope.has(k)) byScope.set(k, []);
+    byScope.get(k).push(s);
+  });
+
+  const buckets = new Map();      // task key -> { task, rows, weights }
+  spans.forEach((s) => buckets.set(s.key, { task: s, rows: [], weights: [] }));
+  const unattributed = { rows: [], weights: [] };
+  let splitRows = 0;
+
+  (usageRows || []).forEach((row) => {
+    const t = usageAt(row.timestamp);
+    const candidates = t === null ? [] :
+      (byScope.get(row.repo_name + '\u0000' + row.branch_name) || [])
+        .filter((s) => t >= s.from && t <= s.to);
+
+    if (!candidates.length) {
+      unattributed.rows.push(row);
+      unattributed.weights.push(1);
+      return;
+    }
+    const w = 1 / candidates.length;
+    if (candidates.length > 1) splitRows += 1;
+    candidates.forEach((s) => {
+      const b = buckets.get(s.key);
+      b.rows.push(row);
+      b.weights.push(w);
+    });
+  });
+
+  return { buckets, unattributed, splitRows, spans };
+}
+
+// --- joining usage to the agent that produced it ----------------------------
+//
+// Claude Code records which subagent made each request, in the meta.json beside
+// every sidechain transcript; the parser keeps it as extra_json.agent_type.
+// That is exact, first-party data - not an inference from overlapping time
+// windows, which was wrong by 10-25% on the sampled task.
+//
+// What is missing is only the join key, because the two sides name agents
+// independently: LogReporter knows `lead_architect/task_executor`, Claude Code
+// knows `task-executor`. An agent declares the link by tagging its rows
+//
+//     --tags "#subagent:task-executor"
+//
+// and the mapping survives any later rename. Where the tag is absent we fall
+// back to matching the last path segment with `-` and `_` treated alike, which
+// costs nothing and works for agents already named after their subagent type.
+
+const SUBAGENT_TAG = /#subagent:([A-Za-z0-9_.\- ]+)/;
+const normAgent = (s) => String(s || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+
+function subagentTag(log) {
+  const m = SUBAGENT_TAG.exec(log.tags || '');
+  return m ? m[1].trim() : null;
+}
+
+// For one task: subagent type -> the logged agent_path that declared it.
+function agentTypeMap(task) {
+  const byTag = new Map();      // explicit, wins
+  const byName = new Map();     // naming convention, fallback
+  let root = null;
+  (task.logs || []).forEach((l) => {
+    const p = l.agent_path || l.agent_name;
+    if (!p) return;
+    const tag = subagentTag(l);
+    if (tag) byTag.set(normAgent(tag), p);
+    byName.set(normAgent(p.split('/').pop()), p);
+    // The root is the shallowest path in the task: in a single-session run it
+    // is what was executing whenever no subagent was.
+    if (root === null || p.split('/').length < root.split('/').length) root = p;
+  });
+  return { byTag, byName, root };
+}
+
+// Which agent produced this usage row. `exact` distinguishes first-party
+// metadata from the assumption made about main-session requests.
+function usageAgent(row, map) {
+  let type = null;
+  if (row.extra_json) {
+    try { type = (JSON.parse(row.extra_json) || {}).agent_type || null; } catch (e) { type = null; }
+  }
+  if (!type) {
+    // No subagent metadata: the request came from the main session, where the
+    // root agent is the one running. An assumption, and labelled as one.
+    return { path: root_or_null(map), exact: false, via: 'main session', type: null };
+  }
+  const k = normAgent(type);
+  if (map.byTag.has(k)) return { path: map.byTag.get(k), exact: true, via: 'tag', type };
+  if (map.byName.has(k)) return { path: map.byName.get(k), exact: true, via: 'name', type };
+  // Claude Code ran a subagent this task never logged. Real, and not the same
+  // as "no usage" - it gets its own row rather than being folded into a parent.
+  return { path: null, exact: true, via: 'unmatched', type };
+}
+
+function root_or_null(map) { return map && map.root ? map.root : null; }
+
+// True when `name` is `path` or one of its ancestors - the same subtree rule
+// drillRows applies to log rows, so drilling to an agent shows that agent and
+// everything it dispatched, exactly as the tree counts do.
+function agentInSubtree(path, name) {
+  return !!path && path.split('/').includes(name);
+}
+
+window.LR = { TYPES, CATEGORIES, GIT_ACTIONS, gitAction, buildModel, stream, fmt,
+              taskSpans, attributeUsage, agentTypeMap, usageAgent, agentInSubtree,
+              subagentTag, normAgent };
 })(window);

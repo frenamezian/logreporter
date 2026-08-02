@@ -42,6 +42,10 @@ class LogMaintenance extends LogComponent {
     const filterChips = this._filterChips(s);
 
     const confirm = s.confirm;
+    const usageStatus = (s.usageDb && s.usageDb.status) || { state: 'unloaded' };
+    const usageRows = (s.usage || []).length;
+    const usageReport = s.usageReport;
+    const usageBusy = s.usageBusy;
 
     return `
       ${this._scopeBar(s)}
@@ -59,6 +63,25 @@ class LogMaintenance extends LogComponent {
           <div class="maint-card-actions">
             <span data-match class="maint-match">${n} of ${total} logs match${n ? ` in ${repoCount} ${repoCount === 1 ? 'repository' : 'repositories'}` : ''}</span>
             <button class="primary" data-delete="1"${n ? '' : ' disabled'}>Delete ${n} logs</button>
+          </div>
+        </div>
+        <div class="tree-card maint-card">
+          <h4>Token usage</h4>
+          <p class="maint-note">Read from the session files your agents already write.
+            This cache is disposable — every row can be re-derived, which is why
+            it lives in <code>token_usage.db</code> and not in the log database.</p>
+          <div class="maint-card-mid">
+            <div class="maint-scope-summary">${
+              usageStatus.state === 'ok'
+                ? `${usageRows.toLocaleString()} requests cached${
+                    usageReport ? ` · last read ${esc(usageReport.started || '?')} UTC` : ''}`
+                : esc(usageStatus.detail || 'no usage cache')}</div>
+          </div>
+          <div class="maint-card-actions">
+            <span class="maint-match">${usageBusy ? 'reading session files…' : ''}</span>
+            <button class="small" data-usage-refresh="1"${usageBusy ? ' disabled' : ''}>Refresh usage</button>
+            <button class="small" data-usage-rebuild="1"${usageBusy ? ' disabled' : ''}
+              title="Drop the cache and every watermark, then re-read every session file from the beginning">Rebuild usage</button>
           </div>
         </div>
         <div class="tree-card maint-card">
@@ -253,6 +276,14 @@ class LogMaintenance extends LogComponent {
     if (json) json.onclick = () => window.LogApp.exportJson();
     const save = this.querySelector('[data-save]');
     if (save) save.onclick = () => window.LogApp.saveDb();
+
+    // Usage import. Refresh reads only what changed; Rebuild drops the cache
+    // and every watermark first. Both are executed by serve.py — the page
+    // cannot read ~/.claude/projects itself.
+    const uref = this.querySelector('[data-usage-refresh]');
+    if (uref) uref.onclick = () => window.LogApp.refreshUsage(false);
+    const ureb = this.querySelector('[data-usage-rebuild]');
+    if (ureb) ureb.onclick = () => window.LogApp.refreshUsage(true);
   }
 }
 customElements.define('log-maintenance', LogMaintenance);

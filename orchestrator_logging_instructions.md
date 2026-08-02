@@ -49,6 +49,36 @@ Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defau
 - **First action on a task:** append a `start` row.
 - **Last action, always, even on failure:** append an `end` row with the final `--status` (`completed` or `failed`). Durations and idle time are derived from this pair — a missing `end` erases your work from every time view.
 
+## Tag your subagent type, once per run — this is what makes cost per agent work
+
+If you dispatch a subagent through a coding-agent mechanism that runs it in its own
+context (Claude Code's Task tool, for example), have it tag **every** row with the
+subagent type it was launched as:
+
+    --tags "#subagent:code-reviewer"
+
+That one tag is the join key between this log and the token counts. The coding
+agent records which subagent made each API request, but it has never heard of
+your `--agent-path`; the log records the agent path, but not a single token.
+The tag is what connects them, and it is the difference between "this task cost
+$34.84" and "the reviewer cost $6.47 of it."
+
+- Use the subagent type **exactly as the coding agent knows it** — the value you
+  dispatched, not a prettier version of it. `-` and `_` are treated alike, case
+  is ignored; nothing else is guessed.
+- Put it on every row of that agent's work, not just the first. Rows are matched
+  individually.
+- If you skip it, the join falls back to matching the last segment of
+  `--agent-path` against the subagent type. That works when the two happen to be
+  named the same, and silently stops working the day either is renamed. The tag
+  is one token; use it.
+- Work you do yourself, in your own session, needs no tag: requests with no
+  subagent metadata are attributed to the root agent of the task.
+
+Do **not** invent a type for an agent that is not really a separate subagent.
+Two logged agents sharing one context cannot be told apart by any data that
+exists, and a tag claiming otherwise would move real tokens onto the wrong row.
+
 ## Choose `--log-type` by this rule (between start and end)
 
 - `activity` — what you did (a file read, a build, an edit, a command run). The default for "I did a thing."

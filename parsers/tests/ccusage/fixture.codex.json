@@ -1,0 +1,77 @@
+{
+ "_fixture_note": "SYNTHESIZED, NOT CAPTURED. Built to the schema published at https://ccusage.com/guide/json-output (fetched 2026-08-01) because ccusage was not installed on the machine where this parser was written. Replace it with real `ccusage codex session --json --offline` output the first time anyone runs this adapter against the binary, and regenerate expected.json. Until then, treat every claim this fixture makes about ccusage's field names as unverified. Field-name drift is expected: the docs show both `session` and `sessions`, both `modelName` and `model`, and ccusage issue #831 reports codex emitting `costUSD` where other namespaces emit `totalCost` - the parser reads all of these by alias.",
+ "sessions": [
+  {
+   "sessionId": "0f5a2c31-codex-session-a",
+   "projectPath": "/home/dev/example-repo",
+   "inputTokens": 18400,
+   "outputTokens": 5120,
+   "cacheCreationTokens": 0,
+   "cacheReadTokens": 240000,
+   "totalTokens": 263520,
+   "totalCost": 0.1155,
+   "lastActivity": "2026-07-30T16:22:11.000Z",
+   "modelsUsed": ["gpt-5.3-codex", "gpt-5.3-chat-latest"],
+   "modelBreakdowns": [
+    {
+     "modelName": "gpt-5.3-codex",
+     "inputTokens": 16000,
+     "outputTokens": 4800,
+     "cacheCreationTokens": 0,
+     "cacheReadTokens": 220000,
+     "cost": 0.1063
+    },
+    {
+     "modelName": "gpt-5.3-chat-latest",
+     "inputTokens": 2400,
+     "outputTokens": 320,
+     "cacheCreationTokens": 0,
+     "cacheReadTokens": 20000,
+     "cost": 0.0092
+    }
+   ]
+  },
+  {
+   "sessionId": "0f5a2c31-codex-session-b",
+   "projectPath": "/home/dev/other-repo",
+   "inputTokens": 900,
+   "outputTokens": 210,
+   "cacheCreationTokens": 4096,
+   "cacheReadTokens": 0,
+   "totalTokens": 5206,
+   "totalCost": 0.0071,
+   "lastActivity": "2026-07-31T09:04:56.000Z",
+   "modelsUsed": ["gpt-6-not-in-the-registry"],
+   "modelBreakdowns": [
+    {
+     "model": "gpt-6-not-in-the-registry",
+     "input_tokens": 900,
+     "output_tokens": 210,
+     "cacheCreationTokens": 4096,
+     "cacheReadTokens": 0,
+     "costUSD": 0.0071
+    }
+   ]
+  },
+  {
+   "sessionId": "0f5a2c31-codex-session-c",
+   "projectPath": "/home/dev/example-repo",
+   "inputTokens": 1200,
+   "outputTokens": 640,
+   "cacheCreationTokens": 0,
+   "cacheReadTokens": 0,
+   "totalTokens": 1840,
+   "totalCost": 0.0026,
+   "lastActivity": "2026-07-31T11:47:02.000Z",
+   "modelsUsed": []
+  }
+ ],
+ "totals": {
+  "inputTokens": 20500,
+  "outputTokens": 5970,
+  "cacheCreationTokens": 4096,
+  "cacheReadTokens": 240000,
+  "totalTokens": 270566,
+  "totalCost": 0.1252
+ }
+}

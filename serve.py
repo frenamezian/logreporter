@@ -29,12 +29,22 @@ import json
 import os
 import sqlite3
 import sys
+import threading
 import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(ROOT, "activity_logs.db")
+USAGE_DB_PATH = os.path.join(ROOT, "token_usage.db")
+
+# Only one usage import may run at a time. ThreadingHTTPServer means two clicks
+# on Refresh, or a click arriving during the startup scan, would otherwise have
+# two readers writing the same SQLite file at once. Nothing would be corrupted
+# — the watermarks and INSERT OR IGNORE see to that — but one would block on
+# the other's lock for no reason.
+_usage_lock = threading.Lock()
+_usage_state = {"running": False, "last": None}
 
 PORT = 8250
 HOST = "127.0.0.1"
@@ -120,6 +130,56 @@ def delete_ids(ids):
                 con.close()
 
 
+def run_usage(rebuild=False):
+    """Import token usage. Returns the reader's report, or an error dict.
+
+    usage_reader is imported here rather than at module scope on purpose. It
+    pulls in every parser in parsers/, including third-party ones; if one of
+    them is broken badly enough to break the import itself, that must cost the
+    usage feature and not the whole server. The dashboard, the log database and
+    the delete endpoint all keep working without it.
+    """
+    if not _usage_lock.acquire(blocking=False):
+        return {"error": "a usage import is already running", "busy": True}
+    _usage_state["running"] = True
+    try:
+        import usage_reader
+        if rebuild:
+            # Safe precisely because this file is a cache: every row is
+            # re-derivable from the agents' own session files, which is why the
+            # feature keeps them out of activity_logs.db in the first place.
+            usage_reader.schema.create(USAGE_DB_PATH, force=True)
+        report = usage_reader.run(USAGE_DB_PATH)
+        _usage_state["last"] = report
+        return report
+    except Exception as e:
+        print(f"usage import failed: {type(e).__name__}: {e}", file=sys.stderr)
+        return {"error": f"{type(e).__name__}: {e}"}
+    finally:
+        _usage_state["running"] = False
+        _usage_lock.release()
+
+
+def usage_scan_at_startup():
+    """Import usage in the background while the server is already answering.
+
+    A cold scan of ~700 MB of transcripts measured 4.0 s here; a warm one, where
+    every file is skipped on size and mtime, measured 0.06 s. Doing it inline
+    would delay the first page load by that much for no benefit, so it runs on a
+    daemon thread: the dashboard opens immediately and the usage rows appear on
+    the first refresh or poll after the scan lands.
+    """
+    def go():
+        t0 = time.time()
+        report = run_usage()
+        if "error" in report:
+            print(f"startup usage scan failed: {report['error']}", file=sys.stderr)
+        else:
+            print(f"usage: {report.get('rows_total', 0)} rows "
+                  f"({time.time() - t0:.1f}s)", file=sys.stderr)
+    threading.Thread(target=go, daemon=True, name="usage-scan").start()
+
+
 class Handler(SimpleHTTPRequestHandler):
     def _json(self, code, payload):
         body = json.dumps(payload).encode()
@@ -143,7 +203,22 @@ class Handler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self):
-        if self.path.split("?")[0] != "/api/delete":
+        route = self.path.split("?")[0]
+
+        # Both take no body: the reader works out for itself what is stale.
+        # Rebuild differs only in dropping the cache and every watermark first,
+        # which is the escape hatch for a desynchronised cursor.
+        if route in ("/api/refresh-usage", "/api/rebuild-usage"):
+            report = run_usage(rebuild=route.endswith("rebuild-usage"))
+            if report.get("busy"):
+                self._json(409, report)
+            elif "error" in report:
+                self._json(500, report)
+            else:
+                self._json(200, report)
+            return
+
+        if route != "/api/delete":
             self._json(404, {"error": "no such endpoint"})
             return
         try:
@@ -189,14 +264,22 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     port = PORT
-    if len(sys.argv) > 1:
-        port = int(sys.argv[1])
+    scan = True
+    for arg in sys.argv[1:]:
+        if arg == "--no-usage-scan":
+            scan = False
+        else:
+            port = int(arg)
     handler = partial(Handler, directory=ROOT)
     with ThreadingHTTPServer((HOST, port), handler) as httpd:
         print(f"LogReporter serving {ROOT}")
         print(f"  http://{HOST}:{port}/index.html")
         print(f"  database: {DB_PATH}")
+        print(f"  usage:    {USAGE_DB_PATH}"
+              + ("" if scan else " (startup scan disabled)"))
         print("Close this window (or press Ctrl+C) to stop the server.")
+        if scan:
+            usage_scan_at_startup()
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

@@ -12,6 +12,45 @@
   --decision: #2196f3;
   --github: #4fc3f7;
   --idle: repeating-linear-gradient(135deg, rgba(255,255,255,0.08) 0 4px, transparent 4px 8px);
+
+  /* --- token usage: a validated four-step ramp -------------------------------
+     --activity / --issue / --decision / --github are RESERVED for log types.
+     Reusing them here would make a cost bar look like an error and a cache
+     segment look like a GitHub operation, so the usage views get their own
+     hues — and the four that remain once the log-type families (green, red,
+     blue, cyan) are excluded are exactly these.
+
+     Not chosen by eye. Validated against this project's dark surface:
+
+       node scripts/validate_palette.js "#c98500,#d55181,#9085e9,#d95926" \
+            --mode dark --surface "#161821"
+       -> lightness band PASS · chroma floor PASS
+          CVD separation PASS (worst adjacent #d55181<->#c98500 dE 13.2 deutan)
+          normal-vision floor PASS (19.3) · contrast vs surface PASS (all >= 3:1)
+
+     The order is the safety mechanism, not decoration: orange next to amber
+     measures dE 4.8 under deuteranopia and 10.6 with full colour vision, which
+     fails both gates. Putting magenta and violet between them is what makes
+     the set legible. If you re-order these, re-run the validator. */
+  --usage-cache-read: #c98500;
+  --usage-cache-write: #d55181;
+  --usage-input: #9085e9;
+  --usage-output: #d95926;
+
+  /* Ranking bars encode magnitude, not identity, so they are one hue in steps
+     rather than four hues. On a dark surface a sequential ramp runs dim->bright:
+     "more is darker" is a light-mode phrasing, and a darker bar here would
+     recede into the background exactly where the value is largest.
+
+       node scripts/validate_palette.js "#574aa5,#6b5cc4,#8071dc,#968bec,#b0a6f6" \
+            --mode dark --surface "#161821" --ordinal
+       -> monotone L PASS · adjacent dL PASS · dim-end contrast 2.47:1 PASS
+          single hue PASS (spread 3 degrees) */
+  --usage-rank-1: #574aa5;
+  --usage-rank-2: #6b5cc4;
+  --usage-rank-3: #8071dc;
+  --usage-rank-4: #968bec;
+  --usage-rank-5: #b0a6f6;
   --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius: 8px;
@@ -311,10 +350,25 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
 .wf-dot.decision { background: var(--decision); }
 .wf-dot.github { background: var(--github); }
 .wf-dot.idle { background: repeating-linear-gradient(135deg, var(--text-dim) 0 3px, transparent 3px 6px); }
-.wf-axis { display: grid; grid-template-columns: 212px 1fr 62px 62px; gap: 0 11px; align-items: center; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: 6px; }
+/* One template, three users: the bars panel, the waterfall axis and the
+   waterfall rows. Those panels list the SAME runs at task level, so their
+   columns have to line up — reading "Own" on one line and "Own" on another and
+   finding them at different x positions is what made the pair hard to compare.
+   Scoped to `.bars` on the left-hand side so the Metrics page, which reuses
+   .bar-row for its own distributions, is untouched. */
+:root { --tg-grid: 212px 1fr 62px 62px 66px 66px; --tg-gap: 0 11px; }
+.wf-axis { display: grid; grid-template-columns: var(--tg-grid); gap: var(--tg-gap); align-items: center; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: 6px; }
+.bars-axis { display: grid; grid-template-columns: var(--tg-grid); gap: var(--tg-gap); align-items: center; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: 6px; }
+.bars-axis-end { text-align: right; }
+.bars .bar-row { display: grid; grid-template-columns: var(--tg-grid); gap: var(--tg-gap); align-items: center; }
+.bars .bar-label { width: auto; min-width: 0; }
+.bars .bar-val { width: auto; }
+.bars .bar-cell { min-width: 0; }
+.bars .bar-own { color: var(--accent-2); }
+.bar-val.na, .wf-span.na { color: var(--text-dim); }
 .wf-axis-ticks { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .wf-axis-end { text-align: right; }
-.wf-row { display: grid; grid-template-columns: 212px 1fr 62px 62px; gap: 0 11px; align-items: center; padding: 3px 0; cursor: pointer; }
+.wf-row { display: grid; grid-template-columns: var(--tg-grid); gap: var(--tg-gap); align-items: center; padding: 3px 0; cursor: pointer; }
 .wf-row:hover { background: var(--surface-2); border-radius: 4px; }
 .wf-row-active { background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 4px; box-shadow: inset 2px 0 0 var(--accent); }
 .wf-count { flex: none; font-size: 10.5px; color: var(--text-dim); }
@@ -859,3 +913,124 @@ log-footer {
   .footer-ad { transition: none; }
   .footer-dot { transition: none; }
 }
+
+/* ============================================================================
+   Token usage and cost (Metrics page)
+   ========================================================================= */
+
+.usage-section { margin-top: 28px; }
+.usage-head {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+.usage-head h3 { margin: 0; font-size: 15px; }
+.usage-head .usage-scope { font-size: 12px; color: var(--text-dim); }
+.usage-head .usage-spacer { flex: 1; }
+/* Said out loud rather than left for the reader to infer from a number that
+   quietly stopped meaning what its label says. */
+.usage-head .usage-warn-note { color: var(--usage-cache-read); cursor: help; }
+/* The drill total includes subagents; this says how much of it is the agent's
+   own work, because "lead_architect $34.84" on its own reads as its own spend. */
+.usage-head .usage-split { color: var(--usage-cache-read); cursor: help; }
+.usage-head .usage-split strong { color: var(--text); font-weight: 600; }
+
+/* The measure toggle. Tokens and cost are never drawn on one axis; this is
+   what replaces that. Ordering, colour and layout hold across the switch so
+   the two views are directly comparable. */
+.measure-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.measure-toggle button {
+  border: 0; border-radius: 0; background: var(--surface-2); color: var(--text-dim);
+  padding: 4px 12px; font-size: 12px;
+}
+.measure-toggle button + button { border-left: 1px solid var(--border); }
+.measure-toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.measure-toggle button:hover:not([aria-pressed="true"]) { background: #252838; }
+
+/* KPI tiles reuse .metrics-grid / .metric-card. Values keep the font's default
+   proportional figures: tabular-nums at 24px makes numbers look loose. The
+   table in §8.5 is where tabular belongs. */
+.metric-value.usage { font-variant-numeric: normal; }
+.metric-value.muted { color: var(--text-dim); }
+.metric-note { font-size: 10.5px; color: var(--text-dim); margin-top: 6px; line-height: 1.35; }
+
+/* --- composition bar ----------------------------------------------------- */
+.comp-bar {
+  display: flex; height: 26px; border-radius: 4px; overflow: hidden;
+  background: var(--surface-2); margin: 4px 0 12px;
+}
+/* 2px surface-coloured gap between segments, and rounded outer ends only.
+   min-width keeps a 0.2% segment visible: the four segments must appear in the
+   same order with the same colours in both measures, so none of them may
+   disappear just because this view makes it small. */
+.comp-seg { height: 100%; box-shadow: inset -2px 0 0 var(--surface); min-width: 3px; }
+.comp-seg:last-child { box-shadow: none; }
+.comp-seg.cache_read { background: var(--usage-cache-read); }
+.comp-seg.cache_write { background: var(--usage-cache-write); }
+.comp-seg.input { background: var(--usage-input); }
+.comp-seg.output { background: var(--usage-output); }
+
+/* At exactly four series colour alone stops being comfortable, so every
+   segment is directly labelled — including the ones too thin to label inline,
+   which is why the labels live in their own row rather than inside the bar. */
+.comp-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; }
+.comp-key { display: inline-flex; align-items: center; gap: 7px; }
+.comp-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.comp-dot.cache_read { background: var(--usage-cache-read); }
+.comp-dot.cache_write { background: var(--usage-cache-write); }
+.comp-dot.input { background: var(--usage-input); }
+.comp-dot.output { background: var(--usage-output); }
+.comp-key-pct { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.comp-key-na { color: var(--text-dim); font-style: italic; }
+
+/* --- rankings ------------------------------------------------------------ */
+.bar-seg.rank-1 { background: var(--usage-rank-1); }
+.bar-seg.rank-2 { background: var(--usage-rank-2); }
+.bar-seg.rank-3 { background: var(--usage-rank-3); }
+.bar-seg.rank-4 { background: var(--usage-rank-4); }
+.bar-seg.rank-5 { background: var(--usage-rank-5); }
+.bar-row.unattributed .bar-label { color: var(--text-dim); font-style: italic; }
+.bar-seg.unattributed {
+  background: repeating-linear-gradient(135deg,
+    var(--usage-rank-2) 0 5px, var(--surface-2) 5px 10px);
+}
+.usage-rank-tabs { display: flex; gap: 4px; margin: 2px 0 10px; }
+.usage-rank-tabs button { padding: 3px 10px; font-size: 12px; background: var(--surface-2); color: var(--text-dim); }
+.usage-rank-tabs button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* --- table --------------------------------------------------------------- */
+.usage-table-wrap { overflow-x: auto; max-height: 420px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.usage-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.usage-table th, .usage-table td { padding: 5px 10px; text-align: left; white-space: nowrap; }
+/* Digits align: with four token classes plus a cost, a reader comparing rows
+   is comparing columns of numbers. */
+.usage-table td.num, .usage-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.usage-table thead th {
+  position: sticky; top: 0; z-index: 1; background: var(--surface-2);
+  border-bottom: 1px solid var(--border); cursor: pointer; user-select: none;
+  font-size: 11px; text-transform: uppercase; color: var(--text-dim); letter-spacing: .03em;
+}
+.usage-table thead th:hover { color: var(--text); }
+.usage-table tbody tr:nth-child(even) { background: rgba(255,255,255,.02); }
+.usage-table tbody tr:hover { background: var(--surface-2); }
+.usage-table .na { color: var(--text-dim); }
+.usage-sort-arrow { opacity: .7; }
+
+/* --- source transparency panel ------------------------------------------- */
+.usage-src { font-size: 12.5px; }
+.usage-src-row { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.usage-src-row:last-child { border-bottom: 0; }
+.usage-src-name { font-weight: 600; }
+.usage-src-detail { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.usage-src-spacer { flex: 1; }
+.usage-badge { font-size: 10.5px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-dim); }
+.usage-badge.native { border-color: var(--activity); color: var(--activity); }
+.usage-badge.fallback { border-color: var(--usage-input); color: var(--usage-input); }
+.usage-badge.off { border-color: var(--border); }
+.usage-badge.bad { border-color: var(--issue); color: var(--issue); }
+.usage-warn { color: var(--issue); }
+
+/* --- footnotes and empty states ------------------------------------------ */
+.usage-foot { font-size: 11.5px; color: var(--text-dim); margin-top: 14px; line-height: 1.5; }
+.usage-foot code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+.usage-empty { border: 1px dashed var(--border); border-radius: var(--radius); padding: 18px; color: var(--text-dim); font-size: 13px; }
+.usage-empty code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--text); }

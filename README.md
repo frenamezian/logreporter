@@ -419,6 +419,25 @@ The database is read once per load or poll and never queried per view — every 
 
 The in-app **Help** page documents all of it: a user guide per page, and a developer guide covering the architecture, the data model, the duration and idle model, the page layouts, and the agent logging contract.
 
+### Token usage — a second, disposable database
+
+The Metrics page also reports how many tokens each task consumed and what it cost. That data is *observed*, not logged: `usage_reader.py` reads the session transcripts your coding agents already write, so it works on history that predates the feature and your agents were never asked to do anything.
+
+```
+~/.claude/projects/**.jsonl  ──►  parsers/<agent>.py  ──►  token_usage.db
+   (whatever your agent writes)         one file per agent           │
+                                                    serve.py serves it too
+                                                                     ▼
+                                            joined to the logs in memory, in JS
+                                                cost derived from llm_registry.js
+```
+
+**Only `activity_logs.db` matters for backup.** It is append-only ground truth that several agents write to continuously, and nothing can reconstruct it. `token_usage.db` is a cache: delete it, run `python usage_reader.py`, and you are exactly where you started — which is why it is a sibling file rather than a table inside the log database, and why **Rebuild usage** on the Maintenance page is safe.
+
+Cost is never stored. It is computed at render time from `script/llm_registry.js`, the same way durations are derived rather than stored — a saved cost silently becomes a lie the day prices change. Cost is **modelled, not billed**: on a Pro or Max subscription these tokens draw against a plan, so it is a comparison figure, not an accounting one.
+
+Supporting a new agent means **adding one file to `parsers/`** and nothing else — there is no registration list. See [parsers/CONTRIBUTING.md](parsers/CONTRIBUTING.md).
+
 ---
 
 ## Project layout
@@ -431,6 +450,7 @@ start_LogReporter.bat     Windows convenience launcher
 
 log_activity.py           the writer your agents call — one row per invocation
 mint_trace.py             mints a trace_id (lead agent only)
+usage_reader.py           reads agent transcripts into token_usage.db (a cache)
 orchestrator_logging_instructions.md   paste into your lead agent's prompt
 subagent_logging_instructions.md       paste into each subagent's prompt
 
@@ -439,11 +459,18 @@ script/
   filters.js              filtering and drill scope
   db.js                   sql.js loading, open/read/delete/export
   app.js                  application state
+  cost-model.js           prices usage rows from the registry, at render time
+  llm_registry.py         model + price registry — EDIT THIS ONE
+  llm_registry.js         generated from it by seed/py2js_registry.py
   sample-logs.js          fallback demo rows
+parsers/                  one file per supported agent; auto-discovered
+  CONTRIBUTING.md         how to add an agent — one new file, nothing else
+  conformance.py          `python -m parsers.conformance` — required to pass
 components/               one custom element per page and panel
 docs/                     the in-app help fragments, plus screenshots
 docs/lespirant/           sponsor strip: ads.json + the banner images
-seed/                     sample database + bootstrap script
+scripts/                  validate_palette.js — chart colours are computed, not chosen
+seed/                     sample database + bootstrap scripts
 ```
 
 ---

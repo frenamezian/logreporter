@@ -9,6 +9,102 @@ const CATS = ['activity', 'issue', 'decision', 'github', 'idle'];
 const only = (cat, ms) => ({ activity: 0, issue: 0, decision: 0, github: 0, idle: 0, [cat]: ms });
 
 class LogTimegoes extends LogComponent {
+  // Scope-wide totals, like every other card here. The waterfall below shows
+  // one task, so this card and those rows describe different sets whenever the
+  // scope is wider than a task - which is already true of the time cards.
+  usageCard(s) {
+    const CM = window.CostModel;
+    const rows = s.usageInScope || [];
+    if (!CM || !rows.length) {
+      return `<div class="metric-card"><div class="metric-value muted">—</div>
+        <div class="metric-label">Tokens</div>
+        <div class="metric-sub">${(s.usageDb && s.usageDb.status && s.usageDb.status.state === 'absent')
+          ? 'no usage cache yet' : 'none in scope'}</div></div>`;
+    }
+    const sum = CM.summarize(rows);
+    return `<div class="metric-card" title="Modelled at API list prices, not billed. Scoped like every other card on this row.">
+      <div class="metric-value">${CM.fmtTokens(sum.tokens.total)}</div>
+      <div class="metric-label">Tokens <span class="metric-hint">modelled cost</span></div>
+      <div class="metric-sub">${sum.pricedRows ? CM.fmtCost(sum.cost.total) : '—'} · ${rows.length.toLocaleString('en-US')} requests</div>
+    </div>`;
+  }
+
+  // --- token usage on this page -------------------------------------------
+  //
+  // A waterfall row is one *run* — one agent's start/end pair — so usage can be
+  // narrowed further here than anywhere else: a request belongs to a run when
+  // the agent it was joined to is that run's agent AND its timestamp falls
+  // inside that run's window. An agent that ran three times gets three separate
+  // figures rather than one aggregate.
+  //
+  // The path is matched exactly, not as a subtree, so Tokens and Cost mean the
+  // same thing as the Own column they sit beside: this agent's work, not its
+  // subagents'. The subagents have their own rows.
+  usageByRun(task) {
+    const CM = window.CostModel;
+    const LR = window.LR;
+    const s = window.LogApp.state;
+    const out = new Map();
+    if (!CM || !LR || !task) return out;
+    const map = LR.agentTypeMap(task);
+    (s.usageInScope || []).forEach((u) => {
+      const t = Date.parse(u.timestamp);
+      if (!Number.isFinite(t) || t < task.span.from || t > task.span.to) return;
+      const a = LR.usageAgent(u, map);
+      if (!a.path) return;
+      const run = (task.runs || []).find((r) => r.path === a.path && t >= r.from && t <= r.to);
+      if (!run) return;              // between this agent's runs: no row owns it
+      const k = run.path + '|' + run.from;
+      if (!out.has(k)) out.set(k, []);
+      out.get(k).push(u);
+    });
+    return out;
+  }
+
+  // The same two figures in the waterfall's own cell class.
+  wfUsageCells(rows) {
+    const CM = window.CostModel;
+    if (!CM || !rows || !rows.length) {
+      return '<div class="wf-span na">—</div><div class="wf-span na">—</div>';
+    }
+    const sum = CM.summarize(rows);
+    return `<div class="wf-span">${CM.fmtTokens(sum.tokens.total)}</div>` +
+           `<div class="wf-span">${sum.pricedRows ? CM.fmtCost(sum.cost.total) : '—'}</div>`;
+  }
+
+  // Tokens and cost for an arbitrary set of usage rows, as two table cells.
+  usageCells(rows) {
+    const CM = window.CostModel;
+    if (!CM || !rows || !rows.length) {
+      return '<div class="bar-val na">—</div><div class="bar-val na">—</div>';
+    }
+    const sum = CM.summarize(rows);
+    return `<div class="bar-val">${CM.fmtTokens(sum.tokens.total)}</div>` +
+           `<div class="bar-val">${sum.pricedRows ? CM.fmtCost(sum.cost.total) : '—'}</div>`;
+  }
+
+  // Usage for one item of the bars panel above the agent level: a repository, a
+  // branch, or a task. Tasks join on their span, the others on name alone.
+  usageForItem(x, m) {
+    const s = window.LogApp.state;
+    const rows = s.usageInScope || [];
+    if (x.scope && x.scope.task) {
+      const t = (m.tasks || []).find((k) => k.title === x.scope.task &&
+        k.repo === x.scope.repo && k.branch === x.scope.branch);
+      if (!t) return [];
+      return rows.filter((u) => u.repo_name === t.repo && u.branch_name === t.branch &&
+        (() => { const v = Date.parse(u.timestamp);
+                 return Number.isFinite(v) && v >= t.span.from && v <= t.span.to; })());
+    }
+    if (x.scope && x.scope.branch) {
+      return rows.filter((u) => u.repo_name === x.scope.repo && u.branch_name === x.scope.branch);
+    }
+    if (x.scope && x.scope.repo) {
+      return rows.filter((u) => u.repo_name === x.scope.repo);
+    }
+    return [];
+  }
+
   render() {
     const s = window.LogApp.state;
     const m = s.model;
@@ -20,7 +116,7 @@ class LogTimegoes extends LogComponent {
     const ratio = (v) => wall ? ((v / wall) * 100).toFixed(1) + '% of wall' : '—';
     const sec = (v) => v ? ratio(v) : '0% of wall';
     return `
-      <div class="metrics-grid" style="grid-template-columns:repeat(5,1fr)">
+      <div class="metrics-grid" style="grid-template-columns:repeat(6,1fr)">
         <div class="metric-card"><div class="metric-value">${fmt(t.wall)}</div><div class="metric-label">Wall clock</div><div class="metric-sub">${t.tasks || 0} tasks</div></div>
         <div class="metric-card" title="Sum of every agent run. A parent stays open while its subagents work, so nested and parallel time is counted more than once — over 100% of wall clock means agents overlapped.">
           <div class="metric-value">${fmt(t.agentMs)}</div>
@@ -30,6 +126,7 @@ class LogTimegoes extends LogComponent {
         <div class="metric-card"><div class="metric-value">${fmt(t.idle)}</div><div class="metric-label">Idle</div><div class="metric-sub">${sec(t.idle)}</div></div>
         <div class="metric-card"><div class="metric-value">${fmt(t.issue)}</div><div class="metric-label">Issue time</div><div class="metric-sub">${t.issues || 0} issues</div></div>
         <div class="metric-card"><div class="metric-value">${fmt(t.github)}</div><div class="metric-label">GitHub time</div><div class="metric-sub">${sec(t.github)}</div></div>
+        ${this.usageCard(s)}
       </div>
       ${this.renderBars(m)}
       ${this.renderWaterfall(m)}
@@ -64,6 +161,7 @@ class LogTimegoes extends LogComponent {
         label: t.title,
         ms: t.ms,
         drill: { repo: s.drill.repo, branch: s.drill.branch, task: t.title },
+        scope: { repo: s.drill.repo, branch: s.drill.branch, task: t.title },
         parts: t.runs.map((run) => ({
           label: run.agent || run.path,
           ms: { activity: run.by.activity, issue: run.by.issue, decision: run.by.decision, github: run.by.github, idle: 0 },
@@ -74,27 +172,47 @@ class LogTimegoes extends LogComponent {
         label: b.name,
         ms: b.ms,
         drill: { repo: s.drill.repo, branch: b.name },
+        scope: { repo: s.drill.repo, branch: b.name },
         parts: b.tasks.map((t) => ({ label: t.title, ms: t.ms })),
       })) || [];
     } else {
       items = m.repos.map((r) => ({
-        label: r.name, ms: r.ms, drill: { repo: r.name },
+        label: r.name, ms: r.ms, drill: { repo: r.name }, scope: { repo: r.name },
         parts: r.branches.map((b) => ({ label: b.name, ms: b.ms })),
       }));
     }
     const max = Math.max(1, ...items.map((x) => x.ms.wall || 0));
     const sel = s.selectedRun || {};
-    return `<div class="bars">${items.map((x) => {
+    // At task level these rows ARE the waterfall's rows - the same runs, in the
+    // same order - so the two panels share one grid template and their columns
+    // line up. The header makes that readable instead of implied.
+    const task = s.drill.task ? (m.tasks || []).find((t) => t.title === s.drill.task &&
+      t.repo === s.drill.repo && t.branch === s.drill.branch) : null;
+    const perRun = task ? this.usageByRun(task) : null;
+    const head = `
+      <div class="bars-axis">
+        <span>${s.drill.task ? 'Agent' : s.drill.branch ? 'Task' : s.drill.repo ? 'Branch' : 'Repository'}</span>
+        <span></span>
+        <span class="bars-axis-end">Time</span>
+        <span class="bars-axis-end" title="Excluding its subagents' runs">Own</span>
+        <span class="bars-axis-end">Tokens</span>
+        <span class="bars-axis-end">Cost</span>
+      </div>`;
+    return `${head}<div class="bars">${items.map((x) => {
       const active = x.run && sel.path === x.run.path && sel.from === x.run.from;
       const attrs = x.run
         ? `data-run-path="${esc(x.run.path)}" data-run-from="${esc(String(x.run.from))}"`
         : `data-drill='${esc(JSON.stringify(x.drill))}'`;
       const indent = x.depth ? `<span class="bar-indent">${'└'.padStart(x.depth * 2, ' ')}</span>` : '';
+      const uRows = x.run && perRun ? (perRun.get(x.run.path + '|' + x.run.from) || [])
+                                    : this.usageForItem(x, m);
       return `
       <div class="bar-row bar-clickable${active ? ' bar-row-active' : ''}" ${attrs}>
         <div class="bar-label" style="padding-left:${(x.depth || 0) * 14}px" title="${esc(x.run ? x.run.path : x.label)}">${indent}${esc(x.label)}</div>
-        <div style="flex:1">${this.partedBar(x, max)}</div>
-        <div class="bar-val">${fmt(x.ms.wall)}${x.self != null ? `<span class="bar-self" title="Excluding its subagents' runs">${fmt(x.self)} own</span>` : ''}</div>
+        <div class="bar-cell">${this.partedBar(x, max)}</div>
+        <div class="bar-val">${fmt(x.ms.wall)}</div>
+        <div class="bar-val bar-own">${x.self != null ? fmt(x.self) : '<span class="na">—</span>'}</div>
+        ${this.usageCells(uRows)}
       </div>`;
     }).join('')}</div>`;
   }
@@ -148,6 +266,7 @@ class LogTimegoes extends LogComponent {
       return d.toISOString().slice(11, 16);
     });
     const sel = s.selectedRun || {};
+    const perRun = this.usageByRun(task);
     // The log open in the detail panel, and its trace. Highlighting both makes
     // the Prev/Next-in-trace buttons legible on the waterfall: the whole trace
     // stays lit and the current step is outlined as it moves.
@@ -189,6 +308,7 @@ class LogTimegoes extends LogComponent {
           </div>
           <div class="wf-span">${fmt(run.ms)}</div>
           <div class="wf-span wf-self">${run.childMs ? fmt(run.selfMs) : '—'}</div>
+          ${this.wfUsageCells(perRun.get(run.path + '|' + run.from))}
         </div>`;
     }).join('');
     // IDLE row showing gaps
@@ -203,6 +323,8 @@ class LogTimegoes extends LogComponent {
         <div class="wf-track">${gapsHtml}</div>
         <div class="wf-span">${fmt(task.ms.idle)}</div>
         <div class="wf-span wf-self">—</div>
+        <div class="wf-span na">—</div>
+        <div class="wf-span na">—</div>
       </div>`;
     return `
       <div class="waterfall${selLog ? ' wf-focus' : ''}">
@@ -223,6 +345,8 @@ class LogTimegoes extends LogComponent {
           <span class="wf-axis-ticks">${axis.map((a) => `<span>${a}</span>`).join('')}</span>
           <span class="wf-axis-end">Span</span>
           <span class="wf-axis-end" title="Span minus the runs of its subagents">Own</span>
+          <span class="wf-axis-end" title="This agent's own requests inside this run - not its subagents'">Tokens</span>
+          <span class="wf-axis-end" title="Modelled at API list prices, not billed">Cost</span>
         </div>
         ${rows}
         ${idleRow}

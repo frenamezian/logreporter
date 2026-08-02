@@ -137,16 +137,23 @@ class LogMetrics extends LogComponent {
       </section>
     `;
 
+    // Token usage extends this page rather than adding a sixth nav tab: cost is
+    // an attribute of the work already described here. It lives in its own file
+    // because it is a substantial block, not because it is a separate page.
+    const usage = window.LogUsage ? window.LogUsage.render(s) : '';
+
     return `
       ${stats}
       <div class="metrics-cols">
         ${leftCol}
         ${rightCol}
       </div>
+      ${usage}
     `;
   }
 
   attach() {
+    if (window.LogUsage) window.LogUsage.attach(this);
     this.querySelectorAll('.issue-card').forEach((el) => {
       el.onclick = () => {
         const id = +el.getAttribute('data-id');

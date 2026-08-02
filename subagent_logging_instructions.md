@@ -44,6 +44,11 @@ Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defau
 
 - `--agent` = **`<name>`**
 - `--agent-path` = **`lead_architect/<name>`**
+- `--tags` must include **`#subagent:<subagent_type>`** on every row, where
+  `<subagent_type>` is the type you were dispatched as (the coding agent's own
+  name for you, e.g. `code-reviewer`). This is the join key between this log and
+  the token counts: without it, cost cannot be attributed to you rather than to
+  your parent. Combine it with any other tags — `--tags "#subagent:code-reviewer #commit"`.
 - `--trace-id` = **`<trace_id>`** (the lead's trace for this task — use it verbatim on every row)
 - `--parent-trace-id` = **`<parent_trace_id>`** (the lead's trace_id — same value as `--trace-id` when the lead is your direct parent)
 - `--repo` = **`log_reporter`**

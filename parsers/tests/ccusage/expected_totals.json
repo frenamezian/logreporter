@@ -1,0 +1,9 @@
+{
+ "_why": "Hand-counted from fixture.codex.json and cross-checked against the fixture's own `totals` block, which ccusage computes independently of the per-session rows: inputTokens 20500, outputTokens 5970, cacheReadTokens 240000, cacheCreationTokens 4096 - all four agree. Three sessions become FOUR records because session-a used two models and a row that cannot name its model cannot be priced. cache_write_1h is null, not 0: ccusage reports a single cache-creation number and has no 1-hour counter to report, so claiming zero would be claiming a measurement that was never made.",
+ "records": 4,
+ "input_tokens": 20500,
+ "cache_read_tokens": 240000,
+ "cache_write_5m": 4096,
+ "cache_write_1h": null,
+ "output_tokens": 5970
+}

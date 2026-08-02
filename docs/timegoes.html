@@ -90,3 +90,9 @@
 <p>The closing table ranks the twenty longest gaps anywhere in scope, with the task they belong to and the clock times they span. Clicking a row drills to that task, which brings up its waterfall below.</p>
 
 <div class="help-callout"><strong>Consequences worth knowing.</strong> A run whose <code>end</code> row never arrived is closed at its last event, so it contributes only the time it actually logged. A task with a single entry has zero wall clock. And time an agent spends working without logging is reported as idle — which is the honest reading, and the reason the logging contract asks agents to log when they begin waiting on something slow.</div>
+
+<h3>Tokens on this page</h3>
+<p>A sixth card carries the scope's token total with its modelled cost underneath. Like every other card in that row it describes the <em>whole scope</em>, while the waterfall below shows one task — so the two only match when you are drilled into that task.</p>
+<p>The bars panel and the waterfall gained a <strong>Tokens</strong> and a <strong>Cost</strong> column after <em>Own</em>, and both panels now share one grid, so their columns line up. At task level that matters more than it looks: the two panels list the <em>same runs</em>, once as magnitude and once as position in time.</p>
+<p>Both columns follow <em>Own</em>'s meaning — <strong>this agent's own requests inside this run</strong>, not its subagents'. Subagents have their own rows. Because a row is one run rather than one agent, an agent that ran three times gets three separate figures; on the sampled task the reviewer's runs read 37, 29 and 28, summing to the 94 the Metrics page reports for it.</p>
+<p>A request that falls between an agent's runs belongs to no row and is left out of both columns; it is still counted in the card above and on the Metrics page. The <strong>IDLE</strong> row shows a dash: idle time is nobody's work, so it has no tokens.</p>

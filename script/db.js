@@ -15,14 +15,35 @@ function loadScript(src) {
   });
 }
 
-async function ensureSqlJs() {
-  if (window.initSqlJs) return window.initSqlJs;
-  await loadScript(SQL_CDN);
-  if (!window.initSqlJs) throw new Error('sql.js did not load');
-  window.SQL = await window.initSqlJs({
-    locateFile: (file) => (file === 'sql-wasm.wasm' ? WASM_CDN : file)
-  });
-  return window.SQL;
+// Returns the initialised sql.js module — the thing with .Database on it.
+//
+// This used to early-return `window.initSqlJs`, which is the *factory* that
+// produces that module, not the module itself. The first call fell through to
+// the real path and was correct, so nothing broke while the page only ever
+// opened one database; the second call handed back the factory and
+// `new SQL.Database(bytes)` failed with "SQL.Database is not a constructor".
+// Opening the usage database is simply the first thing that calls this twice.
+//
+// The promise is cached rather than the result, so two callers that arrive
+// while the wasm is still downloading share one initialisation instead of
+// racing to start a second.
+let _sqlReady = null;
+
+function ensureSqlJs() {
+  if (window.SQL) return Promise.resolve(window.SQL);
+  if (_sqlReady) return _sqlReady;
+  _sqlReady = (async () => {
+    if (!window.initSqlJs) await loadScript(SQL_CDN);
+    if (!window.initSqlJs) throw new Error('sql.js did not load');
+    window.SQL = await window.initSqlJs({
+      locateFile: (file) => (file === 'sql-wasm.wasm' ? WASM_CDN : file)
+    });
+    return window.SQL;
+  })();
+  // A failed load must not poison every later attempt: clear the cache so a
+  // Refresh can retry after the network comes back.
+  _sqlReady.catch(() => { _sqlReady = null; });
+  return _sqlReady;
 }
 
 function rowsFromResult(result) {
@@ -67,6 +88,103 @@ const MIN_SAMPLE = [
   { id: 2, timestamp: '2026-07-29 09:05:00', repo_name: 'demo', branch_name: 'main', task_title: 'Sample task', agent_name: 'lead_architect', agent_path: 'lead_architect', log_title: 'Did some work', log_description: 'A sample activity log.', log_type: 'activity', log_level: 'info', user_id: 'admin' },
   { id: 3, timestamp: '2026-07-29 09:10:00', repo_name: 'demo', branch_name: 'main', task_title: 'Sample task', agent_name: 'lead_architect', agent_path: 'lead_architect', log_title: 'Task complete', log_description: 'Completed sample task.', log_type: 'end', log_level: 'info', status: 'completed', user_id: 'admin' }
 ];
+
+// The usage cache, opened as a *second* sql.js database.
+//
+// token_usage.db is a sibling file, not a table inside activity_logs.db, and
+// the two are never joined in SQL — they meet in JS, in memory, which is
+// already how this application works ("every page is a pure function of the
+// rows held in memory"). Keeping them apart means the reader never opens the
+// database the README calls a contract, and that deleting the usage file and
+// re-running the reader puts you exactly back where you started.
+//
+// Everything here degrades to "no usage yet" rather than to an error: the file
+// is absent until somebody runs usage_reader.py, and a dashboard that refuses
+// to load because an optional cache is missing would be a worse failure than
+// the missing cache.
+class UsageDb {
+  constructor() {
+    this.db = null;
+    this.rows = [];
+    this.status = { state: 'unloaded', detail: 'not loaded yet', rows: 0 };
+    this._stamp = null;
+  }
+
+  // Has the file changed since we last read it? A HEAD is a few hundred bytes;
+  // the database itself is tens of megabytes, and the auto-poll runs every five
+  // seconds. Without this check polling would re-download the whole cache
+  // twelve times a minute to discover nothing had happened.
+  async hasChanged() {
+    try {
+      const res = await fetch('token_usage.db', { method: 'HEAD', cache: 'no-store' });
+      if (!res.ok) return this.status.state !== 'absent';
+      const stamp = (res.headers.get('Last-Modified') || '') + '/' +
+                    (res.headers.get('Content-Length') || '');
+      return stamp !== this._stamp;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async load() {
+    let res;
+    try {
+      res = await fetch('token_usage.db', { cache: 'no-store' });
+    } catch (e) {
+      return this._fail('unreachable', 'token_usage.db could not be fetched (' + e.message + ')');
+    }
+    if (res.status === 404) {
+      return this._fail('absent',
+        'no token_usage.db yet — run `python usage_reader.py`, or use Rebuild usage');
+    }
+    if (!res.ok) return this._fail('unreachable', 'HTTP ' + res.status);
+
+    const stamp = (res.headers.get('Last-Modified') || '') + '/' +
+                  (res.headers.get('Content-Length') || '');
+    let buf;
+    try {
+      buf = new Uint8Array(await res.arrayBuffer());
+      const SQL = await ensureSqlJs();
+      this.db = new SQL.Database(buf);
+      this.rows = rowsFromResult(this.db.exec(
+        'SELECT * FROM token_usage ORDER BY timestamp'));
+    } catch (e) {
+      // An empty file, a database with no token_usage table, or a half-written
+      // one during a rebuild. None of these should take the dashboard down.
+      return this._fail('unreadable', 'token_usage.db could not be read (' + e.message + ')');
+    }
+
+    this._stamp = stamp;
+    this.status = {
+      state: 'ok',
+      rows: this.rows.length,
+      bytes: buf.length,
+      detail: this.rows.length.toLocaleString() + ' usage rows'
+    };
+    return this.rows;
+  }
+
+  _fail(state, detail) {
+    this.db = null;
+    this.rows = [];
+    this._stamp = null;
+    this.status = { state, detail, rows: 0 };
+    return this.rows;
+  }
+
+  // The reader's own report of what it scanned, written beside the database by
+  // usage_reader.py. This is what the source-transparency panel shows: which
+  // parser ran, how many files it saw, what failed to load. Absent is fine.
+  async loadReport() {
+    try {
+      const res = await fetch('token_usage.report.json', { cache: 'no-store' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
+  }
+}
 
 class LogDb {
   constructor() { this.db = null; this.name = 'Demo data'; }
@@ -144,4 +262,5 @@ class LogDb {
 }
 
 window.LogDb = LogDb;
+window.UsageDb = UsageDb;
 })(window);

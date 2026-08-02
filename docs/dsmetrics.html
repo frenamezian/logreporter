@@ -34,3 +34,41 @@ Playground  ███████████  1h 16m      │ …/task_executor
 <li><strong>Agent time</strong> — summed run spans per <code>agent_path</code>, the twelve largest, with the number of runs. Nested paths appear separately and overlap by design.</li>
 </ul>
 <p>Bars are scaled against the largest value in view, not a fixed maximum, so a distribution stays legible whether the scope holds 40 rows or 40,000. Zero-count rows are dropped rather than drawn empty.</p>
+
+<h3>Token usage block</h3>
+<p>Appended below the two columns, sharing their scope. It extends this page rather than adding a sixth nav tab: cost is an attribute of the work already described here.</p>
+<pre>Token usage and cost   45,870 requests          [ Tokens │ Cost ]
+┌────────────┐┌────────────┐┌────────────┐┌────────────┐
+│ 9.89B      ││ 9.87B      ││ 24.3M      ││ $34,389    │
+│ TOKENS     ││ INPUT+CACHE││ OUTPUT     ││ SAVED BY … │
+└────────────┘└────────────┘└────────────┘└────────────┘
+█████████████████████████████████████████████▌▌▌  ← 4 segments, 2px gaps
+● Cache read 97.5%  ● Cache write 2.3%  ● Fresh input 0.0%  ● Output 0.2%
+
+Where it went, by tokens              │ Sources
+[Repository][Branch][Task][Model]     │ Claude Code       [native parser]
+Playground   ███████████████  6.96B   │   775 files · 0 new · 775 unchanged
+Racecoster   ███              1.13B   │ ccusage (fallback)  [unavailable]
+fauxbiz      ██                 892M  │   not on PATH — npm i -g ccusage
+Unattributed ▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨  9.72B   │ 45,870 rows · 102 models priced
+
+Every row behind the charts
+WHEN         TASK   AGENT       MODEL    INPUT  CACHE READ  …   COST
+2026-08-01…  —      claude_code opus-5       2      18,057  …  $0.09</pre>
+
+<table><thead><tr><th>Element</th><th>Behaviour</th></tr></thead><tbody>
+<tr><td>Tokens ⇄ Cost</td><td>Redraws the same layout against one measure. Ordering, colour and layout hold across the switch; only the values change. Never a shared axis.</td></tr>
+<tr><td>Ranking rows</td><td>Ordered by tokens in <em>both</em> views, so rows do not jump on toggle. The cost view is therefore not always descending — that disagreement is the point of the toggle.</td></tr>
+<tr><td>Ranking colour</td><td>Sequential: one hue in five steps, dim→bright. A dark surface inverts "more is darker" — a darker bar would recede exactly where the value is largest. The step follows the value's share of the maximum, not the row index, so a filter that drops the largest row does not repaint the survivors.</td></tr>
+<tr><td>Segment colour</td><td>Its own validated four-step ramp. <code>--activity</code>, <code>--issue</code>, <code>--decision</code> and <code>--github</code> are reserved for log types: a cost bar in the issue red would read as an error.</td></tr>
+<tr><td>Unattributed</td><td>Hatched and italic so it never reads as a task, but ranked on its value like any other row.</td></tr>
+<tr><td>Table</td><td>Sortable on every column, nulls last in both directions, capped at 500 rows with the cap stated on screen.</td></tr>
+<tr><td>Empty states</td><td>No cache yet, unreachable, unreadable and "no rows match" are four different messages. The first tells you how to build it.</td></tr>
+</tbody></table>
+
+<p>The ramps are validated, not chosen by eye:</p>
+<pre>node scripts/validate_palette.js "#c98500,#d55181,#9085e9,#d95926" \
+     --mode dark --surface "#161821"
+node scripts/validate_palette.js "#574aa5,#6b5cc4,#8071dc,#968bec,#b0a6f6" \
+     --mode dark --surface "#161821" --ordinal</pre>
+<p>Both pass every gate against this project's own surface. The <em>order</em> is the safety mechanism, not decoration: orange next to amber measures ΔE 4.8 under deuteranopia and 10.6 with full colour vision, which fails both floors — putting magenta and violet between them is what makes the set legible. If you re-order these, re-run the validator.</p>

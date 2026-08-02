@@ -2,7 +2,8 @@
 'use strict';
 
 const LogDb = window.LogDb;
-const { buildModel, stream, fmt } = window.LR;
+const UsageDb = window.UsageDb;
+const { buildModel, stream, fmt, agentTypeMap, usageAgent, agentInSubtree } = window.LR;
 const { applyFilters, drillRows, unique } = window.Filters;
 
 const DEFAULT_FILTER = { search: '', repo: [], branch: [], agent: [], log_type: [], git: [], log_level: [], status: [], priority: [], from: '', to: '' };
@@ -38,6 +39,18 @@ window.LogApp = {
     model: { repos: [], totals: {} },
     src: { name: 'Demo data', demo: true, ok: false, detail: 'no database open' },
     db: new LogDb(),
+    // Token usage lives in a second database and is joined to the logs in
+    // memory, not in SQL. It is optional: everything on every page works
+    // unchanged when token_usage.db does not exist.
+    usageDb: new UsageDb(),
+    usage: [],
+    usageReport: null,
+    usageBusy: false,
+    // Which measure the usage views are drawn against. Tokens and cost are
+    // never put on one axis — they differ by orders of magnitude and a shared
+    // axis would invent a correlation that is not in the data. The toggle is
+    // the feature: the two views disagree, and the disagreement is the point.
+    measure: 'tokens',
     // shell state (§11.1)
     sidebar: true,
     panels: { filters: false, nav: true },
@@ -71,6 +84,49 @@ window.LogApp = {
         detail: 'activity_logs.db not reachable (' + e.message + '); using demo data' };
     }
     this.update();
+    // Deliberately after the first render: the usage cache can be tens of
+    // megabytes, and the log database is what the page is actually about. The
+    // usage views fill in when it lands.
+    this.loadUsage().then(() => this.update());
+  },
+
+  // --- token usage ---------------------------------------------------------
+
+  async loadUsage() {
+    this.state.usage = await this.state.usageDb.load();
+    this.state.usageReport = await this.state.usageDb.loadReport();
+    return this.state.usage;
+  },
+
+  // Ask serve.py to re-read the agents' session files. This is the only way
+  // usage can change: the browser cannot read ~/.claude/projects, and the page
+  // holds a copy of bytes it fetched over HTTP.
+  async refreshUsage(rebuild) {
+    if (this.state.usageBusy) return;
+    this.state.usageBusy = true;
+    this.render();
+    try {
+      const res = await fetch(rebuild ? 'api/rebuild-usage' : 'api/refresh-usage',
+                              { method: 'POST' });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || 'HTTP ' + res.status);
+      this.state.usageReport = out;
+      await this.loadUsage();
+      this.state.usageReport = out;   // the live report beats the file on disk
+    } catch (e) {
+      // Reached when the page is not served by serve.py. The rows already
+      // loaded stay valid; only the re-import is unavailable.
+      this.state.usageDb.status = { ...this.state.usageDb.status, ok: false,
+        detail: 'could not re-import usage (' + e.message +
+                ') — start the app with start_LogReporter.bat' };
+    }
+    this.state.usageBusy = false;
+    this.update();
+  },
+
+  setMeasure(measure) {
+    this.state.measure = measure === 'cost' ? 'cost' : 'tokens';
+    this.render();
   },
 
   setPage(page) {
@@ -170,6 +226,14 @@ window.LogApp = {
         this.state.rows = rows;
         this.update();
       }
+      // The usage cache is checked with a HEAD first. It is orders of
+      // magnitude larger than the log database and changes only when the
+      // reader runs, so re-downloading it on every five-second tick would cost
+      // megabytes a minute to discover nothing had changed.
+      if (await this.state.usageDb.hasChanged()) {
+        await this.loadUsage();
+        this.update();
+      }
     } catch (e) { /* ignore poll errors */ }
   },
   closeDetail() { this.selectLog(null); },
@@ -228,6 +292,94 @@ window.LogApp = {
     s.inScope = drillRows(s.filtered, s.drill);
     s.treeModel = buildModel(s.filtered);
     s.model = buildModel(s.inScope);
+    s.usageInScope = this.scopeUsage();
+  },
+
+  // Usage rows carry repo, branch and a timestamp — and nothing else the log
+  // filters know about. Only the filters that can be answered from those three
+  // are applied; the rest (log type, level, status, agent, priority, search)
+  // describe log entries, which a usage row is not.
+  //
+  // This is why the usage section says which filters it honours instead of
+  // pretending the whole filter bar applies. Silently ignoring a filter the
+  // user has set, and showing a total that does not match it, would be the
+  // same class of error as a silently partial import.
+  scopeUsage() {
+    const s = this.state;
+    const f = s.filter || {};
+    const d = s.drill || {};
+    const repo = (d.repo ? [d.repo] : (f.repo || []));
+    const branch = (d.branch ? [d.branch] : (f.branch || []));
+    const from = f.from ? new Date(f.from + 'T00:00:00Z').getTime() : null;
+    // `to` is inclusive of the whole day, matching the log filter.
+    const to = f.to ? new Date(f.to + 'T23:59:59.999Z').getTime() : null;
+
+    // Drilling into a task narrows usage to that task's own span — the same
+    // join §7 uses everywhere else, so the drilled view and the ranking row
+    // for that task always agree.
+    //
+    // The span comes from treeModel, which is built BEFORE any drill is
+    // applied, and that detail is the whole point. s.model is built from the
+    // drilled rows, so an agent drill would shrink the task's span to that
+    // agent's own runs — and usage would then silently report "every request
+    // that happened while this agent was running", which is not the same thing
+    // as "this agent's requests" and is not something the data can tell us.
+    //
+    // A single Claude Code session commonly hosts a whole tree of logged
+    // agents: in this repository's own data, one session carries all of
+    // lead_architect, task_executor, code_reviewer and test_writer. The
+    // transcript has no idea those agent paths exist, so tokens cannot be
+    // split between them. Usage is therefore a task-level measure, and an
+    // agent drill deliberately does not change it. The UI says so.
+    let span = null;
+    if (d.task) {
+      const t = ((s.treeModel || {}).tasks || []).find((x) => x.title === d.task &&
+        (!d.repo || x.repo === d.repo) && (!d.branch || x.branch === d.branch));
+      if (t) span = t.span;
+    }
+
+    const scoped = (s.usage || []).filter((u) => {
+      if (repo.length && !repo.includes(u.repo_name)) return false;
+      if (branch.length && !branch.includes(u.branch_name)) return false;
+      if (span || from !== null || to !== null) {
+        const t = new Date(String(u.timestamp || '')).getTime();
+        if (!Number.isFinite(t)) return false;
+        if (span && (t < span.from || t > span.to)) return false;
+        if (from !== null && t < from) return false;
+        if (to !== null && t > to) return false;
+      }
+      return true;
+    });
+
+    if (!d.agent) return scoped;
+
+    // An agent drill keeps that agent and everything it dispatched — the same
+    // subtree rule drillRows applies to log rows, so the usage total and the
+    // row counts in the tree describe the same set of work.
+    const tasks = (s.treeModel.tasks || []).filter((t) =>
+      (!d.repo || t.repo === d.repo) && (!d.branch || t.branch === d.branch) &&
+      (!d.task || t.title === d.task));
+    const maps = tasks.map((t) => ({ t, map: agentTypeMap(t) }));
+    return scoped.filter((u) => {
+      const ts = new Date(String(u.timestamp || '')).getTime();
+      const hit = maps.find(({ t }) => ts >= t.span.from && ts <= t.span.to);
+      if (!hit) return false;           // outside every span: not this agent's
+      return agentInSubtree(usageAgent(u, hit.map).path, d.agent);
+    });
+  },
+
+  // Which of the active filters the usage views cannot honour. Named in the UI
+  // rather than ignored quietly.
+  usageIgnoredFilters() {
+    const f = this.state.filter || {};
+    // The agent *drill* is honoured (usage joins to the subagent that produced
+    // it). The agent *filter* is not: it selects log rows by path, and a usage
+    // row is not a log row.
+    const named = { agent: 'agent', log_type: 'log type', git: 'git action',
+                    log_level: 'level', status: 'status', priority: 'priority' };
+    const out = Object.keys(named).filter((k) => (f[k] || []).length);
+    if (f.search) out.push('search');
+    return out.map((k) => named[k] || k);
   },
 
   update() {
@@ -298,6 +450,14 @@ window.LogApp = {
     } catch (e) {
       this.state.src = { ...this.state.src, ok: false, detail: 'refresh failed: ' + e.message };
     }
+    // Refresh means "go back to the source", and for usage the source is the
+    // agents' session files, not the cache. Ask serve.py to re-read them; if
+    // it is not there, fall back to re-reading whatever cache exists.
+    try {
+      const res = await fetch('api/refresh-usage', { method: 'POST' });
+      if (res.ok) this.state.usageReport = await res.json();
+    } catch (e) { /* not served by serve.py; the reload below still applies */ }
+    await this.loadUsage();
     this.update();
   },
 
