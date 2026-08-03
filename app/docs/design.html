@@ -1,0 +1,65 @@
+<p>System sans, 8px radii, and the accent used as a line, a tint or a glow — never as a flood. Every colour, size and space comes from the tokens at the top of <code>style.css</code>.</p>
+
+<h3>Two themes, one vocabulary</h3>
+<p>The <strong>☀ / ☾ button</strong> in the header switches between a near-neutral dark ground and a warm high-summer light one. The choice is remembered in <code>localStorage</code> and applied before the first paint, so a reload never flashes the other theme.</p>
+<p>Both themes define the <em>same</em> token names — only the values differ. That is the rule the stylesheet is built on: <strong>no colour literal may appear outside the two token blocks</strong>. A hex or an <code>rgba()</code> in a rule body is a value that can only be right in one theme, and it will be silently wrong in the other.</p>
+<pre>token         dark        light      used for
+--bg          #0f1115     #fffaf2    the page
+--surface     #161821     #ffffff    cards, panels, code blocks
+--surface-2   #1b1d2b     #fdeedb    inputs, buttons, table headers
+--text        #e6e6e6     #33261c
+--text-dim    #9aa0b2     #785c45
+--border      #2a2d3a     #f0dcc2
+--accent      #5b8def     #0a72c4
+--accent-2    #8eb6ff     #05537f    the accent used as TEXT — so it goes
+                                     brighter on dark, darker on light
+--radius  8px   --font  system-ui …   --mono  ui-monospace …</pre>
+<p>The theme also carries the washes (<code>--wash-1/2/3</code>), hairlines, scrollbar, hatch, overlay and focus mark. Each exists because it was once a literal that only worked on a dark ground: a hover state is built by <em>adding light</em> on dark and by <em>adding dark</em> on light, so the two cannot share a value.</p>
+
+<h3>The five categories</h3>
+<p>Five categories carry a fixed colour across every bar, dot, block and legend, and they never mean anything else. The <em>meaning</em> is fixed; the <em>value</em> is per-theme, because a hue chosen to sit on a near-black ground is not the hue that reads on sand:</p>
+<div class="help-legend">
+<span><span class="help-swatch" style="background:var(--activity)"></span>Activity <code>#4caf50</code> / <code>#0d8442</code></span>
+<span><span class="help-swatch" style="background:var(--issue)"></span>Issue <code>#f44336</code> / <code>#e02d1b</code></span>
+<span><span class="help-swatch" style="background:var(--decision)"></span>Decision <code>#2196f3</code> / <code>#3a5fe0</code></span>
+<span><span class="help-swatch" style="background:var(--github)"></span>GitHub <code>#4fc3f7</code> / <code>#0099b0</code></span>
+<span><span class="help-swatch idle"></span>Idle — hatched</span>
+</div>
+<p>Neither set was chosen by eye. Both are checked with <code>scripts/validate_palette.js</code> for lightness band, chroma floor, colour-vision separation between <em>adjacent</em> pairs, and contrast against the ground — which is why the stacking order below is part of the guarantee rather than a preference. The light set clears all five checks; the dark set predates the validator and fails three, and is kept for continuity.</p>
+<p>Idle is a diagonal hatch rather than a colour: absence should not read as another kind of work. <code>start</code> and <code>end</code> rows are drawn in the activity colour, because that is the category their time is attributed to.</p>
+<p>Stacking order is always activity → issue → decision → GitHub → idle, on every bar at every level, so the same horizontal position means the same category everywhere.</p>
+
+<h3>The mark is built from the same parts</h3>
+<div class="brand-figure">
+  <svg class="brand-figure-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+    <clipPath id="doc-ell-foot"><rect x="5" y="22.4" width="24" height="5.6" rx="2.8"/></clipPath>
+    <g clip-path="url(#doc-ell-foot)">
+      <rect x="5" y="22.4" width="7" height="5.6" fill="var(--accent)"/>
+      <rect x="12" y="22.4" width="6.5" height="5.6" fill="var(--activity)"/>
+      <rect x="18.5" y="22.4" width="4.5" height="5.6" fill="var(--decision)"/>
+      <rect x="23" y="22.4" width="3.5" height="5.6" fill="var(--github)"/>
+      <rect x="26.5" y="22.4" width="2.5" height="5.6" fill="var(--hatch-strong)"/>
+    </g>
+    <rect x="5" y="4" width="5.6" height="24" rx="2.8" fill="var(--accent)"/>
+  </svg>
+  <p>The letter L, with its foot built as a stacked category bar in the stacking order above. The letterform carries the name and the foot carries what the product does. It invents no colour and no radius of its own.</p>
+</div>
+<p><strong>Issue red is held back from the mark.</strong> Red means an issue everywhere else in this app, so a logo carrying it would read as a permanent alarm. The foot therefore runs activity → decision → GitHub → idle, skipping the one category it would be dishonest to show.</p>
+<p>The mark is <em>inlined</em> in <code>log-header.js</code> rather than linked, and that is the whole reason it can exist as one file: its fills are <code>var(--accent)</code>, <code>var(--activity)</code>, <code>var(--decision)</code> and <code>var(--github)</code>, so it re-colours itself on the ☀ / ☾ toggle like everything else. An <code>&lt;img&gt;</code> gets its own document, cannot see those tokens, and would have needed two files and a swap on every toggle. The idle segment uses <code>--hatch-strong</code> rather than <code>--hatch</code>, for the reason that token exists: at 28px a real diagonal hatch is noise and <code>--hatch</code> is invisible.</p>
+<p><code>favicon.svg</code> is the one deliberate exception to the no-literals rule. A tab icon is fetched as its own document and can never reach <code>style.css</code>, so it carries two hexes and a <code>prefers-color-scheme</code> query to pick between them. It is also the reduced drawing — solid foot, no segments, strokes thickened from 5.6 to 7 — because below 24px the category splits merge into one muddy band. The silhouette is what survives at tab size, not the split.</p>
+
+<h3>Layout rules the pages share</h3>
+<ul>
+<li><strong>One scroll region per page.</strong> The header, the breadcrumb strip, the sidebar and the detail panel are fixed; only the content region scrolls, so the columns you are reading against never leave the screen.</li>
+<li><strong>The detail panel is layout, not overlay.</strong> Opening it makes the content region narrower rather than covering it.</li>
+<li><strong>Identifiers are monospace and verbatim</strong> — repository, branch, agent name, <code>agent_path</code>, timestamps, trace ids. Closed enums (log type, level, status) are shown as written but styled as tags.</li>
+<li><strong>Selection is an accent left border</strong> plus a faint accent wash, never a colour change to the text.</li>
+<li><strong>Durations are always <code>fmt()</code></strong> — "42s", "37m", "1h 31m" — and never raw milliseconds.</li>
+<li><strong>Counts are badges</strong>; issue counts are the only ones that carry the issue colour, so a red badge always means the same thing.</li>
+<li><strong>Empty is stated, not blank.</strong> Zero-value rows are dropped from distributions; missing fields read "—".</li>
+</ul>
+
+<h3>Two panels are resizable</h3>
+<p>The sidebar (default 320px, minimum 220px) and the detail panel (default 372px, minimum 280px) are both drag-resizable from their inner edge, capped at 60% of the window. Both widths live on <code>LogApp.state</code> and survive page switches.</p>
+
+<p>The seven topics that follow document the shell and each page as a wireframe of the real layout, plus the interaction rules behind it.</p>

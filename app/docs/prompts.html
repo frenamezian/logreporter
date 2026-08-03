@@ -1,0 +1,102 @@
+<p>The dashboard is only as good as the rows agents write. This repository ships the writer and the full contract; this topic is the short version, and the reason behind each rule.</p>
+
+<h3>The two tools</h3>
+<pre>python mint_trace.py                 # lead architect only → 9f2c41a8
+
+python log_activity.py \
+  --log-type start|end|activity|issue|decision|github \
+  --repo &lt;name&gt; --branch &lt;name&gt; --task "&lt;title&gt;" \
+  --agent &lt;name&gt; --agent-path &lt;lineage&gt; \
+  --trace-id &lt;id&gt; --log-title "&lt;one specific line&gt;" \
+  [--log-description …] [--log-level info] [--status …]
+  [--priority …] [--tags "#x #y"] [--parent-trace-id …]
+  [--error-details …] [--resolved-by …]
+  [--performance-metrics '{"execution_ms":12}']
+  [--commit-reference &lt;sha&gt;] [--sync]</pre>
+<p><code>log_activity.py</code> is asynchronous by default: it validates the arguments, spawns a detached child to do the INSERT, and exits immediately, so logging never slows an agent down. The child opens the database in WAL mode with a 10-second busy timeout and retries five times with exponential backoff; failures land in <code>log_activity_errors.log</code>. <code>--repo</code> and <code>--branch</code> are derived from git in the caller's working directory when omitted, so an agent in any repository logs under the right node without being told which one it is in.</p>
+<p>The full contracts live in <code>orchestrator_logging_instructions.md</code> and <code>subagent_logging_instructions.md</code> and are meant to be pasted into the agents' system prompts verbatim.</p>
+
+<h3>The contract every agent gets</h3>
+<pre>You write an activity log to SQLite (table: logs) as you work.
+
+BRACKET YOUR WORK
+- First action on a task: append a `start` row.
+- Last action, always, even on failure: append an `end` row with the
+  final status. Durations and idle time are derived from this pair —
+  a missing `end` erases everything after your last log from every
+  time view.
+
+WHILE WORKING, append one row per meaningful step:
+- activity  what you did (a file read, a build, an edit)
+- decision  a choice between alternatives — record the alternatives
+            and why you rejected them, not just the outcome
+- issue     a failure, retry or block; put the raw error text in
+            error_details; when it is later fixed, log a follow-up
+            issue row with resolved_by set
+- github    any git operation; tag the action: #pull #push #commit
+            #add #delete. For a commit, pass the full 40-char SHA as
+            commit_reference, put "commit &lt;short sha&gt;: &lt;title&gt;" in
+            log_title, and the full message in log_description.
+
+ON EVERY ROW
+- timestamp    UTC, 'YYYY-MM-DD HH:MM:SS'
+- repo_name, branch_name, task_title  identical for every row of one
+  task, character for character — they are the grouping keys
+- agent_name   your name
+- agent_path   your lineage, e.g. lead_architect/task_executor
+- trace_id     shared by every agent on this task; pass it to any
+               subagent you spawn and set its parent_trace_id
+- log_title    one line, specific: "Chose append-only over upsert",
+               not "Made a decision"
+- log_level    debug | info | warning | error
+- status       pending | in_progress | failed | completed
+- priority     low | medium | high | critical
+- tags         comma-separated #tokens
+
+DO NOT log per token, per line or inside tight loops. One row per
+step a human would want to see. Silence between rows is reported as
+idle time, so log when you begin waiting on something slow.</pre>
+
+<h3>Trace identity — the lead architect only</h3>
+<pre>YOU OWN trace_id. Subagents never mint one.
+
+MINT A NEW trace_id (mint_trace.py) WHEN:
+- You accept a new task — one trace per task_title, created on the
+  `start` row and reused by every row of that task, yours and your
+  subagents'.
+- The same task is retried as a fresh attempt after an `end` row was
+  already written: new trace, and set parent_trace_id to the trace of
+  the attempt it replaces.
+- Work splits into an independent task that will be reported on its
+  own — its own task_title, its own trace, parent_trace_id set to
+  yours.
+
+REUSE THE CURRENT trace_id WHEN:
+- You spawn a subagent for this task. Pass your trace_id down; the
+  subagent writes it verbatim and sets parent_trace_id to your
+  trace_id. Never mint a trace per subagent — the trace timeline is
+  how a multi-agent run is read as one sequence.
+- You resume the same task after an idle stretch, a retry of a step,
+  or a handoff back from a subagent.
+- Anything you log about the same task_title, however far apart.
+
+NEVER: reuse a trace across different task_titles, mint one per log
+row or per tool call, or leave trace_id empty — untraced rows still
+appear in the lists but drop out of trace navigation.
+
+Log the mint itself: on the `start` row that opens a new trace, say
+so in log_description (e.g. "trace 9f2c41a8 opened for this task;
+parent 4d10be77") so the lineage is legible without a join.</pre>
+
+<h3>Writing directly, without the tool</h3>
+<pre>INSERT INTO logs (
+  timestamp, repo_name, branch_name, task_title,
+  log_type, log_title, log_description, log_level,
+  status, priority, agent_name, agent_path,
+  trace_id, parent_trace_id, user_id, tags,
+  error_details, resolved_by, resolution_time,
+  performance_metrics, input_output_hash, commit_reference
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);</pre>
+<p>Use WAL mode with a busy timeout of several seconds so concurrent agents and the dashboard's polling never fight over the lock. Keep <code>performance_metrics</code> a small JSON object — execution_ms, tokens, cpu_pct, memory_mb — and omit it rather than writing nulls.</p>
+
+<div class="help-callout"><strong>How the rules map to the views.</strong> The start/end pair is every duration. <code>agent_path</code> is the waterfall's indentation and the "own time" subtraction. The three grouping keys are the entire hierarchy. <code>trace_id</code> is the detail panel's Prev/Next. Silence is idle. Every one of those is derived — nothing in the dashboard can compensate for a row that was never written.</div>

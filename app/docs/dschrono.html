@@ -1,0 +1,29 @@
+<p>The flattest page in the app: one five-column grid — Time, Type, Agent, Entry, Level — reused verbatim from the Hierarchy entry rows, with day headers and idle rows interleaved into the same stream.</p>
+<pre>● Activity ● Issue ● Decision ● GitHub ● Start/end ▒ Idle          24 entries
+25 rows                                        [Newest first][Oldest first]
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ TIME    TYPE        AGENT           ENTRY                            LEVEL   │
+│ 20:57   ● end       lead_architect  Task 0350 complete: commit cfc…  INFO    │
+│ 20:54   ● github    task_executor   commit cfc4cfc: correct usage-…  INFO    │
+│ 20:49   ● issue     lead_architect  Executor cut off by an API err…  WARNING │
+│ ┄┄┄ Idle 12m · Playground/harness · task_0350 — Usage report doc… ┄┄┄┄┄┄┄┄┄┄ │
+│ 20:33   ● activity  test_writer     Test plan approved unchanged: …  INFO    │
+│ …                                                                            │
+│ 2026-07-31                                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+   day header sits where the day changes — at the bottom in newest-first order</pre>
+<p>The idle row names the repository, branch and task that went quiet, which is usually enough to explain the gap without opening anything.</p>
+
+<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
+<tr><td>Entry row</td><td>Selects it and opens the detail panel — the fastest route from "something happened here" to the full record and its trace.</td></tr>
+<tr><td><strong>Newest first</strong> / <strong>Oldest first</strong></td><td>Reverses the finished stream, headers and idle rows included, so they stay attached to the right entries instead of being flipped into the wrong place. Re-rendering only; the scope is untouched.</td></tr>
+<tr><td>Idle row</td><td>Inert by design. It is evidence, not a destination; drill to the task in the tree if you want its waterfall.</td></tr>
+<tr><td>Any filter or drill change</td><td>Rebuilds the stream, including which gaps count as idle. Narrowing to one agent does <em>not</em> invent idle time for the others, because gaps come from the task model rather than from the spacing of the visible rows.</td></tr>
+</tbody></table>
+
+<h3>Implementation notes</h3>
+<ul>
+<li><code>stream(inScope, model)</code> emits <code>day</code>, <code>gap</code> and <code>log</code> rows ascending; the component reverses the array for newest-first, which is the default.</li>
+<li>A gap row is emitted only between two consecutive rows of the same task, and only when the model has a gap starting exactly at the earlier row's timestamp.</li>
+<li>The cap is 500 <em>stream</em> rows, not 500 log rows — day headers and idle rows count against it. The line above the table reads "N rows" normally and "Showing 500 of N rows" when it truncates; the legend's count is always the number of entries in scope.</li>
+</ul>

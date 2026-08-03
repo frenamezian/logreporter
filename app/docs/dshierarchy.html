@@ -1,0 +1,35 @@
+<p>Four nesting levels in one scroll: repository card → branch band → task row → entry rows. Every level above the entries repeats the same right-hand summary vocabulary, so they can be compared by eye.</p>
+<pre>● Activity ● Issue ● Decision ● GitHub ▒ Idle       [Expand all][Collapse all]
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ▾ Playground      1 branches · 1h 31m   █████▒▒  [24 logs][3 issues][Time →] │
+│   ▾ harness       1 tasks · 1h 31m      █████▒▒  [24 logs][3 issues][Time →] │
+│     ▾ task_0350 — Usage report docstring…  [completed]                       │
+│           24 entries · 1h 31m · 4 agents  ████▒▒ [24 logs][3 issues][Time →] │
+│       TIME    TYPE        AGENT           ENTRY                      LEVEL   │
+│       19:26   ● start     lead_architect  Started task 0350 (ISS-015) INFO   │
+│       19:39   ● activity  task_executor   Stage A: corrected 14 cal…  INFO   │
+│     ┃ 19:39   ● decision  task_executor   ISS-015 claims 3 call sit…  INFO   │
+│       19:51   ● issue     task_executor   Stage B round 1 BLOCKED …   WARNING│
+│     ▸ task_0340 — Theme flash 6 of 17 tokens…  [completed]                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+  repo card   120px bar      branch 120px bar       task 160px bar
+  ┃ = selected row: 2px accent left border + accent wash</pre>
+<p>The right-hand summary is, in order: a count and the wall-clock total (plus the idle share when there is any), the stacked bar scaled to that row's own wall clock, the log and issue badges, and <strong>Time →</strong>.</p>
+
+<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
+<tr><td>A repository, branch or task row</td><td>Toggles it open or closed by patching the DOM in place — no app re-render, so scroll position is kept and the element survives between the two clicks of a double click.</td></tr>
+<tr><td>Double click, any level</td><td>Always ends collapsed.</td></tr>
+<tr><td><strong>Time →</strong></td><td>Sets the drill scope to that repository, branch or task <em>and</em> switches to Where time goes. The one cross-page jump on this page; it stops propagation so it never toggles the row it sits in.</td></tr>
+<tr><td>Entry row</td><td>Selects the entry and opens the detail panel. The five-column grid stays — the content region reflows and the columns absorb it.</td></tr>
+<tr><td>Panel ×, or a blank part of the page</td><td>Closes the panel.</td></tr>
+<tr><td><strong>Expand all</strong></td><td>Opens every repo, branch and task holding a row in the current scope — not the whole database.</td></tr>
+<tr><td><strong>Collapse all</strong></td><td>Clears this page's expand set. The navigation tree keeps its own, independent set.</td></tr>
+</tbody></table>
+
+<h3>Implementation notes</h3>
+<ul>
+<li>The page renders from <code>state.model</code> (drill applied), so it stays consistent with every other page. The sidebar tree renders from <code>state.treeModel</code> (drill <em>not</em> applied), which is why siblings remain visible there.</li>
+<li>Entry rows are built lazily the first time a task is opened, and wired at that moment — a file with thousands of rows still expands instantly.</li>
+<li>Drilling auto-expands the path once, keyed on the drill itself. Re-applying it every render would fight the user: a row collapsed by hand would spring back open on the next poll tick.</li>
+<li>Entries inside a task sort ascending — you read a task the way it happened — while repositories, branches and tasks keep the model's ordering (longest wall clock, then most recently ended).</li>
+</ul>

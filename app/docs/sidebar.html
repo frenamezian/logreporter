@@ -1,0 +1,33 @@
+<p>The left panel holds two collapsible sections — <strong>Filters</strong> and <strong>Navigation</strong> — and between them they decide what every page is looking at. Filters choose which rows exist; navigation chooses which part of them you are standing in.</p>
+
+<figure class="help-figure help-figure-sm">
+  <a href="docs/img/sidebar.png" target="_blank" rel="noopener"><img src="docs/img/sidebar.png" alt="The left panel with the filter section open above the navigation tree"></a>
+  <figcaption>Both sections open. The tree runs repository → branch → task → agent, and nests subagents under the agent that spawned them.</figcaption>
+</figure>
+
+<h3>Filters</h3>
+<p>Every filter is ANDed with the others. There are three kinds:</p>
+<ul>
+<li><strong>Search</strong> — the field is always visible, even with the section collapsed. Type freely and press <strong>Enter</strong> to apply; <strong>Escape</strong> clears it. It matches <code>log_title</code>, <code>log_description</code>, <code>agent_name</code> and <code>agent_path</code>, case-insensitively. It deliberately does not apply per keystroke — half a word would narrow the whole dashboard to nothing while you were still typing it.</li>
+<li><strong>Eight multi-selects</strong> — Repository, Branch, Agent, Log type, Git action, Level, Status, Priority. Each is a checkbox list: tick several values and they are ORed within that filter. Only one list is open at a time and clicking outside closes it. The button shows the count, and the line under it summarises the first three choices.</li>
+<li><strong>From / To</strong> — an inclusive date range, applied as you pick.</li>
+</ul>
+<p>Two of the lists are not simply "every value in the file". <strong>Branch</strong> is scoped to the repositories you have selected, because branch names repeat across repositories and an unscoped list is unusable. <strong>Agent</strong> lists full <code>agent_path</code> values but matches either the path or the bare agent name, so picking a subagent finds its rows wherever it ran.</p>
+<p>Every active value gets a chip above the search box; clicking a chip removes that one value. <strong>Clear all filters</strong> in the section header removes everything at once, and the pill next to the word <em>Filters</em> counts what is active even when the section is collapsed.</p>
+<p>Changing any filter clears the drill scope and closes the detail panel — the row you had open may no longer be in scope, and a stale drill into a task the filter just excluded shows an empty page.</p>
+
+<h3>Navigation</h3>
+<p>The tree is repository → branch → task → agent, and the agent level is nested from <code>agent_path</code>, so a subagent appears underneath the agent that spawned it. Repositories and branches show their wall-clock time; tasks and agents show a row count.</p>
+<table><thead><tr><th>Action</th><th>Result</th></tr></thead><tbody>
+<tr><td>Click a node</td><td>Drills the whole dashboard to it and opens it. The breadcrumb above the content follows, and the node is highlighted.</td></tr>
+<tr><td>Click the node you are already on</td><td>Collapses it again. Double-clicking does the same thing — the toggle rule exists so a slow double click behaves like a fast one.</td></tr>
+<tr><td>Click an agent</td><td>Drills to that agent within its task; clicking it again drops back to the task. A row is in scope when the agent's name appears anywhere in its <code>agent_path</code>, so drilling to a parent keeps its subagents' rows.</td></tr>
+<tr><td><strong>All repositories</strong></td><td>Clears the drill entirely. The breadcrumb does the same at any depth.</td></tr>
+</tbody></table>
+<p>The tree is built from the filtered rows <em>before</em> the drill is applied. That is deliberate: every sibling stays visible and one click away, so moving from one task to its neighbour never requires walking back up the breadcrumb first.</p>
+
+<h3>Width and collapsing</h3>
+<p>Drag the panel's right edge to resize it (220px minimum, 60% of the window maximum). The <strong>«</strong> button collapses it to a narrow rail carrying a gear icon and a badge with the number of active filters; clicking that icon restores the panel with the filter section open.</p>
+
+<h3>On the Help page</h3>
+<p>Filters have nothing to narrow here, so the same panel carries this guide's outline instead. The field at its top searches the whole guide — headings and prose alike. Topics that match only in the body are marked <em>in text</em>, the line under the field says how many of the topics matched, and <strong>Escape</strong> or <strong>Clear</strong> restores the full outline. The rail's icon becomes ☰ and brings the outline back.</p>

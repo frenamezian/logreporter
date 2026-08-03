@@ -1,0 +1,28 @@
+<p>The default page: one card per repository, nested down through branches and tasks to the individual log entries.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/hierarchy.png" target="_blank" rel="noopener"><img src="docs/img/hierarchy.png" alt="Hierarchy page: repository card, branch band, expanded task and its entry rows"></a>
+  <figcaption>One task expanded. Every level above the entries repeats the same summary vocabulary, so a repository and a task can be compared by eye.</figcaption>
+</figure>
+
+<h3>The summary each level carries</h3>
+<p>Repository, branch and task rows all show the same four things to the right of the name:</p>
+<ul>
+<li><strong>A count and the wall-clock total</strong> — "1 branches · 1h 31m" for a repository, "1 tasks · 1h 31m" for a branch, "24 entries · 1h 31m · 4 agents" for a task. Where any of that time was idle, the idle share follows as a percentage.</li>
+<li><strong>A stacked bar</strong> — how that wall-clock time splits into activity, issue, decision, GitHub and idle, always in that order, so the same position always means the same category. The bar is scaled to the row's own total, so it reads as a composition rather than a comparison against its neighbours.</li>
+<li><strong>Badges</strong> — the number of log rows, and the number of issues in red when there are any.</li>
+<li><strong>Time →</strong> — drills to that repository, branch or task <em>and</em> switches to Where time goes. The one cross-page jump on this page.</li>
+</ul>
+
+<h3>Entry rows</h3>
+<p>Opening a task lists its entries in ascending time — you read a task the way it happened — as Time, Type, Agent, Entry, Level. The entry column carries the title followed by a dimmed snippet of the description. Clicking a row opens it in the detail panel on the right; the selected row keeps an accent left border so you do not lose it while reading the panel.</p>
+<p>Entry rows are rendered the first time a task is opened, not up front, so a file with thousands of rows still expands instantly.</p>
+
+<h3>Opening and closing</h3>
+<table><thead><tr><th>Action</th><th>Result</th></tr></thead><tbody>
+<tr><td>Click a repository, branch or task row</td><td>Toggles it open or closed in place. Scroll position is kept and nothing else on the page changes.</td></tr>
+<tr><td>Double-click one</td><td>Always ends collapsed — useful for closing a level you opened by accident.</td></tr>
+<tr><td><strong>Expand all</strong></td><td>Opens every repository, branch and task holding a row in the current scope. Not the whole database — only what you are looking at.</td></tr>
+<tr><td><strong>Collapse all</strong></td><td>Closes everything here. The navigation tree in the sidebar keeps its own, independent open state.</td></tr>
+</tbody></table>
+<p>Drilling from the sidebar or the breadcrumb auto-expands the path you drilled to, once. After that the rows stay where you put them: re-applying the drill on every re-render would spring open a row you had just closed by hand.</p>

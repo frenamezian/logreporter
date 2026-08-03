@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LogReporter — agent activity dashboard</title>
+  <!-- The description is here rather than only on the published landing page,
+       because this file IS a page on that site: tools/export_app.py copies it
+       to /app/index.html for the live demo. Everything below <body> is drawn by
+       JavaScript, so without this and the <noscript> at the end, anything that
+       reads the markup without running it — a crawler that gave up on the
+       render queue, a link unfurler, an agent fetching the URL — sees an empty
+       document and has nothing to say about it. -->
+  <meta name="description" content="LogReporter reads an agent activity log — one SQLite file — and shows the subagent tree, where the time went, and what each agent cost in tokens. Runs locally; nothing is uploaded.">
+  <!-- Bump ?v= on every asset when shipping a change: browsers keep serving a
+       cached copy of these files otherwise, and the dashboard silently runs
+       last week's code. -->
+  <link rel="icon" href="favicon.svg?v=22" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css?v=22">
+  <!-- Theme, applied before the first paint. Everything else on this page loads
+       at the end of <body>, but the theme cannot: reading the preference after
+       the stylesheet has painted means every load of the light theme starts
+       with a frame of the dark one. Dark is the default and carries no
+       attribute, so only an explicit "light" writes anything. -->
+  <script>
+    try {
+      if (localStorage.getItem('logreporter.theme') === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    } catch (e) { /* storage blocked — fall through to the dark default */ }
+  </script>
+  <!-- ===== Added by site/tools/export_app.py. Publication-only. ===== -->
+
+  <!-- The dashboard is published under /app/, beneath a landing page; this is
+       what turns the header brand into a link back to it. Unset in a local
+       checkout, where there is no page above. -->
+  <script>window.LR_HOME = '../';</script>
+
+  <!-- The rest of this block is SEO, and it belongs here rather than in the
+       tracked index.html for one reason: every URL in it is absolute, and an
+       absolute URL is only true of the published copy. The same file served by
+       serve.py lives at 127.0.0.1:8250, where a canonical pointing at github.io
+       would be a lie that tells a crawler to index someone's laptop.
+
+       The description and the <noscript> fallback are NOT here — they are true
+       everywhere, so they live in the tracked document with the rest of it. -->
+  <link rel="canonical" href="https://frenamezian.github.io/logreporter/app/index.html">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="LogReporter">
+  <meta property="og:url" content="https://frenamezian.github.io/logreporter/app/index.html">
+  <meta property="og:title" content="LogReporter — live demo">
+  <meta property="og:description" content="The real dashboard, over 148 sample rows. Six views of one agent activity log: hierarchy, chronology, where time goes, metrics, model pricing, maintenance.">
+  <meta property="og:image" content="https://frenamezian.github.io/logreporter/assets/img/og-card.png">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <!-- data layer first -->
+  <script src="script/time-model.js?v=22"></script>
+  <script src="script/filters.js?v=22"></script>
+  <script src="script/db.js?v=22"></script>
+  <!-- llm_registry.js is GENERATED from script/llm_registry.py by
+       seed/py2js_registry.py. It must load before cost-model.js, which
+       reads window.LLM_REGISTRY at call time to price usage rows, and before
+       model-catalog.js, which reads it to draw the Models page. -->
+  <script src="script/llm_registry.js?v=22"></script>
+  <script src="script/cost-model.js?v=22"></script>
+  <script src="script/model-catalog.js?v=22"></script>
+  <script src="script/app.js?v=22"></script>
+  <!-- components: base + helpers first, app-shell last -->
+  <script src="components/log-component.js?v=22"></script>
+  <script src="components/log-header.js?v=22"></script>
+  <script src="components/log-filters.js?v=22"></script>
+  <script src="components/log-tree.js?v=22"></script>
+  <script src="components/log-list.js?v=22"></script>
+  <script src="components/log-details.js?v=22"></script>
+  <script src="components/log-timeline.js?v=22"></script>
+  <script src="components/log-timegoes.js?v=22"></script>
+  <script src="components/log-usage.js?v=22"></script>
+  <script src="components/log-metrics.js?v=22"></script>
+  <script src="components/log-models.js?v=22"></script>
+  <script src="components/log-maintenance.js?v=22"></script>
+  <script src="components/log-help.js?v=22"></script>
+  <script src="components/log-footer.js?v=22"></script>
+  <script src="components/app-shell.js?v=22"></script>
+
+  <!-- The whole application is rendered by the scripts above, so with them off
+       this document has no content at all. That is fine for a local checkout
+       and not fine for the published demo, where an empty <body> is what a
+       crawler indexes and what an assistant summarising the URL reads. This
+       block is the fallback: it says what the page is, and links to the two
+       places that can actually answer the question. It is last in <body>, like
+       everything else here, and costs nothing to a browser that ran the scripts.
+
+       Links are relative so they work from either root — served locally by
+       serve.py, or under /app/ on the published site, where LR_HOME turns the
+       header brand into the same link. -->
+  <noscript>
+    <div style="max-width:44rem;margin:4rem auto;padding:0 1.5rem;
+                font:16px/1.6 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
+      <h1>LogReporter</h1>
+      <p><strong>This dashboard needs JavaScript.</strong> It parses a SQLite
+         file in your browser — there is no server-side query to fall back to,
+         so with scripts disabled there is nothing to show.</p>
+      <p>LogReporter reads an agent activity log and turns it into six views of
+         the same rows: a repository → branch → task → agent hierarchy, a
+         chronology including the idle gaps, a waterfall separating wall-clock
+         time from agent time and own time, metrics with token cost, a model
+         price catalogue, and maintenance. Your AI coding agents append one row
+         per meaningful step as they work, so the log carries the reasoning
+         behind a change and not only the change.</p>
+      <p>
+        <a href="../">About LogReporter</a> ·
+        <a href="https://github.com/frenamezian/logreporter">Source on GitHub</a> ·
+        <a href="https://github.com/frenamezian/logreporter#readme">Documentation</a>
+      </p>
+    </div>
+  </noscript>
+</body>
+</html>

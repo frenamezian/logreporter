@@ -1,0 +1,109 @@
+<p>Counts and distributions over the same filter and drill scope as every other page — nothing here is computed over the whole database unless the scope <em>is</em> the whole database.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/metrics.png" target="_blank" rel="noopener"><img src="docs/img/metrics.png" alt="Metrics page: four stat cards, distributions on the left, open issues and agent time on the right"></a>
+  <figcaption>Scoped to one task. Distributions on the left, the things that need a person on the right.</figcaption>
+</figure>
+
+<h3>The four cards</h3>
+<p>Task counts by state — <strong>Open</strong> (pending or in progress), <strong>Completed</strong>, <strong>Failed</strong> — and total <strong>Idle</strong> time. A task's state is the status on its last <code>end</code> row; a task with no closing row at all counts as open.</p>
+
+<h3>Left column — distributions</h3>
+<ul>
+<li><strong>Entries by log type</strong> — how many rows of each type are in scope, largest first, each in its category colour.</li>
+<li><strong>GitHub operations</strong> — <code>github</code> rows broken down by git action. The action is read from the row's tags and title: pull, push, commit, add, delete. Rows with no recognisable action are left out rather than bucketed as "other".</li>
+<li><strong>Median task duration by repository</strong> — the median of the tasks' wall-clock times. Median, not mean, because one abandoned task that ran overnight otherwise dominates the number.</li>
+</ul>
+<p>Bars are scaled against the largest value currently in view, not a fixed maximum, so a distribution stays legible whether the scope holds forty rows or forty thousand. Empty categories are dropped rather than drawn as zero-width bars.</p>
+
+<h3>Right column — what needs a person</h3>
+<ul>
+<li><strong>Open issues and escalations</strong> — every <code>issue</code> row in scope with no <code>resolved_by</code> set, as cards carrying the repository and branch, the title, the description and the level. Clicking a card is the one deep link on this page: it switches to Hierarchy, expands the repository, branch and task around that row, and opens it in the detail panel.</li>
+<li><strong>Agent time</strong> — total run span per <code>agent_path</code>, the twelve largest, with the number of runs alongside. A nested path is listed on its own line, so a parent and its subagent both appear and their times overlap by design — see <em>Where time goes</em> for why.</li>
+</ul>
+
+<div class="help-callout">Everything on this page is read-only. It reports the scope; it never sets it. Drill to a branch and "median task duration by repository" shows exactly one row — that is correct, not a bug.</div>
+
+<h3>Token usage and cost</h3>
+<p>Below the distributions, the same scope again — this time measured in tokens and money. Usage is <em>observed</em>, not logged: it is read from the session transcripts your coding agents already write, so it works on history that predates this feature and <code>log_activity.py</code> never had to change. Nothing here asks anything of your agents.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/metrics-usage.png" target="_blank" rel="noopener"><img src="docs/img/metrics-usage.png" alt="The token usage block: four stat tiles, the four-segment composition bar with direct labels, the ranking tabs, and the source panel"></a>
+  <figcaption>Scoped to one task. Four tiles, the composition bar with every segment labelled, the ranking below it, and the source panel on the right.</figcaption>
+</figure>
+
+<p>Read the tiles against the bar and the disagreement is immediate: cache reads are <strong>95.6%</strong> of the tokens, and the whole task costs <strong>$15.44</strong> while the cache saved <strong>$84.22</strong> — five times the bill. Fresh input is 356 tokens, which is why the bar's third segment is a sliver held open by its minimum width rather than dropped.</p>
+
+<h3>Tokens ⇄ Cost</h3>
+<p>The toggle at the top right of the section redraws the same layout against one measure at a time. It exists because tokens and cost differ by six orders of magnitude, and putting them on one axis would draw a correlation that is not in the data.</p>
+<p><strong>Rows keep their position when you toggle.</strong> The ranking is ordered by tokens in both views, so a row that is 3% of the tokens and 20% of the bill stays put and visibly changes length. That means the cost view is not always descending — which is the finding, not a rendering fault. From a real session in this repository:</p>
+<table><thead><tr><th>Segment</th><th>Share of tokens</th><th>Share of cost</th></tr></thead><tbody>
+<tr><td>Cache read</td><td>72.8%</td><td>11.1%</td></tr>
+<tr><td>Cache write</td><td>25.8%</td><td><strong>78.8%</strong></td></tr>
+<tr><td>Output</td><td>1.3%</td><td>9.9%</td></tr>
+<tr><td>Fresh input</td><td>0.1%</td><td>0.2%</td></tr>
+</tbody></table>
+<p>Cache reads dominate the token count and are nearly free; cache <em>writes</em> are a quarter of the tokens and four-fifths of the bill. A blended "tokens" number hides that completely.</p>
+
+<h3>The four tiles</h3>
+<ul>
+<li><strong>Total tokens</strong> / <strong>Total cost</strong> — everything in scope.</li>
+<li><strong>Input (incl. cache)</strong> — the real input: fresh input plus cache reads plus cache writes. The agent's own <code>input_tokens</code> field is only the <em>uncached remainder</em>; on the sampled session it read 1,449 against a true input of 1,091,210, understating it by 753×. The tile names both numbers so the difference is visible rather than assumed.</li>
+<li><strong>Output</strong> — including reasoning tokens where an agent reports them separately.</li>
+<li><strong>Saved by cache</strong> — what the cache-read tokens <em>would</em> have cost at the model's full input rate, minus what they did cost. It holds its slot in both toggle positions and is always a currency value, because "saved tokens" is not a meaningful quantity: the tokens were read either way, only the price changed. <strong>It is not a discount on the total above</strong> — that total is already net of it.</li>
+</ul>
+
+<h3>Composition, rankings and the table</h3>
+<ul>
+<li>The <strong>stacked bar</strong> splits the scope four ways — cache read, cache write, fresh input, output — with every segment directly labelled, because colour alone stops being comfortable at four series. A segment too small to see keeps a minimum width, so the four never change shape between measures.</li>
+<li><strong>Rankings</strong> group by repository, branch, task or model. Bars are one hue in steps: they encode magnitude, not identity. The step follows the value, not the row's position, so filtering out the largest row never repaints the survivors.</li>
+<li>The <strong>table</strong> lists every row behind the charts with each counter in its own column, sortable, digits aligned. It is both the accessibility path and the honest one — with four token classes plus a cost, some readers need the numbers.</li>
+</ul>
+
+<h3>Unattributed</h3>
+<p>A usage row belongs to a task when its repository and branch match and its timestamp falls inside that task's span. Rows matching no span are counted as <strong>Unattributed</strong> and shown, not dropped: that is agents working without bracketing a task, which is a real finding — the same position the idle model takes about time nobody logged. Rows falling inside two overlapping spans (concurrent agents on one branch) are split evenly between them, and the page says how many.</p>
+
+<h3>Sources</h3>
+<p>The panel on the right lists, per agent, which parser read it, how many files were scanned, how many were skipped as unchanged, and anything that failed to load. It is small, and it prevents the worst failure mode this feature has: a confident total that is quietly partial. A parser that failed to load is named there, because its agent's tokens are missing from every number on the page.</p>
+
+<p>Only the filters that a usage row can answer are applied to it — repository, branch and date. A usage row is not a log entry, so it has no log type, level, status or agent path to filter on. The section header names any active filter it cannot honour rather than quietly showing a total that does not match your filters.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/metrics-usage-table.png" target="_blank" rel="noopener"><img src="docs/img/metrics-usage-table.png" alt="Every row behind the charts: when, task, agent, model, and each token counter in its own sortable column"></a>
+  <figcaption>One row per API request, each counter in its own column, sortable on any of them. <code>Write 5m</code> and <code>Write 1h</code> stay apart because they are priced differently.</figcaption>
+</figure>
+
+<p>This is where the two rules the reader enforces become visible. <strong>Input</strong> reads 2 on almost every row — that is the uncached remainder, not the input; the real input is beside it under <strong>Cache read</strong>, in the hundreds of thousands. And each row is one API request, already deduplicated: the transcript wrote several lines for most of them, all carrying the same counters.</p>
+
+<h3>How usage aggregates</h3>
+<p>Time and tokens come from two different places — your agents' own log rows, and the coding agent's session transcript — so it is worth being precise about how they meet.</p>
+
+<table><thead><tr><th>Level</th><th>How usage is gathered</th></tr></thead><tbody>
+<tr><td><strong>Repository</strong></td><td>Every usage row whose <code>repo_name</code> matches.</td></tr>
+<tr><td><strong>Branch</strong></td><td>Repository, plus a matching <code>branch_name</code>.</td></tr>
+<tr><td><strong>Task</strong></td><td>Repository and branch, plus a timestamp inside that task's <code>[start, end]</code> span. Rows inside two overlapping task spans are split evenly between them.</td></tr>
+<tr><td><strong>Agent</strong></td><td>The subagent the coding agent recorded for each request, joined to your agent path. Drilling to an agent shows it <em>and everything it dispatched</em> — the same subtree rule the tree counts use.</td></tr>
+</tbody></table>
+
+<p>Each level is a strict superset of the one below it, so repository totals equal the sum of their branches, and branch totals equal the sum of their tasks plus whatever falls in no task span at all (<em>Unattributed</em>). Nothing is counted twice.</p>
+
+<h3>Per-agent cost, and the tag that makes it work</h3>
+<p>Claude Code records which subagent made every API request, in the metadata beside each subagent transcript. That is first-party data, not an inference — the reader keeps it, and this page joins it to the agent paths your own agents log.</p>
+<p>The two sides name agents independently: LogReporter knows <code>lead_architect/task_executor</code>, the coding agent knows <code>task-executor</code>. An agent declares the link by tagging its rows:</p>
+<pre>--tags "#subagent:task-executor"</pre>
+<p>Where the tag is absent, the last segment of <code>--agent-path</code> is matched against the subagent type instead, with <code>-</code> and <code>_</code> treated alike. That works when the two happen to be named the same and silently stops working the day either is renamed, so the tag is worth the one token. Requests carrying no subagent metadata at all came from the main session and are attributed to the task's root agent.</p>
+
+<h4>The ranking and the drill answer different questions</h4>
+<ul>
+<li>The <strong>Agent ranking</strong> shows each agent's <em>own</em> requests, excluding its subagents'. That is what makes the bars sum to the task total.</li>
+<li>An <strong>agent drill</strong> shows that agent <em>and its subtree</em>, matching the row counts in the navigation tree.</li>
+</ul>
+<p>So a parent's drilled figure legitimately contains its children's, while its ranking bar does not. To stop that being something you have to work out, an agent drill states the split in its header:</p>
+<pre>lead_architect  own $2.83 of $34.84 · 8.1% · subagents $32.02
+task_executor   own $20.70 of $32.02 · 65%  · subagents $11.31
+code_reviewer   own $6.47 of $6.47   · 100% · no subagents</pre>
+<p>The first figure is the agent's own work, the second is everything in scope including what it dispatched, and the two always reconcile. It follows the Tokens/Cost toggle like everything else.</p>
+
+<div class="help-callout"><strong>Two logged agents sharing one context cannot be told apart.</strong> If your harness runs several agents inside a single coding-agent session without dispatching them as real subagents, no data exists that could separate their tokens — they will all attribute to the task's root agent. Time still splits correctly, because the logs record that per agent directly. Earlier versions of this page inferred agent cost from overlapping run windows; that was wrong by 10–25% against the real metadata, and counted the gaps between one agent's runs as its own.</div>
+
+<div class="help-callout"><strong>Cost is modelled, not billed.</strong> It is what these tokens would cost at the provider's published API prices, computed at render time from the model registry — never stored, so it cannot silently become a lie when prices change. On a Pro or Max subscription the tokens draw against a plan instead, so treat this as a comparison figure, not an accounting one. An unknown model shows its tokens and a dash for cost, never a guessed rate.</div>

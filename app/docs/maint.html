@@ -1,0 +1,26 @@
+<p>Logs are retained until you delete them — there is no automatic rotation, on purpose. This page is where you look at what is stored, remove some of it, or carve a slice out as a file.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/maintenance.png" target="_blank" rel="noopener"><img src="docs/img/maintenance.png" alt="Maintenance page: scope trail, delete and export cards, and the volume table"></a>
+  <figcaption>The scope trail runs across the top; everything below it counts exactly that scope.</figcaption>
+</figure>
+
+<h3>The scope trail</h3>
+<p>The pills at the top — All repos › Repo › Branch › Task › Agent — are the current drill, restated in full because every count on this page is a count of it. Clicking a pill drills back to that level; <strong>See all repos</strong> clears the drill entirely, which also deselects the node in the navigation tree.</p>
+
+<h3>Delete</h3>
+<p>Deletion uses <em>the same filters and drill scope as the left panel</em>. The active filters are restated as read-only chips so nothing is hidden, and <strong>Older than</strong> is the one delete-specific refinement: it further narrows the selection to rows before that date.</p>
+<p>The line above the button always says what will go — "25 of 189 logs match in 1 repository" — and the button repeats the count. Pressing it opens a confirmation restating the number of rows and how many repositories they touch; nothing is removed until you confirm.</p>
+<p><strong>Where the rows actually go.</strong> When the page is served by <code>serve.py</code>, the confirmed delete is posted to that server, which removes the rows from <code>activity_logs.db</code> itself and checkpoints the write-ahead log; the page then re-reads the database, so what you see is what is stored. The header note reports how many rows were deleted and how many remain.</p>
+<p>Two cases behave differently, and say so:</p>
+<ul>
+<li><strong>Demo data</strong> — there is no file to write to, so the delete only affects the copy in memory. The note says "removed in memory".</li>
+<li><strong>Served without <code>serve.py</code></strong> (plain <code>http.server</code>, or opened over <code>file://</code>) — the delete endpoint does not exist. The rows are removed from the in-memory copy so the view still responds, and the note turns red: <em>NOT saved to the database — start the app with start_LogReporter.bat</em>. Refreshing brings them all back.</li>
+</ul>
+
+<h3>Export</h3>
+<p><strong>Export CSV</strong> and <strong>Export JSON</strong> write the rows in the current filter and drill scope — the same rows the header's CSV and JSON buttons write. <strong>Save database copy</strong> downloads the in-memory database as a <code>.db</code> file; it never overwrites the file you opened.</p>
+
+<h3>Total log count</h3>
+<p>The table below breaks the rows in scope down by the level just under the drill, so drilling one step always answers "and what is that count made of?". At the top it groups by repository; inside a repository, by branch; inside a branch, by task; inside a task, by <code>agent_path</code>, which is the floor.</p>
+<p>Columns above the grouping level repeat the scope's value; columns below it read <em>All</em>, because the row aggregates every value they could take. Each row carries its log and issue counts and its oldest and newest timestamps — enough to judge what is worth pruning.</p>

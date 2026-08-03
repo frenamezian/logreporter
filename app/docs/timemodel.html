@@ -1,0 +1,88 @@
+<p>Durations are never stored. Every number on every page is derived from the log rows by <code>script/time-model.js</code>, so any log file produces the same figures and there is nothing to keep in sync. This topic is the implementation; <em>Where time goes</em> in the user guide is the same model in prose.</p>
+
+<h3>Entry point</h3>
+<pre>window.LR = { buildModel, stream, fmt, gitAction, TYPES, CATEGORIES, GIT_ACTIONS }
+
+buildModel(logs) → { tasks, repos, totals, gaps }</pre>
+<p><code>buildModel</code> is called twice per recompute: once on the filtered rows (for the sidebar tree) and once on the drilled rows (for the pages). It is pure — same rows in, same model out.</p>
+
+<h3>1 · Group into tasks</h3>
+<p>The key is <code>repo_name \0 branch_name \0 (task_title || 'Untitled task')</code>. Timestamps are parsed as UTC: <code>new Date(ts.replace(' ','T') + 'Z')</code>. A row with no timestamp is skipped.</p>
+
+<h3>2 · Split each task into runs</h3>
+<p>Rows are bucketed by <code>agent_path</code> (falling back to <code>agent_name</code>, then <code>'?'</code>), sorted by time, then walked:</p>
+<pre>for each row of this agent, in time order:
+    start  → close any open run, open a new one at this timestamp
+    other  → if no run is open, open one at this timestamp
+             append the row to the open run
+    end    → set run.to and run.status, close the run
+
+after the walk: any still-open run gets to = timestamp of its last event
+
+run.ms    = to − from
+run.depth = agent_path.split('/').length − 1</pre>
+<p>So one agent dispatched three times inside a task yields three runs. Rows arriving without a <code>start</code> open an implicit run rather than being dropped — the alternative loses the work entirely.</p>
+
+<h3>3 · Segments</h3>
+<p>Each event in a run claims the time until the next event of that run; the last event claims the time until <code>run.to</code>.</p>
+<pre>seg = { from, to, ms, cat, point, log }
+
+cat   = issue    if log_type === 'issue'
+        decision if log_type === 'decision'
+        github   if log_type === 'github'
+        activity otherwise          (activity, start, end)
+
+point = to &lt;= from                  zero-length: the closing `end` row,
+                                    or two rows sharing a timestamp
+
+run.by = { activity, issue, decision, github }   // Σ seg.ms by cat</pre>
+<p>Points are kept, not filtered out. They account for no time but must stay selectable and highlightable in the waterfall, which draws them as ticks.</p>
+
+<h3>4 · Own time (nesting correction)</h3>
+<pre>kids     = runs whose path starts with `${run.path}/`
+clipped  = each kid's interval ∩ this run's interval
+childMs  = total length of union(clipped)
+selfMs   = max(0, run.ms − childMs)</pre>
+<p>A parent stays open while its subagents work, so <code>run.ms</code> double-counts delegation. Subtracting the union of the descendants leaves the time the agent spent on its own work, and parent <code>selfMs</code> + children's spans reconstruct the parent's span. <strong>Sibling</strong> runs overlapping in true parallel are not subtracted from each other — that overlap is real concurrency, not nesting.</p>
+
+<h3>5 · Task totals</h3>
+<pre>span    = { from: min(run.from), to: max(run.to) }
+covered = union(all run intervals)
+busy    = Σ length(covered)
+gaps    = complement(span, covered)        → each { from, to, ms, repo, branch, task }
+idle    = Σ gap.ms
+agentMs = Σ run.ms
+selfMs  = Σ run.selfMs
+
+// the four coloured categories: busy, apportioned by the raw segment shares
+sum = Σ over runs of (by.activity + by.issue + by.decision + by.github)
+ms.activity = round(busy × Σ by.activity / sum)      … and so on
+
+ms.wall   = span.to − span.from                       // = busy + idle
+ms.idle   = idle
+ms.logs   = rows in the task
+ms.issues = rows with log_type === 'issue'</pre>
+<div class="help-callout"><strong>Why apportion.</strong> Raw <code>by</code> sums are per-run, and nested runs count the same wall-clock minutes twice (the parent waiting, the child working). Summing them directly would make a task's coloured bar longer than the task. Scaling them onto <code>busy</code> preserves the <em>shape</em> — the ratio between categories, exactly as the segments reported it — while keeping the bar's length equal to real elapsed time. The consequence to remember: at task level and above, a category figure is apportioned wall clock, not a sum of agent time. Only <code>run.by</code> is raw.</div>
+<p>Task status is the <code>status</code> on the last <code>end</code> row that carries one, else <code>in_progress</code>. <code>largestGap</code> and <code>trace</code> (the first non-empty <code>trace_id</code>) are stored alongside.</p>
+
+<h3>6 · Roll-up</h3>
+<pre>branch.ms = Σ task.ms      // field by field, including wall and idle
+repo.ms   = Σ task.ms
+totals    = Σ task.ms  +  { tasks, done, open, failed }</pre>
+<p>Every level is a plain field-wise sum of the task buckets, so <code>idle / wall</code> is comparable at any depth. Note that a repository's <code>wall</code> is the sum of its tasks' walls, not its own first-to-last span: two tasks running the same afternoon count twice, because the question is how much task time the repository represents. Repositories and branches are sorted by <code>wall</code> descending; tasks by most recent end.</p>
+
+<h3>7 · The chronological stream</h3>
+<p><code>stream(logs, model)</code> sorts the rows ascending and emits <code>{kind:'day'}</code>, <code>{kind:'gap'}</code> and <code>{kind:'log'}</code> rows. A gap is emitted only between two consecutive rows <em>of the same task</em>, and only when the model actually has a gap starting at the earlier row's timestamp — gaps are never inferred from row spacing. The Chronology page reverses the finished array for newest-first, so day headers and gaps stay attached to the right entries.</p>
+
+<h3>8 · Formatting</h3>
+<pre>fmt(ms):  &lt; 60s → "42s"      &lt; 60m → "37m"      else → "1h 31m"
+          null / NaN → "—"</pre>
+<p>Rounded to the nearest second before bucketing, so a 59.6s span reads "1m". Detail-panel trace offsets use their own finer scale — <code>ms</code>, <code>s</code> with one decimal, <code>m</code>, <code>h</code> — because the interesting differences there are sub-second.</p>
+
+<h3>Consequences worth knowing</h3>
+<ul>
+<li>A run whose <code>end</code> row never arrived is closed at its last event, so everything after that point is invisible to the model — and shows up as idle.</li>
+<li>A task with a single entry has zero wall clock and contributes nothing but a row count.</li>
+<li>Time spent by an agent that logs nothing is reported as idle. That is the honest reading, and the reason the logging contract asks agents to log before waiting on something slow.</li>
+<li>A task title that drifts between rows becomes two tasks, each with its own span, and the gap between them becomes nobody's idle.</li>
+</ul>

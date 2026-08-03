@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogReporter — see what your subagents did, and what it cost</title>
+<meta name="description" content="A local dashboard over one SQLite file. Your AI coding agents log each meaningful step, so you get the subagent tree, an honest time breakdown, and per-agent token cost. No server, no account, no telemetry.">
+
+<!-- The site has exactly one canonical origin: GitHub Pages for this repo. It
+     is spelled absolutely here, and in every og: URL below, because a crawler
+     may have arrived at a variant — a trailing /index.html, a ?utm_ tail, the
+     older frenamezian.github.io/logreporter without the slash — and only an
+     absolute href tells it which one of those is the page. -->
+<link rel="canonical" href="https://frenamezian.github.io/logreporter/">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<meta name="author" content="frenamezian">
+
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/css/site.css">
+<!-- The hero screenshot is the largest thing above the fold and therefore the
+     LCP element. Preloading it starts the fetch during head parsing rather than
+     after the <img> is discovered, which on a cold visit is most of the delay.
+
+     It preloads the WebP, not the PNG, and `type` is what makes that safe: a
+     browser that cannot decode image/webp skips the preload entirely rather
+     than fetching a file it will not use. Getting this wrong is worse than
+     omitting the preload — a preload of the PNG would download 476 KB that the
+     <picture> below then ignores in favour of the 122 KB WebP. -->
+<link rel="preload" as="image" type="image/webp"
+      href="assets/img/timegoes-usage.webp" fetchpriority="high">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#fffaf2" media="(prefers-color-scheme: light)">
+<!-- Theme, applied before the first paint — the same trick, and the same
+     storage key, as the dashboard. Reading the preference after the stylesheet
+     has painted means every load of the light theme starts with a frame of the
+     dark one. Dark is the default and carries no attribute, so only an explicit
+     "light" writes anything. Sharing the key means the theme a visitor picks
+     here is the theme the demo opens in. -->
+<script>
+  try {
+    if (localStorage.getItem('logreporter.theme') === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  } catch (e) { /* storage blocked — fall through to the dark default */ }
+</script>
+
+<!-- Open Graph. Every URL here must be absolute: a card is unfurled by a server
+     that has only the markup, not the page it came from, so a relative path
+     resolves against nothing and the card renders without its image. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="LogReporter">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://frenamezian.github.io/logreporter/">
+<meta property="og:title" content="LogReporter — see what your subagents did, and what it cost">
+<meta property="og:description" content="Hooks tell you what happened. LogReporter tells you why. Subagent lineage, honest time accounting, and per-agent token cost — all local.">
+<!-- og-card.png, not the hero screenshot. A card renders at roughly 524px wide;
+     the hero is 1800px of dense dashboard, and at that size every label and
+     table row collapses into grey mush with nothing naming the product. The
+     card is drawn instead — see tools/build_og_card.py. It is also 1200x630,
+     the 1.91:1 box every platform crops to, where the hero's 2.01:1 was being
+     shaved. PNG rather than WebP: several unfurlers still will not render a
+     WebP card, and this is the one image whose job is to be rendered by
+     somebody else's server. -->
+<meta property="og:image" content="https://frenamezian.github.io/logreporter/assets/img/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="LogReporter — see what your subagents actually did, and what it cost. Hooks tell you what happened; LogReporter tells you why. Local, one SQLite file, no account, MIT.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="LogReporter — see what your subagents did, and what it cost">
+<meta name="twitter:description" content="Hooks tell you what happened. LogReporter tells you why. Subagent lineage, honest time accounting, and per-agent token cost — all local.">
+<meta name="twitter:image" content="https://frenamezian.github.io/logreporter/assets/img/og-card.png">
+<meta name="twitter:image:alt" content="LogReporter — see what your subagents actually did, and what it cost. Hooks tell you what happened; LogReporter tells you why. Local, one SQLite file, no account, MIT.">
+
+<!-- Structured data, as one @graph rather than three separate <script> blocks,
+     so the nodes can reference each other by @id instead of repeating
+     themselves. This is the copy of the page written for machines: a crawler
+     or an agent that will not execute the CSS still gets the licence, the
+     price, the repository and the four questions people actually arrive with.
+     Everything asserted here is also stated in the prose below — structured
+     data that disagrees with the visible page is a manual-action risk, not a
+     shortcut. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://frenamezian.github.io/logreporter/#website",
+      "url": "https://frenamezian.github.io/logreporter/",
+      "name": "LogReporter",
+      "description": "A local dashboard over one SQLite file that shows what your AI coding subagents did, how long it took, and what it cost.",
+      "inLanguage": "en",
+      "publisher": { "@id": "https://frenamezian.github.io/logreporter/#author" }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://frenamezian.github.io/logreporter/#author",
+      "name": "frenamezian",
+      "url": "https://github.com/frenamezian"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://frenamezian.github.io/logreporter/#app",
+      "name": "LogReporter",
+      "alternateName": "logreporter",
+      "applicationCategory": "DeveloperApplication",
+      "applicationSubCategory": "AI agent observability",
+      "operatingSystem": "Windows, macOS, Linux",
+      "url": "https://frenamezian.github.io/logreporter/",
+      "downloadUrl": "https://github.com/frenamezian/logreporter",
+      "codeRepository": "https://github.com/frenamezian/logreporter",
+      "programmingLanguage": ["Python", "JavaScript", "SQL"],
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "author": { "@id": "https://frenamezian.github.io/logreporter/#author" },
+      "screenshot": "https://frenamezian.github.io/logreporter/assets/img/timegoes-usage.png",
+      "softwareRequirements": "Python 3.8 or newer. No pip install; the dashboard is a static page.",
+      "description": "LogReporter turns an agent activity log — one SQLite file — into six views: a repository/branch/task/agent hierarchy, a chronology including idle gaps, a time waterfall separating wall clock from agent time and own time, metrics with token cost, a model price catalogue, and maintenance. Your AI coding agents append one row per meaningful step, so the dashboard can show the reasoning behind a change and not only the change.",
+      "featureList": [
+        "Subagent lineage: repository, branch, task and agent tree built from an agent path",
+        "Own-time correction — a parent's span minus its subagents' runs",
+        "Wall clock, agent time and idle reported separately",
+        "Token counts and modelled cost attributed per subagent run",
+        "Model and price catalogue covering 102 models",
+        "Runs fully locally: static page, SQLite file, no account and no telemetry",
+        "Pluggable usage parsers, with ccusage as the fallback for non-Claude agents"
+      ],
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://frenamezian.github.io/logreporter/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is LogReporter?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A local dashboard over a single SQLite file. Your AI coding agents append one row per meaningful step as they work — decisions, blockers, git operations — and the dashboard turns that into a subagent tree, a time breakdown and per-agent token cost."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How is it different from a hook-based agent monitor?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Hook and transcript tools observe what an agent did: tool calls, tokens, file diffs. They cannot see the alternative it rejected, or why, because that never leaves the model. LogReporter asks the agent to write the reasoning down instead. The trade is that it depends on your agents following the logging prompt; an agent that skips its closing row shows up as a gap, which LogReporter reports rather than hides."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I install it?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Clone the repository, run bash seed/init_db.sh to create the sample database, then python serve.py to open the dashboard at http://127.0.0.1:8250. It needs Python 3.8 or newer and no pip install. Then paste the logging block into your lead agent's prompt and the subagent block into each subagent it dispatches."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Are the costs my real bill?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Costs are modelled, not billed — an API-pricing equivalent computed from a local registry of model prices. On a subscription plan those tokens draw against your plan instead. Do not use the figures for billing or budgeting without checking them against your provider."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does any data leave my machine?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. The dashboard is a static page that parses the SQLite file in your browser, served by a Python standard-library server bound to 127.0.0.1. There is no account, no upload and no telemetry — which also means nothing is backed up for you."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Which agents does it support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Any agent whose prompt you control can write activity rows. For token usage, Claude Code is parsed natively — only a native parser can see Anthropic's 5-minute and 1-hour cache-write split — and Codex, Gemini, Kimi and twenty-plus other tools fall back to ccusage by @ryoppippi."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<!-- Sections are wrapped in <header>/<main>/<footer> and every one of them
+     carries an id and an aria-labelledby. Both audiences want the same thing
+     from that: a screen reader announces the region by its own heading, and a
+     crawler or an agent reading the DOM gets an outline it can cite a fragment
+     of — /logreporter/#cost is a linkable answer to "what does it cost", where
+     a wall of unnamed <section>s is only ever the whole page. -->
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="nav-brand" href="./">
+      <img src="assets/img/favicon.svg" alt="" width="22" height="22">
+      LogReporter
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#how">How it works</a>
+      <a href="#cost">Tokens &amp; cost</a>
+      <a href="app/index.html">Live demo</a>
+      <a href="https://github.com/frenamezian/logreporter">GitHub</a>
+      <!-- The glyph shows the theme you would GET, not the one you are in —
+           same rule as the dashboard's toggle. -->
+      <button class="theme-toggle" id="theme-toggle" type="button"
+              aria-pressed="false" title="Switch to light mode">☀</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ───────────────────────────── hero ───────────────────────────── -->
+<section class="hero" id="overview" aria-labelledby="overview-h">
+  <div class="wrap">
+    <h1 id="overview-h">See what your subagents actually did<br>— and what it cost</h1>
+    <p class="tagline">Hooks tell you what happened. LogReporter tells you why.</p>
+    <p class="lede">
+      A local dashboard over a single SQLite file. Your agents append one row per
+      meaningful step as they work — decisions, blockers, git operations — and the
+      dashboard turns that into a subagent tree, an honest time breakdown, and
+      per-agent token cost.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="app/index.html">▶&nbsp; Try the live demo</a>
+      <a class="btn" href="#how">Get started</a>
+      <a class="btn" href="https://github.com/frenamezian/logreporter">★&nbsp; View on GitHub</a>
+    </div>
+    <p class="meta-line">
+      <strong>Python 3.8+</strong> · no <code>pip install</code> · no account ·
+      the file never leaves your laptop
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────────────── the money shot ───────────────────────── -->
+<section id="screenshot" aria-labelledby="screenshot-h">
+  <div class="wrap">
+    <h2 class="visually-hidden" id="screenshot-h">One screen, annotated</h2>
+    <figure>
+      <div class="shot">
+        <!-- The LCP image, and the one preloaded in <head>: eager and high
+             priority, where every image below is lazy.
+
+             Every screenshot on this page is served through <picture>: the
+             WebP is what essentially every visitor gets, and the PNG in the
+             <img> is both the fallback for a browser that cannot decode WebP
+             and the file the og:image points at, since several link unfurlers
+             still will not render a WebP card. width/height stay on the <img>
+             — they reserve the box and prevent layout shift regardless of
+             which source wins. -->
+        <picture>
+          <source type="image/webp" srcset="assets/img/timegoes-usage.webp">
+          <img src="assets/img/timegoes-usage.png"
+               alt="The Where time goes page: stat tiles for wall clock, agent time, idle, issue and GitHub time and tokens; an agent tree with time, own time, tokens and cost columns; a waterfall of five agents indented by lineage; and the log entries for one run."
+               width="1800" height="894" loading="eager" decoding="async" fetchpriority="high">
+        </picture>
+      </div>
+      <figcaption class="shot-caption">
+        One task, five agents, one screen — <em>Where time goes</em>.
+      </figcaption>
+    </figure>
+
+    <ul class="callouts">
+      <li><span class="pin">1</span><span><b>Agent time is 259.8% of wall clock.</b>
+        Five agents ran in parallel. A clock alone can never show you that.</span></li>
+      <li><span class="pin">2</span><span><b>An <code>OWN</code> column.</b>
+        A parent's span minus its subagents' runs — 44m elapsed, 17m actually its own.</span></li>
+      <li><span class="pin">3</span><span><b>Tokens and cost per agent.</b>
+        <code>task_executor</code> burned 14.44M tokens and $10.68 of the $15.44 total.</span></li>
+      <li><span class="pin">4</span><span><b>The reasoning, not just the diff.</b>
+        “Unresolved viewer is marked on no plan, rather than defaulting to Free.”</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ─────────────────────── the difference ───────────────────────── -->
+<section id="why" aria-labelledby="why-h">
+  <div class="wrap">
+    <p class="eyebrow">What makes it different</p>
+    <h2 id="why-h">Every other agent dashboard watches from the outside</h2>
+    <p class="lede" style="margin-bottom:32px">
+      Hook and transcript tools observe what an agent <em>did</em>. They cannot see the
+      alternative it rejected, or why — that never leaves the model. So LogReporter
+      asks the agent to write it down.
+    </p>
+
+    <div class="compare">
+      <div class="them">
+        <h3>Observed from outside</h3>
+        <ul>
+          <li><b>Mechanical facts</b>Tool calls, tokens, file diffs.
+            <div class="quote">Edit — src/pricing.ts</div></li>
+          <li><b>A flat event stream</b>One long list, filtered by session.</li>
+          <li><b>Activity density</b>How busy it looked, minute by minute.</li>
+          <li><b>One project at a time</b>Per-repo config, per-repo dashboard.</li>
+        </ul>
+      </div>
+      <div class="us">
+        <h3>Declared by the agent</h3>
+        <ul>
+          <li><b>…plus the reasoning behind them</b>
+            <div class="quote">decision — Token bucket over sliding window:
+            sliding needs per-key history; bucket is O(1) at our QPS</div></li>
+          <li><b>repo → branch → task → agent tree</b>Lineage builds the waterfall
+            and the own-time correction.</li>
+          <li><b>Wall vs agent vs own vs idle</b>Silence is reported as idle, not hidden.</li>
+          <li><b>Many repos, one database</b>Repo and branch derived from git — one
+            prompt works everywhere.</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="tradeoff">
+      <b>The trade, stated plainly.</b> This depends on your agents following the logging
+      prompt. An agent that skips its closing row shows up as a gap in the timeline —
+      LogReporter reports that gap rather than papering over it. You get the “why” at the
+      cost of relying on the agent to report it.
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────────────── how it works ─────────────────────────── -->
+<section id="how" aria-labelledby="how-h">
+  <div class="wrap">
+    <p class="eyebrow">How it works</p>
+    <h2 id="how-h">Three steps, no build, no dependencies</h2>
+
+    <div class="steps" style="margin-top:32px">
+      <div class="step">
+        <div class="n">1</div>
+        <h3>Point your agents at it</h3>
+        <p>Paste the logging block into your lead agent's prompt, and the subagent
+           block into each subagent it dispatches.</p>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <h3>They log as they work</h3>
+        <p>One row per meaningful step, from whatever repo they're standing in.
+           Repo and branch come from git automatically.</p>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <h3>Watch it fill in</h3>
+        <p>The dashboard reads the file in your browser. Turn on auto-poll and the
+           tree grows while the agents work.</p>
+      </div>
+    </div>
+
+    <div class="scroll-x">
+<pre class="code"><span class="c"># 1. clone and create the sample database</span>
+git clone https://github.com/frenamezian/logreporter &amp;&amp; cd logreporter
+bash seed/init_db.sh
+
+<span class="c"># 2. start the dashboard</span>
+python serve.py            <span class="c">→ http://127.0.0.1:8250</span>
+
+<span class="c"># 3. from any other repo, have an agent write a row</span>
+python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decision \
+  --task <span class="p">"Add rate limiting"</span> --agent handler_dev \
+  --agent-path lead_architect/handler_dev \
+  --log-title <span class="p">"Token bucket over sliding window"</span></pre>
+    </div>
+
+    <p class="meta-line" style="margin-top:18px">
+      A full guide ships inside the app — <a href="app/index.html">open the live demo</a>
+      and click <strong>Help</strong> for the user guide, the data model, the time model,
+      and the agent logging contract.
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────────────── the five pages ───────────────────────── -->
+<section id="pages" aria-labelledby="pages-h">
+  <div class="wrap">
+    <p class="eyebrow">Six views</p>
+    <h2 id="pages-h">Each answers one question</h2>
+    <p class="lede">Every card opens the live demo on that page.</p>
+    <div class="pages" style="margin-top:32px">
+      <a class="page-card" href="app/index.html#hierarchy">
+        <picture>
+          <source type="image/webp" srcset="assets/img/hierarchy-thumb.webp">
+          <img src="assets/img/hierarchy-thumb.png" loading="lazy" decoding="async"
+               alt="The Hierarchy page" width="560" height="315">
+        </picture>
+        <div class="body"><h3>Hierarchy</h3><p>What work exists, and how does it nest?</p></div>
+      </a>
+      <a class="page-card" href="app/index.html#chronology">
+        <picture>
+          <source type="image/webp" srcset="assets/img/chronology-thumb.webp">
+          <img src="assets/img/chronology-thumb.png" loading="lazy" decoding="async"
+               alt="The Chronology page" width="560" height="315">
+        </picture>
+        <div class="body"><h3>Chronology</h3><p>What happened, in order — including the silences.</p></div>
+      </a>
+      <a class="page-card" href="app/index.html#timegoes">
+        <picture>
+          <source type="image/webp" srcset="assets/img/timegoes-thumb.webp">
+          <img src="assets/img/timegoes-thumb.png" loading="lazy" decoding="async"
+               alt="The Where time goes page" width="560" height="315">
+        </picture>
+        <div class="body"><h3>Where time goes</h3><p>Which agent, which category, and how much was nobody working.</p></div>
+      </a>
+      <a class="page-card" href="app/index.html#metrics">
+        <picture>
+          <source type="image/webp" srcset="assets/img/metrics-usage-thumb.webp">
+          <img src="assets/img/metrics-usage-thumb.png" loading="lazy" decoding="async"
+               alt="The Metrics page with token usage" width="560" height="315">
+        </picture>
+        <div class="body"><h3>Metrics</h3><p>Counts, distributions, token cost, and the issues still open.</p></div>
+      </a>
+      <a class="page-card" href="app/index.html#models">
+        <picture>
+          <source type="image/webp" srcset="assets/img/models-thumb.webp">
+          <img src="assets/img/models-thumb.png" loading="lazy" decoding="async"
+               alt="The Models and pricing page" width="560" height="315">
+        </picture>
+        <div class="body"><h3>Models</h3><p>Every model and price tier the cost figures are drawn from.</p></div>
+      </a>
+      <a class="page-card" href="app/index.html#maintenance">
+        <picture>
+          <source type="image/webp" srcset="assets/img/maintenance-thumb.webp">
+          <img src="assets/img/maintenance-thumb.png" loading="lazy" decoding="async"
+               alt="The Maintenance page" width="560" height="315">
+        </picture>
+        <div class="body"><h3>Maintenance</h3><p>What is stored; delete or export part of it.</p></div>
+      </a>
+    </div>
+    <p class="meta-line" style="margin-top:22px">
+      A seventh page carries the documentation —
+      <a href="app/index.html#help">open Help in the demo</a> for the user guide, the
+      data model, the time model, and the agent logging contract.
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────────────── tokens & cost ────────────────────────── -->
+<section id="cost" aria-labelledby="cost-h">
+  <div class="wrap">
+    <p class="eyebrow">Tokens &amp; cost</p>
+    <h2 id="cost-h">Read from the transcripts your agents already write</h2>
+
+    <div class="split" style="margin-top:32px">
+      <div class="shot">
+        <picture>
+          <source type="image/webp" srcset="assets/img/metrics-usage.webp">
+          <img src="assets/img/metrics-usage.png"
+               alt="The Metrics page showing total tokens, input, output and saved-by-cache tiles above a cost breakdown."
+               width="1800" height="889" loading="lazy" decoding="async">
+        </picture>
+      </div>
+      <div>
+        <p class="lede">
+          Nothing to instrument. Claude Code writes a full usage record for every
+          request; LogReporter reads it, attributes it to the task that was running,
+          and prices it from a 102-model registry.
+        </p>
+        <p style="color:var(--text-dim)">
+          Cache reads are about <b style="color:var(--text)">73% of tokens but 11% of
+          cost</b>. Cache writes are 26% of tokens and <b style="color:var(--text)">79%
+          of cost</b>. A single blended number hides that completely — so tokens and
+          cost are never plotted on one axis. You toggle between them over the same
+          layout, and the disagreement is the finding.
+        </p>
+        <p class="meta-line">
+          Costs are <strong>modelled, not billed</strong> — an API-pricing equivalent.
+          On a subscription plan these tokens draw against your plan instead.
+        </p>
+      </div>
+    </div>
+
+    <div class="credit">
+      <h3>Built on ccusage</h3>
+      <p>
+        Claude Code is parsed natively, because only a native parser can see
+        Anthropic's 5-minute and 1-hour cache-write split. For Codex, Gemini, Kimi and
+        20-plus other agents, LogReporter falls back to
+        <b style="color:var(--text)">ccusage</b> by <b style="color:var(--text)">@ryoppippi</b>
+        — which already solved the part nobody should have to solve twice, across far
+        more tools than we could keep up with. If you only need a token counter, use
+        ccusage on its own; it's excellent.
+      </p>
+      <div class="links">
+        <a href="https://ccusage.com/">ccusage.com</a>
+        <a href="https://github.com/ryoppippi/ccusage">GitHub</a>
+        <a href="https://github.com/frenamezian/logreporter">Contribute a parser</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────── feature grid ─────────────────────────── -->
+<section id="features" aria-labelledby="features-h">
+  <div class="wrap">
+    <!-- The grid was designed without a heading, and still reads better that
+         way. But six <h3> hanging directly off <h1> is a broken outline for
+         anything that walks the headings rather than looks at the page, so the
+         <h2> is present and hidden rather than absent. -->
+    <h2 class="visually-hidden" id="features-h">What it gives you</h2>
+    <div class="features">
+      <div class="feature">
+        <div class="ico" aria-hidden="true">🌲</div><h3>Subagent lineage</h3>
+        <p>An agent path builds the tree, the waterfall indentation, and the
+           parent-minus-children own-time correction.</p>
+      </div>
+      <div class="feature">
+        <div class="ico" aria-hidden="true">⏱️</div><h3>Honest time</h3>
+        <p>Wall clock, agent time, own time and idle. Silence between rows is
+           reported, not quietly dropped.</p>
+      </div>
+      <div class="feature">
+        <div class="ico" aria-hidden="true">💰</div><h3>Cost per agent</h3>
+        <p>Token counters and modelled cost attributed down to the individual
+           subagent run.</p>
+      </div>
+      <div class="feature">
+        <div class="ico" aria-hidden="true">📁</div><h3>Multi-repo, one file</h3>
+        <p>Repo and branch derive from git wherever the agent stands. One prompt,
+           one database, any number of repositories.</p>
+      </div>
+      <div class="feature">
+        <div class="ico" aria-hidden="true">🔒</div><h3>Fully local</h3>
+        <p>A static page, a Python stdlib server bound to 127.0.0.1, and one SQLite
+           file. No account, no telemetry, no upload.</p>
+      </div>
+      <div class="feature">
+        <div class="ico" aria-hidden="true">🧩</div><h3>Pluggable parsers</h3>
+        <p>Supporting a new agent means adding one file — no central registry to
+           edit, so contributions never collide.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────── honest fit ───────────────────────────── -->
+<section id="fit" aria-labelledby="fit-h">
+  <div class="wrap">
+    <h2 id="fit-h">Is it for you?</h2>
+    <div class="fit" style="margin-top:28px">
+      <div class="good">
+        <h3>Good fit</h3>
+        <ul>
+          <li>Multi-agent runs where a lead dispatches subagents</li>
+          <li>Work spread across several repositories</li>
+          <li>You control your agents' prompts</li>
+          <li>You care <em>why</em> a choice was made, not just what changed</li>
+        </ul>
+      </div>
+      <div class="bad">
+        <h3>Look elsewhere</h3>
+        <ul>
+          <li>You only want token counts → <a href="https://ccusage.com/">ccusage</a></li>
+          <li>You can't modify agent prompts → a hook-based monitor</li>
+          <li>You need a hosted team dashboard — this is deliberately local</li>
+          <li>You want zero setup: this asks for a prompt change first</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="disclaimer" id="disclaimer" style="margin-top:28px">
+      <h3>Use at your own risk</h3>
+      <p>
+        <b>LogReporter is provided as is, without warranty of any kind.</b> I do my best
+        to keep it correct and the numbers honest, but it is a young project and it will
+        have bugs.
+      </p>
+      <ul>
+        <li><b>It deletes data, permanently.</b> The Maintenance page runs real deletes
+          against your database. There is no undo — back the file up before pruning.</li>
+        <li><b>Costs are modelled, not billed.</b> They come from a local price registry,
+          not an invoice, and go stale between refreshes. Don't use them for billing or
+          budgeting without checking against your provider.</li>
+        <li><b>The numbers are only as good as the logging.</b> Durations and idle time
+          are derived from the rows your agents write. An agent that skips its closing
+          row produces a timeline that is wrong, not merely incomplete.</li>
+      </ul>
+      <p>
+        Nothing is sent anywhere — no telemetry, no account, no upload. That also means
+        nothing is backed up for you. Found a wrong number?
+        <a href="https://github.com/frenamezian/logreporter/issues">Open an issue</a> —
+        those are the bugs most worth hearing about.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────── sponsor ──────────────────────────────── -->
+<section class="sponsor" id="sponsor" aria-labelledby="sponsor-h">
+  <div class="wrap">
+    <p class="eyebrow">Sponsor</p>
+    <h2 id="sponsor-h">LESPIRANT sponsors LogReporter</h2>
+    <p class="lede">
+      This project is built and funded by LESPIRANT. They'll also help you win the war
+      against sweat stains — and keep you looking sharp.
+    </p>
+    <!-- Tagged the same way as the in-app banners in docs/lespirant/ads.json,
+         with two values deliberately changed. The campaign is `logreporter-site`
+         rather than `logreporter-footer` because this is a different placement:
+         reusing the app footer's campaign would merge landing-page clicks into
+         the banner numbers and make both unreadable. utm_content names the
+         placement within that campaign, as `ad-01`…`ad-06` do there. -->
+    <a class="sponsor-card" target="_blank" rel="noopener sponsored"
+       href="https://www.lespirant.com/?utm_source=logreporter&amp;utm_medium=banner&amp;utm_campaign=logreporter-site&amp;utm_content=sponsor-card">
+      <img src="assets/img/sponsor-lespirant-1200.jpg"
+           srcset="assets/img/sponsor-lespirant-800.jpg 800w, assets/img/sponsor-lespirant-1200.jpg 1200w"
+           sizes="(max-width: 1040px) 100vw, 1000px"
+           alt="LESPIRANT: the L-Cut undershirt — invisible, breathable, odor resistant and not hot to wear."
+           width="1200" height="830" loading="lazy" decoding="async">
+    </a>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap foot-row">
+    <div>LogReporter · MIT · sponsored by
+      <a href="https://www.lespirant.com" rel="noopener sponsored">LESPIRANT</a></div>
+    <!-- Disclaimer points at this page's own section rather than the README's
+         anchor: the text is identical, and an internal link keeps the crawl on
+         the site instead of handing the one page that qualifies the numbers to
+         github.com. -->
+    <nav class="foot-links" aria-label="Footer">
+      <a href="app/index.html">Live demo</a>
+      <a href="https://github.com/frenamezian/logreporter">GitHub</a>
+      <a href="https://github.com/frenamezian/logreporter/issues">Issues</a>
+      <a href="https://ccusage.com/">ccusage</a>
+      <a href="#disclaimer">Disclaimer</a>
+      <a href="llms.txt">llms.txt</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var KEY = 'logreporter.theme';
+    var root = document.documentElement;
+    var btn = document.getElementById('theme-toggle');
+
+    function paint() {
+      var light = root.getAttribute('data-theme') === 'light';
+      btn.textContent = light ? '☾' : '☀';
+      btn.setAttribute('aria-pressed', String(light));
+      btn.title = 'Switch to ' + (light ? 'dark' : 'light') + ' mode';
+    }
+
+    btn.addEventListener('click', function () {
+      var light = root.getAttribute('data-theme') !== 'light';
+      if (light) root.setAttribute('data-theme', 'light');
+      else root.removeAttribute('data-theme');
+      try { localStorage.setItem(KEY, light ? 'light' : 'dark'); } catch (e) { /* storage blocked */ }
+      paint();
+    });
+
+    paint();
+  })();
+</script>
+
+</body>
+</html>

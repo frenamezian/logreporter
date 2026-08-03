@@ -1,0 +1,54 @@
+%% Source for install-flow.svg, shown in the Installation help topic.
+%% Regenerate:  python seed/render_mermaid.py
+%%
+%% The SVG is rendered ahead of time and checked in on purpose: the dashboard
+%% has exactly one remote dependency (sql.js) and shipping a ~3 MB diagramming
+%% library to draw one picture would break both that rule and the offline
+%% instructions in the same topic.
+%%
+%% Laid out as three columns (LR between stages, TB inside each) rather than one
+%% chain. The same twenty nodes in a single top-down flow render 514x1909 — a
+%% ratio that is 3,500px tall by the time it fills the article column.
+flowchart LR
+    subgraph S1["1 · Install the dashboard"]
+        direction TB
+        A["git clone<br/>frenamezian/logreporter"] --> B{"Sample rows<br/>or empty?"}
+        B -- "first look" --> C1["bash seed/init_db.sh<br/>148 rows, 3 repos"]
+        B -- "real use" --> C2["python seed/new_db.py"]
+        C1 --> D["python serve.py<br/>127.0.0.1:8250"]
+        C2 --> D
+        D --> E{"Header reads<br/>activity_logs.db?"}
+        E -- "says Demo data" --> E1["Not served over http://,<br/>or no database yet"]
+        E1 --> D
+    end
+
+    subgraph S2["2 · Point your agents at it"]
+        direction TB
+        F["Copy the ABSOLUTE path<br/>of log_activity.py"] --> G["Smoke-test it from a<br/>DIFFERENT repository"]
+        G --> H{"Row appeared under that<br/>repo and branch?"}
+        H -- "no" --> G
+        H -- "yes" --> I["Lead agent's system prompt:<br/>orchestrator_logging_instructions.md"]
+        I --> J["Every subagent's prompt:<br/>subagent_logging_instructions.md"]
+        J --> K["In both: absolute path,<br/>and delete --repo / --branch"]
+    end
+
+    subgraph S3["3 · It works"]
+        direction TB
+        L(["Agents log as they work.<br/>Every repo, one database."]) --> N["Hierarchy · Chronology<br/>Where time goes · Metrics"]
+        N --> M["python usage_reader.py<br/>optional: tokens and cost"]
+    end
+
+    E -- "lit dot" --> F
+    K --> L
+
+    classDef step fill:#161821,stroke:#2a2d3a,stroke-width:1px,color:#e6e6e6
+    classDef ask fill:#1b1d2b,stroke:#5b8def,stroke-width:1px,color:#e6e6e6
+    classDef bad fill:#1b1d2b,stroke:#f44336,stroke-width:1px,color:#f0b6b2
+    classDef done fill:#1d2a44,stroke:#5b8def,stroke-width:2px,color:#e6e6e6
+    classDef opt fill:#161821,stroke:#2a2d3a,stroke-width:1px,color:#9aa0b2
+
+    class A,C1,C2,D,F,G,I,J,K,N step
+    class B,E,H ask
+    class E1 bad
+    class L done
+    class M opt
