@@ -3,7 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LogReporter</title>
+  <title>LogReporter — agent activity dashboard</title>
+  <!-- The description is here rather than only on the published landing page,
+       because this file IS a page on that site: tools/export_app.py copies it
+       to /app/index.html for the live demo. Everything below <body> is drawn by
+       JavaScript, so without this and the <noscript> at the end, anything that
+       reads the markup without running it — a crawler that gave up on the
+       render queue, a link unfurler, an agent fetching the URL — sees an empty
+       document and has nothing to say about it. -->
+  <meta name="description" content="LogReporter reads an agent activity log — one SQLite file — and shows the subagent tree, where the time went, and what each agent cost in tokens. Runs locally; nothing is uploaded.">
   <!-- Bump ?v= on every asset when shipping a change: browsers keep serving a
        cached copy of these files otherwise, and the dashboard silently runs
        last week's code. -->
@@ -52,5 +60,38 @@
   <script src="components/log-help.js?v=19"></script>
   <script src="components/log-footer.js?v=19"></script>
   <script src="components/app-shell.js?v=19"></script>
+
+  <!-- The whole application is rendered by the scripts above, so with them off
+       this document has no content at all. That is fine for a local checkout
+       and not fine for the published demo, where an empty <body> is what a
+       crawler indexes and what an assistant summarising the URL reads. This
+       block is the fallback: it says what the page is, and links to the two
+       places that can actually answer the question. It is last in <body>, like
+       everything else here, and costs nothing to a browser that ran the scripts.
+
+       Links are relative so they work from either root — served locally by
+       serve.py, or under /app/ on the published site, where LR_HOME turns the
+       header brand into the same link. -->
+  <noscript>
+    <div style="max-width:44rem;margin:4rem auto;padding:0 1.5rem;
+                font:16px/1.6 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
+      <h1>LogReporter</h1>
+      <p><strong>This dashboard needs JavaScript.</strong> It parses a SQLite
+         file in your browser — there is no server-side query to fall back to,
+         so with scripts disabled there is nothing to show.</p>
+      <p>LogReporter reads an agent activity log and turns it into six views of
+         the same rows: a repository → branch → task → agent hierarchy, a
+         chronology including the idle gaps, a waterfall separating wall-clock
+         time from agent time and own time, metrics with token cost, a model
+         price catalogue, and maintenance. Your AI coding agents append one row
+         per meaningful step as they work, so the log carries the reasoning
+         behind a change and not only the change.</p>
+      <p>
+        <a href="../">About LogReporter</a> ·
+        <a href="https://github.com/frenamezian/log_reporter">Source on GitHub</a> ·
+        <a href="https://github.com/frenamezian/log_reporter#readme">Documentation</a>
+      </p>
+    </div>
+  </noscript>
 </body>
 </html>
