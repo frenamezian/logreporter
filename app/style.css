@@ -68,7 +68,7 @@
 
      Not chosen by eye. Validated against this project's dark surface:
 
-       node scripts/validate_palette.js "#c98500,#d55181,#9085e9,#d95926" \
+       node seed/validate_palette.js "#c98500,#d55181,#9085e9,#d95926" \
             --mode dark --surface "#161821"
        -> lightness band PASS · chroma floor PASS
           CVD separation PASS (worst adjacent #d55181<->#c98500 dE 13.2 deutan)
@@ -88,7 +88,7 @@
      "more is darker" is a light-mode phrasing, and a darker bar here would
      recede into the background exactly where the value is largest.
 
-       node scripts/validate_palette.js "#574aa5,#6b5cc4,#8071dc,#968bec,#b0a6f6" \
+       node seed/validate_palette.js "#574aa5,#6b5cc4,#8071dc,#968bec,#b0a6f6" \
             --mode dark --surface "#161821" --ordinal
        -> monotone L PASS · adjacent dL PASS · dim-end contrast 2.47:1 PASS
           single hue PASS (spread 3 degrees) */
@@ -133,7 +133,7 @@
      Unlike the dark set (which predates the validator and fails three of its
      checks), this one clears all five:
 
-       node scripts/validate_palette.js "#0d8442,#e02d1b,#3a5fe0,#0099b0" \
+       node seed/validate_palette.js "#0d8442,#e02d1b,#3a5fe0,#0099b0" \
             --mode light --surface "#fffaf0"
        -> lightness band PASS · chroma floor PASS
           CVD separation PASS (worst adjacent #e02d1b<->#0d8442 dE 9.4 deutan)
@@ -178,7 +178,7 @@
      four are amber, magenta, violet and burnt orange, in an order chosen so no
      adjacent pair collapses under CVD.
 
-       node scripts/validate_palette.js "#b06f00,#c8306f,#6a4fd0,#d34a13" \
+       node seed/validate_palette.js "#b06f00,#c8306f,#6a4fd0,#d34a13" \
             --mode light --surface "#fffaf0"
        -> lightness band PASS · chroma floor PASS
           CVD separation PASS (worst adjacent #c8306f<->#b06f00 dE 11.1 deutan)
@@ -195,7 +195,7 @@
      rank-1 is the smallest bucket and rank-5 the largest (log-usage.js steps by
      share of max), so step 1 is the palest here and the deepest on dark.
 
-       node scripts/validate_palette.js "#a695e6,#8a76d8,#6d5ac4,#50409e,#332869" \
+       node seed/validate_palette.js "#a695e6,#8a76d8,#6d5ac4,#50409e,#332869" \
             --mode light --surface "#fffaf0" --ordinal
        -> monotone L PASS · adjacent dL PASS · light-end contrast 2.50:1 PASS
           single hue PASS (spread 6 degrees) */
