@@ -262,7 +262,12 @@ log-header {
   flex: 0 0 auto;
 }
 
-.brand { flex: none; min-width: 0; display: flex; align-items: center; gap: 9px; }
+/* Always an <a> now — home is the landing page one level up on the published
+   site, and the website itself in a local checkout. It has to keep reading as
+   the product's name rather than as a link, hence inherited colour and no
+   underline; .brand-ext is what carries the fact that it goes somewhere. */
+.brand { flex: none; min-width: 0; display: flex; align-items: center; gap: 9px;
+         color: inherit; text-decoration: none; }
 /* 28px is the largest mark the header can carry for free: the two lines of
    brand text already stand 30px tall, so the mark rides inside their box and
    the header keeps its height. */
@@ -270,6 +275,12 @@ log-header {
 .brand-text { min-width: 0; }
 .brand .title { font-weight: 600; font-size: 15px; }
 .brand .subtitle { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
+/* Shown only when the brand leaves the application — a local checkout, where
+   home is the published website rather than a page in this tree. Dim by
+   default so it does not compete with the name, and lit on hover, which is the
+   only moment the reader is deciding whether to click it. */
+.brand-ext { font-size: 10px; color: var(--text-dim); vertical-align: 2px; }
+.brand:hover .brand-ext, .brand:focus-visible .brand-ext { color: var(--accent); }
 
 .nav-tabs { display: flex; gap: 2px; flex-wrap: wrap; }
 .nav-tabs button { padding: 5px 10px; font-size: 13px; border: 0; background: transparent; border-radius: 6px; }

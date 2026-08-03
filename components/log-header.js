@@ -33,20 +33,41 @@ const TAB_LABELS = {
   help: 'Help',
 };
 
-// The brand links home only where a home exists. `serve.py` serves the app at
-// the root of its own clone, with nothing above it — a hard-coded href there
-// would walk the user out of the application into a directory listing. The
-// published site sets window.LR_HOME (to '../', since the app is bundled under
-// /app/), so the link appears there and nowhere else.
+// Where the published website lives. Named absolutely because it is the one
+// address that is true from everywhere — including a clone on a laptop, which
+// has no path to it at all.
+const SITE_URL = 'https://frenamezian.github.io/logreporter/';
+
+// The brand always links home. Which home, and how, depends on where the app is
+// running, and the two cases differ in more than their href.
 //
-// The two link properties are inline rather than in style.css because .brand is
-// otherwise a <div>: they exist only for the <a> form, and are too small to earn
-// a rule that would read as dead code in every local checkout.
+// Published under /app/, the landing page is a sibling one level up. The link is
+// relative and stays in the tab: it is navigation within one site, and a
+// relative path is also what keeps a fork's demo pointing at the fork's own
+// landing page instead of at this one. export_app.py injects window.LR_HOME.
+//
+// Locally there is nothing above the app — serve.py serves it at the root of its
+// own clone — so home is the website, named absolutely. That leaves the
+// application, so it opens in a new tab, where the dashboard and everything
+// filtered or drilled into in it stay exactly as they were, and it says so
+// rather than jumping silently: a title, and a mark beside the name.
+//
+// This adds no network call. A link is inert until someone clicks it — nothing
+// is fetched, prefetched or resolved on load, and the app still reaches the
+// network for nothing but sql.js.
 function brandHtml() {
-  const inner = `${BRAND_MARK}<div class="brand-text"><div class="title">LogReporter</div><div class="subtitle">Local monitor</div></div>`;
   const home = window.LR_HOME;
-  if (!home) return `<div class="brand">${inner}</div>`;
-  return `<a class="brand" href="${esc(home)}" style="color:inherit;text-decoration:none"
+  const away = !home;
+  const mark = away ? ' <span class="brand-ext" aria-hidden="true">↗</span>' : '';
+  const inner = `${BRAND_MARK}<div class="brand-text"
+      ><div class="title">LogReporter${mark}</div
+      ><div class="subtitle">Local monitor</div></div>`;
+
+  if (away) {
+    return `<a class="brand" href="${SITE_URL}" target="_blank" rel="noopener"
+               title="Open the LogReporter website — leaves the app, in a new tab">${inner}</a>`;
+  }
+  return `<a class="brand" href="${esc(home)}"
              title="Back to the LogReporter home page">${inner}</a>`;
 }
 
