@@ -1,0 +1,69 @@
+<p>A rate card, not a report. This is the only page whose numbers do not come from your logs — it renders <code>script/llm_registry.js</code>, the same file the Metrics page prices usage against. It ignores the log filters entirely and carries its own facets in the sidebar.</p>
+
+<pre>┌ All providers  ›  Anthropic ────────── Models &amp; pricing ─────────────────────┐
+│ 65 of 102 models · 8 providers        US$ per 1,000,000 tokens · generated … │
+│                                                                              │
+│ ▸ OpenAI              13 of 25 models  ●13 ○6 ⚠6   in $0.10–15.00  out …  ↗  │
+│ ▾ Anthropic           11 of 18 models  ●10 ◐1 ⚠7   in $0.25–15.00  out …  ↗  │
+│                              ├──── INPUT — US$/1M ────┤   ├ OUTPUT ┤         │
+│    Model          Model id        Ctx     std  cache rd  cache wr 5m/1h  std │
+│  ▸ Claude Fable 5 claude-fable-5  1M  ● $10.00    $1.00   $12.50/$20.00  … +1│
+│  ▾ Claude Opus 5  claude-opus-5   1M  ●  $5.00    $0.50    $6.25/$10.00  … +2│
+│    ┌──────────────────────────────────────────────────────────────────────┐  │
+│    │ description, wrapped to 78ch                                         │  │
+│    │ CONTEXT 1,000,000  LATENCY medium  STATUS active  REGIONS us-east-1… │  │
+│    │ [coding][reasoning][vision][long-context][tools]                     │  │
+│    │ ALL PRICING TIERS              US$ per 1M · % vs that direction's std│  │
+│    │  #  TIER            INPUT   VS STD    OUTPUT  VS STD                 │  │
+│    │  1  standard        $5.00        —    $25.00       —                 │  │
+│    │  4  cache_read      $0.50     −90%         —       —                 │  │
+│    │  5  batch           $2.50     −50%    $12.50    −50%                 │  │
+│    │           [ Copy model id ][ ↗ source ]                              │  │
+│    └──────────────────────────────────────────────────────────────────────┘  │
+│  ▸ Claude Sonnet 5 claude-sonnet-5 1M ● $2.00ⁱⁿᵗʳᵒ $0.30  $3.75/$6.00  … +2  │
+│    7 models hidden by the status filter  show every status                   │
+│                                                                              │
+│ ▸ Google Gemini … ▸ Mistral AI … ▸ xAI Grok … ▸ Moonshot … ▸ DeepSeek …      │
+│ ● active ◐ preview ○ legacy ⚠ deprecated      An em dash is a tier the …     │
+└──────────────────────────────────────────────────────────────────────────────┘
+  sidebar: search · provider · status · capability · context ≥ · sort</pre>
+
+<h3>Three levels of disclosure</h3>
+<p>102 models across eight providers is not a table anyone reads. The page opens in stages, and each level is chosen to answer one question:</p>
+<ul>
+<li><strong>Closed provider panel</strong> — <em>which provider is worth opening?</em> So it carries a price range, not just a count. The range is computed over the standard tier only, and it is the reason a closed panel is worth its row.</li>
+<li><strong>Open panel</strong> — <em>what do these models cost?</em> Standard and cache, in both directions, one row per model.</li>
+<li><strong>Open model row</strong> — <em>what else could it cost?</em> Description, specifications, and every remaining tier.</li>
+</ul>
+<p><code>modelsOpen</code> and <code>modelRowOpen</code> are Sets on <code>LogApp.state</code>, the same contract as <code>navOpen</code> and <code>treeOpen</code>: a poll tick or a filter change never collapses what the reader opened.</p>
+
+<h3>The columns follow each provider's own vocabulary</h3>
+<p>Providers disagree about what a cache is called — <code>cache_read</code>, <code>cached_input</code>, <code>context_cache</code> — and only Anthropic prices cache <em>writes</em>. Because the table lives inside a provider panel, <code>columnsFor()</code> derives its columns from the tier names that provider actually uses, instead of a normalised label matching nobody:</p>
+<table><thead><tr><th>Provider</th><th>Price columns</th></tr></thead><tbody>
+<tr><td>Anthropic</td><td>std · cache read · cache write 5m/1h · <em>out</em> std</td></tr>
+<tr><td>OpenAI, Google, xAI</td><td>std · cached input · <em>out</em> std · <em>out</em> batch</td></tr>
+<tr><td>Moonshot, DeepSeek, Zhipu</td><td>std · cached input · <em>out</em> std</td></tr>
+<tr><td>Mistral</td><td>std · <em>out</em> std — no Mistral model prices a cache tier, so no cache column is drawn at all</td></tr>
+</tbody></table>
+<p>Four price columns is the ceiling; past that the model id starts truncating. The output batch column appears only when the provider has no cache-write column, which is what keeps the count at four. Everything displaced by that rule is in the tier panel, and the <code>+N</code> chip counts exactly how many distinct tier names are waiting there.</p>
+
+<table><thead><tr><th>Click target</th><th>Result</th></tr></thead><tbody>
+<tr><td>Provider header</td><td>Toggles the panel. The <em>↗ pricing</em> link beside it opens the provider's own page and does not toggle.</td></tr>
+<tr><td>A model row</td><td>Toggles its tier panel. Clicks on a link or button inside the row are ignored, so <em>Copy model id</em> does not collapse the panel it sits in.</td></tr>
+<tr><td>Search box</td><td>Filters on every keystroke over name, id, description and capabilities, and force-opens any provider with a hit for as long as the search is active. Providers with no hit are dropped, not shown empty.</td></tr>
+<tr><td>show every status</td><td>A shortcut to the sidebar's status facet, not a second source of truth — it sets the same state the checkboxes do.</td></tr>
+<tr><td>Breadcrumb</td><td><em>All providers</em> clears the provider facet. There is no drill on this page; the provider filter is the same kind of narrowing, so it reads as the same trail.</td></tr>
+</tbody></table>
+
+<h3>Four rules about numbers</h3>
+<ul>
+<li><strong>An em dash is never a zero.</strong> A dash means the provider does not sell that tier. Four models in the registry are genuinely free and show <code>$0</code>; that zero has to keep meaning zero.</li>
+<li><strong>A model with no standard tier says what it <em>is</em> priced by.</strong> 19 of them — the realtime family is per-modality, the retired deep-research models were batch-only. Their headline row is all dashes, so a generated note follows it rather than leaving the reader to open the row and guess.</li>
+<li><strong>A launch price is shown as the price you pay.</strong> An <code>intro_…_until_</code> tier still in force displaces the standard rate in the headline, marked <span class="mp-intro">intro</span>, with the end date and the following price in its tooltip. The tier panel tags it <em>in force</em> or <em>expired</em>.</li>
+<li><strong>Ratios are per direction.</strong> <code>gpt-5.4</code>'s long-context tier is +100% on input and +50% on output; one shared "vs standard" column would have to pick one and be wrong about the other.</li>
+</ul>
+
+<h3>The tier panel joins two lists on tier name</h3>
+<p>The registry stores <code>input_token[]</code> and <code>output_token[]</code> independently, but their names overlap heavily. <code>tierRows()</code> unions them — input tiers in <code>tier_order</code>, then output-only tiers — so rows are tier names and columns are direction. Nine scattered numbers become six comparable lines, and the asymmetry becomes visible rather than being something you have to notice: no provider in the registry prices cached output, because caching is an input-side concept.</p>
+
+<div class="help-callout"><strong>This page must not use <code>cost-model.js</code>.</strong> That module resolves a counter to the one rate that applies, walking a fallback chain until something matches — correct for pricing a request, wrong for a catalogue, where a cache column that quietly fell back to the standard rate would tell the reader the provider caches for free. <code>model-catalog.js</code> reads tiers exactly as stored, and formats them with its own <code>fmtPrice</code>: <code>CostModel.fmtCost</code> rounds below a cent to <code>&lt;$0.01</code>, which would destroy <code>$0.0375</code> — a real published rate, not a rounding error.</div>

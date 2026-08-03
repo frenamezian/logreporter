@@ -7,34 +7,37 @@
   <!-- Bump ?v= on every asset when shipping a change: browsers keep serving a
        cached copy of these files otherwise, and the dashboard silently runs
        last week's code. -->
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
   <!-- data layer first -->
-  <script src="script/sample-logs.js?v=14"></script>
-  <script src="script/time-model.js?v=14"></script>
-  <script src="script/filters.js?v=14"></script>
-  <script src="script/db.js?v=14"></script>
+  <script src="script/sample-logs.js?v=16"></script>
+  <script src="script/time-model.js?v=16"></script>
+  <script src="script/filters.js?v=16"></script>
+  <script src="script/db.js?v=16"></script>
   <!-- llm_registry.js is GENERATED from script/llm_registry.py by
        seed/py2js_registry.py. It must load before cost-model.js, which
-       reads window.LLM_REGISTRY at call time to price usage rows. -->
-  <script src="script/llm_registry.js?v=14"></script>
-  <script src="script/cost-model.js?v=14"></script>
-  <script src="script/app.js?v=14"></script>
+       reads window.LLM_REGISTRY at call time to price usage rows, and before
+       model-catalog.js, which reads it to draw the Models page. -->
+  <script src="script/llm_registry.js?v=16"></script>
+  <script src="script/cost-model.js?v=16"></script>
+  <script src="script/model-catalog.js?v=16"></script>
+  <script src="script/app.js?v=16"></script>
   <!-- components: base + helpers first, app-shell last -->
-  <script src="components/log-component.js?v=14"></script>
-  <script src="components/log-header.js?v=14"></script>
-  <script src="components/log-filters.js?v=14"></script>
-  <script src="components/log-tree.js?v=14"></script>
-  <script src="components/log-list.js?v=14"></script>
-  <script src="components/log-details.js?v=14"></script>
-  <script src="components/log-timeline.js?v=14"></script>
-  <script src="components/log-timegoes.js?v=14"></script>
-  <script src="components/log-usage.js?v=14"></script>
-  <script src="components/log-metrics.js?v=14"></script>
-  <script src="components/log-maintenance.js?v=14"></script>
-  <script src="components/log-help.js?v=14"></script>
-  <script src="components/log-footer.js?v=14"></script>
-  <script src="components/app-shell.js?v=14"></script>
+  <script src="components/log-component.js?v=16"></script>
+  <script src="components/log-header.js?v=16"></script>
+  <script src="components/log-filters.js?v=16"></script>
+  <script src="components/log-tree.js?v=16"></script>
+  <script src="components/log-list.js?v=16"></script>
+  <script src="components/log-details.js?v=16"></script>
+  <script src="components/log-timeline.js?v=16"></script>
+  <script src="components/log-timegoes.js?v=16"></script>
+  <script src="components/log-usage.js?v=16"></script>
+  <script src="components/log-metrics.js?v=16"></script>
+  <script src="components/log-models.js?v=16"></script>
+  <script src="components/log-maintenance.js?v=16"></script>
+  <script src="components/log-help.js?v=16"></script>
+  <script src="components/log-footer.js?v=16"></script>
+  <script src="components/app-shell.js?v=16"></script>
 </body>
 </html>

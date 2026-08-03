@@ -1,10 +1,14 @@
-<p>The dashboard issues exactly two statements. Everything else — filtering, grouping, every duration — is computed in JavaScript over the result of the first.</p>
+<p>The dashboard issues exactly three statements. Everything else — filtering, grouping, every duration, every cost — is computed in JavaScript over their results.</p>
 <pre>-- read: sql.js, on load, on Refresh, on every poll tick
 SELECT * FROM logs ORDER BY timestamp DESC;
 
 -- delete: serve.py, after confirmation, in chunks of 500 ids
-DELETE FROM logs WHERE id IN (?, ?, …);</pre>
+DELETE FROM logs WHERE id IN (?, ?, …);
+
+-- usage: sql.js, from the second database, when it exists
+SELECT * FROM token_usage ORDER BY timestamp;</pre>
 <p>Filtering in SQL was rejected deliberately: round-tripping through WASM per keystroke is slower than filtering an array, and a single read keeps the file lock brief while agents are appending. The delete runs on the server rather than in the page because sql.js only holds a copy of the bytes — a delete applied there is discarded by the next read.</p>
+<p>The usage read is unconditional and unfiltered for the same reason, with one addition: it is preceded by a <code>HEAD</code> request. The cache is tens of megabytes and the auto-poll runs every five seconds, so without comparing <code>Last-Modified</code> and <code>Content-Length</code> first, polling would re-download the whole file twelve times a minute to discover nothing had changed. <strong>There is no join between the two databases</strong> — usage is attributed to tasks in memory, by repository, branch and a timestamp inside the task's span.</p>
 
 <h3>Concurrency</h3>
 <p>Both the writer (<code>log_activity.py</code>) and the delete endpoint (<code>serve.py</code>) open the database in WAL mode with a 10-second <code>busy_timeout</code>, plus a retry loop for the rare lock that outlives it. The delete path additionally checkpoints <code>TRUNCATE</code>, because the dashboard re-reads the main database file over HTTP and sql.js cannot see a <code>-wal</code> sidecar — a delete still sitting in the WAL would reappear on the very next read and look like the delete had failed.</p>
@@ -55,3 +59,40 @@ FROM logs
 GROUP BY repo_name, branch_name, task_title, agent_path
 HAVING starts &lt;&gt; ends;</pre>
 <p>Timestamps are UTC text and sort lexically, so <code>MIN</code>/<code>MAX</code> and <code>BETWEEN</code> behave correctly without any date function.</p>
+
+<h3>Querying the usage cache</h3>
+<p>Against <code>token_usage.db</code>. These stop short of cost on purpose — prices live in the registry, not in this file, so any cost figure you compute here is a second rate table that will drift.</p>
+<pre>-- where the tokens went, by model. Note SUM ignores NULL, so a counter
+-- no agent reports sums to NULL rather than to a misleading 0.
+SELECT model_id, COUNT(*) AS requests,
+       SUM(input_tokens)      AS fresh_input,
+       SUM(cache_read_tokens) AS cache_read,
+       SUM(cache_write_5m) + SUM(cache_write_1h) AS cache_write,
+       SUM(output_tokens)     AS output
+FROM token_usage GROUP BY model_id ORDER BY requests DESC;
+
+-- the shape of the bill, per branch: cache reads dominate the count and
+-- cache writes dominate the cost, which no blended total will show you.
+SELECT repo_name, branch_name, COUNT(*) AS requests,
+       ROUND(100.0 * SUM(cache_read_tokens) /
+             NULLIF(SUM(COALESCE(input_tokens,0) + COALESCE(cache_read_tokens,0)
+                      + COALESCE(cache_write_5m,0) + COALESCE(cache_write_1h,0)
+                      + COALESCE(output_tokens,0)), 0), 1) AS pct_cache_read
+FROM token_usage GROUP BY repo_name, branch_name ORDER BY requests DESC;
+
+-- which parser produced what, and which agents reported no cache writes
+-- at all (NULL, not zero — the distinction the whole pipeline preserves)
+SELECT source, COUNT(*) AS rows,
+       SUM(cache_write_5m IS NULL AND cache_write_1h IS NULL) AS no_cache_write
+FROM token_usage GROUP BY source;
+
+-- per-subagent usage. agent_type is the first-party tag the coding agent
+-- records; without it a request attributes to the task's root agent.
+SELECT json_extract(extra_json, '$.agent_type') AS agent_type,
+       COUNT(*) AS requests, SUM(output_tokens) AS output
+FROM token_usage GROUP BY agent_type ORDER BY requests DESC;
+
+-- a request that cannot be priced: the registry has no such model_id
+SELECT DISTINCT model_id FROM token_usage WHERE model_id IS NOT NULL;
+-- …then check each against script/llm_registry.py</pre>
+<p>To reconcile a query here against a task on the Metrics page, remember the join is not in SQL: a request belongs to a task when its repository and branch match <em>and</em> its timestamp falls inside that task's <code>[start, end]</code> span. Requests matching no span are the <em>Unattributed</em> bucket; requests inside two overlapping spans are split evenly between them, which SQL alone will not reproduce.</p>

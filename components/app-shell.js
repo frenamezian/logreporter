@@ -9,9 +9,14 @@ const PAGE_META = {
   chronology:  { title: 'Chronology',    note: 'Every log entry in time order, with idle gaps.' },
   timegoes:    { title: 'Where time goes', note: 'How time splits across repos, branches, tasks.' },
   metrics:     { title: 'Metrics',       note: 'Counts, distributions, open issues, agent time.' },
+  models:      { title: 'Models & pricing', note: 'Every model in the LLM registry, priced per 1M tokens.' },
   maintenance: { title: 'Maintenance',   note: 'Delete, export, and inspect stored volume.' },
   help:        { title: 'Help',          note: 'User and developer guide.' }
 };
+
+// Pages that describe something other than the logs in scope. A repo → branch →
+// task trail would name a scope these pages do not read.
+const UNSCOPED = new Set(['help', 'models']);
 
 class AppShell extends HTMLElement {
   connectedCallback() {
@@ -38,6 +43,7 @@ class AppShell extends HTMLElement {
               <div data-page="chronology" hidden><log-timeline></log-timeline></div>
               <div data-page="timegoes" hidden><log-timegoes></log-timegoes></div>
               <div data-page="metrics" hidden><log-metrics></log-metrics></div>
+              <div data-page="models" hidden><log-models></log-models></div>
               <div data-page="maintenance" hidden><log-maintenance></log-maintenance></div>
               <div data-page="help" hidden><log-help></log-help></div>
             </div>
@@ -53,9 +59,12 @@ class AppShell extends HTMLElement {
   _sidebarHTML() {
     const s = window.LogApp.state;
     const w = s.sidebarWidth || 320;
-    // On the help page the panel carries the guide's outline: filtering rows is
-    // meaningless there, and the outline is what you navigate with.
-    const panel = s.page === 'help' ? '<log-help-nav></log-help-nav>' : '<log-filters></log-filters>';
+    // The sidebar belongs to whatever the page is about. On the help page that
+    // is the guide's outline; on the models page it is the registry's own
+    // facets. Neither reads the log filters, so neither shows them.
+    const panel = s.page === 'help' ? '<log-help-nav></log-help-nav>'
+      : s.page === 'models' ? '<log-models-filters></log-models-filters>'
+      : '<log-filters></log-filters>';
     return `
       <aside class="sidebar" style="width:${w}px; flex:0 0 ${w}px">
         <button class="sidebar-collapse" title="Collapse sidebar" data-collapse="1">«</button>
@@ -71,6 +80,17 @@ class AppShell extends HTMLElement {
         <aside class="sidebar-rail">
           <button class="rail-filter" title="Open help contents" data-open-sidebar="1">
             <span class="rail-filter-icon">☰</span>
+          </button>
+        </aside>
+      `;
+    }
+    if (s.page === 'models') {
+      const m = window.LogApp.modelsFilterCount();
+      return `
+        <aside class="sidebar-rail">
+          <button class="rail-filter" title="Open model filters" data-open-sidebar="1">
+            <span class="rail-filter-icon">⚙</span>
+            ${m ? `<span class="rail-badge">${m}</span>` : ''}
           </button>
         </aside>
       `;
@@ -91,12 +111,10 @@ class AppShell extends HTMLElement {
   _breadcrumbHTML(s) {
     const meta = PAGE_META[s.page] || { title: esc(s.page), note: '' };
     const d = s.drill || {};
-    // The guide is not scoped to a repository, so a drill trail there would only
-    // describe a scope the page ignores.
-    if (s.page === 'help') {
+    if (UNSCOPED.has(s.page)) {
       return `
         <div class="breadcrumb-strip">
-          <div class="breadcrumb-crumbs"></div>
+          <div class="breadcrumb-crumbs">${s.page === 'models' ? this._modelCrumbs(s) : ''}</div>
           <div class="breadcrumb-title">${meta.title}</div>
           <div class="breadcrumb-note">${meta.note}</div>
         </div>
@@ -114,6 +132,17 @@ class AppShell extends HTMLElement {
       </div>
     `;
   }
+  // The models page has no drill, but the provider filter is the same kind of
+  // narrowing, so it reads as the same trail.
+  _modelCrumbs(s) {
+    const picked = (s.modelsFilter && s.modelsFilter.provider) || [];
+    const names = (window.ModelCatalog ? window.ModelCatalog.providers() : [])
+      .filter((p) => picked.includes(p.key)).map((p) => p.name);
+    const all = `<button class="crumb" data-models-all="1">All providers</button>`;
+    if (!names.length) return all;
+    return all + `<span class="crumb-sep">›</span><span class="crumb">${esc(names.join(', '))}</span>`;
+  }
+
   _detailPanelHTML() {
     const w = window.LogApp.state.detailWidth || 372;
     return `
@@ -148,6 +177,7 @@ class AppShell extends HTMLElement {
     // Only the breadcrumb's own reset — the sidebar wires its copy itself, and
     // a blanket selector here would overwrite that handler.
     this.querySelectorAll('.breadcrumb-crumbs [data-drill-clear]').forEach((b) => b.onclick = () => window.LogApp.clearDrill());
+    this.querySelectorAll('[data-models-all]').forEach((b) => b.onclick = () => window.LogApp.setModelsFilter('provider', []));
     this.querySelectorAll('.crumb[data-drill]').forEach((b) => b.onclick = () => {
       const d = JSON.parse(b.getAttribute('data-drill'));
       window.LogApp.setDrill(d);

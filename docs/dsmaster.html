@@ -1,6 +1,6 @@
 <p>One shell holds every page. Only the content region changes; the header, the left panel, the breadcrumb strip and the detail panel are shared and keep their state across page switches.</p>
 <pre>┌──────────────────────────────────────────────────────────────────────────────────┐
-│ LogReporter  [Hierarchy 24][Chronology][Where time goes][Metrics][Maint][Help]   │
+│ LogReporter [Hierarchy 24][Chronology][Where time goes][Metrics][Models][Maint][?]│
 │ LOCAL MONITOR     24 / 189 logs [CSV][JSON][Refresh][activity_logs.db ▾][?]      │
 ├────────────────────┬──────────────────────────────────────────┬──────────────────┤
 │ ▸ FILTERS  [clear] │ All repos › Playground › harness › task… │ [‹Prev][Next›]  ×│
@@ -24,12 +24,14 @@
 
 <h3>State that lives in the shell</h3>
 <p>All of it hangs off <code>LogApp.state</code>, so a component re-render never loses it: <code>page</code>, <code>filter</code>, <code>drill</code>, <code>selectedLog</code>, <code>selectedRun</code>, <code>order</code>, <code>helpTopic</code>, <code>sidebar</code> / <code>panels</code>, <code>navOpen</code> and <code>treeOpen</code> (two independent expand sets), <code>sidebarWidth</code> / <code>detailWidth</code>, and the search draft.</p>
+<p>Three pieces of state answer to something other than the logs. <code>measure</code> is the Tokens ⇄ Cost toggle, shared by Metrics and <em>Where time goes</em> so the two never disagree about which measure is on screen. <code>modelsFilter</code>, <code>modelsOpen</code> and <code>modelRowOpen</code> belong to the Models page, which filters the price registry rather than the logs. And <code>usage</code> / <code>usageReport</code> hold the second database — loaded <em>after</em> the first render, deliberately, because the log file is what the page is actually about and the usage cache can be tens of megabytes.</p>
+<p>The sidebar slot follows the page rather than the app: filters normally, the guide's outline on Help, the registry's facets on Models. All three are the same 320px column with the same collapse behaviour.</p>
 
 <h3>What clicking does, shell-wide</h3>
 <ul>
-<li><strong>A page tab</strong> — swaps the content region only. Filters, drill, both expand sets and the open entry all survive; switching pages is a change of lens, never a reset. Maintenance and Help close the detail panel, because neither has entries to keep it in sync with.</li>
+<li><strong>A page tab</strong> — swaps the content region only. Filters, drill, both expand sets and the open entry all survive; switching pages is a change of lens, never a reset. Maintenance, Models and Help close the detail panel, because none of them has entries to keep it in sync with.</li>
 <li><strong>A tree node</strong> — drills and opens; clicking the node you are already on collapses it. Double click always collapses. An agent node toggles between the agent and its task.</li>
-<li><strong>A breadcrumb</strong> — truncates the drill to that depth. <em>All repos</em> clears it. The breadcrumb is suppressed on Help, which has no scope.</li>
+<li><strong>A breadcrumb</strong> — truncates the drill to that depth. <em>All repos</em> clears it. The drill trail is suppressed on Help and Models, which have no log scope — Models shows its provider facet in the same slot instead, because that is the same kind of narrowing.</li>
 <li><strong>A filter or chip</strong> — recomputes the scope, clears the drill and closes the panel; the header count and every page follow in the same frame.</li>
 <li><strong>Any entry row, anywhere</strong> — selects it and opens the detail panel. The content region reflows narrower rather than being overlaid. Clicking a blank part of the content region closes it again.</li>
 <li><strong>The « button</strong> — collapses the left panel to a 46px rail carrying a gear icon and the active-filter badge; the icon restores the panel with filters open. On Help the rail carries ☰ instead.</li>

@@ -9,6 +9,7 @@ const TAB_LABELS = {
   chronology: 'Chronology',
   timegoes: 'Where time goes',
   metrics: 'Metrics',
+  models: 'Models',
   maintenance: 'Maintenance',
   help: 'Help',
 };
@@ -16,7 +17,7 @@ const TAB_LABELS = {
 class LogHeader extends LogComponent {
   render() {
     const s = window.LogApp.state;
-    const tabs = ['hierarchy', 'chronology', 'timegoes', 'metrics', 'maintenance', 'help'];
+    const tabs = ['hierarchy', 'chronology', 'timegoes', 'metrics', 'models', 'maintenance', 'help'];
     const dotClass = s.src.ok ? 'ok' : s.src.demo ? 'demo' : 'fail';
     return `
       <div class="brand"><div class="title">LogReporter</div><div class="subtitle">Local monitor</div></div>

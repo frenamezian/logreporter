@@ -8,6 +8,16 @@ const { applyFilters, drillRows, unique } = window.Filters;
 
 const DEFAULT_FILTER = { search: '', repo: [], branch: [], agent: [], log_type: [], git: [], log_level: [], status: [], priority: [], from: '', to: '' };
 
+// The Models page filters the LLM registry, not the logs, so it carries its own
+// filter object. Legacy and deprecated models are excluded by default: 31 of
+// the 102 in the registry are retired, and they are kept only so an old session
+// still prices correctly — they are not something to shop from.
+// A fresh object every time: the array values are mutated in place by the
+// toggles, and a shared default would be edited by the first click.
+const defaultModelsFilter = () => ({
+  search: '', provider: [], status: ['active', 'preview'], capability: [], minContext: '', sort: 'registry'
+});
+
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -63,6 +73,12 @@ window.LogApp = {
     fileHandle: null,
     navOpen: new Set(), // navigation tree expand/collapse state (persists across re-renders)
     treeOpen: new Set(), // hierarchy tree expand/collapse state (persists across re-renders)
+    // Models page: which provider panels and which model rows are open. Same
+    // contract as the two sets above — they live on state so a poll tick or a
+    // filter change does not collapse what the reader opened.
+    modelsFilter: defaultModelsFilter(),
+    modelsOpen: new Set(),
+    modelRowOpen: new Set(),
     detailWidth: 372, // right detail panel width (drag to resize)
     sidebarWidth: 320, // left sidebar width (drag to resize)
     // Search box text the user is still typing. The filter itself is only
@@ -131,9 +147,54 @@ window.LogApp = {
 
   setPage(page) {
     this.state.page = page;
-    if (page === 'help' || page === 'maintenance') this.state.selectedLog = null;
+    if (page === 'help' || page === 'maintenance' || page === 'models') this.state.selectedLog = null;
     this.state.srcOpen = false;
     this.render();
+  },
+
+  // --- models page ---------------------------------------------------------
+  //
+  // These all call render(), not update(): the registry is a static file, so
+  // nothing here changes which log rows are in scope. recompute() would rebuild
+  // the whole tree model to redraw a table that does not read it.
+
+  toggleModelProvider(key) {
+    const open = this.state.modelsOpen;
+    if (open.has(key)) open.delete(key); else open.add(key);
+    this.render();
+  },
+
+  toggleModelRow(id) {
+    const open = this.state.modelRowOpen;
+    if (open.has(id)) open.delete(id); else open.add(id);
+    this.render();
+  },
+
+  setModelsFilter(key, value) {
+    this.state.modelsFilter[key] = value;
+    this.render();
+  },
+
+  toggleModelsFilter(key, value) {
+    const arr = this.state.modelsFilter[key] || [];
+    const i = arr.indexOf(value);
+    if (i >= 0) arr.splice(i, 1); else arr.push(value);
+    this.state.modelsFilter[key] = arr;
+    this.render();
+  },
+
+  clearModelsFilter() {
+    this.state.modelsFilter = defaultModelsFilter();
+    this.render();
+  },
+
+  modelsFilterCount() {
+    const f = this.state.modelsFilter;
+    let n = 0;
+    ['provider', 'status', 'capability'].forEach((k) => { if ((f[k] || []).length) n += 1; });
+    if (f.search) n += 1;
+    if (f.minContext) n += 1;
+    return n;
   },
 
   setFilter(key, value) {

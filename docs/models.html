@@ -1,0 +1,55 @@
+<p>The LLM registry as a rate card. Every model LogReporter knows how to price, what each one costs per million tokens, and every pricing tier behind those headline numbers. This is the only page in the app that does not read your logs at all — it reads <code>script/llm_registry.js</code>, the same file the Metrics page prices your token usage against.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/models.png" target="_blank" rel="noopener"><img src="docs/img/models.png" alt="Models page: one collapsed panel per provider with its price range, and Anthropic expanded into a model table"></a>
+  <figcaption>One panel per provider, closed by default. Anthropic open, showing standard and cache prices for both directions.</figcaption>
+</figure>
+
+<h3>Three levels, because 102 models is not a table</h3>
+<p>The registry holds 102 models across eight providers. Nobody reads that as one list, so the page opens in stages:</p>
+<ul>
+<li>A <strong>closed provider panel</strong> carries its model count, a status breakdown and its <em>price range</em>. The range is the point — it is what tells you which panel is worth opening.</li>
+<li>An <strong>open panel</strong> shows the prices you actually compare on: standard and cache, input and output, one row per model.</li>
+<li>An <strong>open model row</strong> shows the description, the specifications, and every remaining tier — batch, flex, priority, long-context, fast mode.</li>
+</ul>
+<p>Provider panels and model rows remember what you opened. A background poll or a filter change never collapses them.</p>
+
+<h3>The columns follow each provider's own vocabulary</h3>
+<p>Providers disagree about what a cache is called. Anthropic prices <code>cache_read</code> and two <code>cache_write</code> retentions; OpenAI, xAI, Moonshot, DeepSeek and Zhipu price <code>cached_input</code>; Google prices <code>context_cache</code>. Because the table lives <em>inside</em> a provider panel, its columns can use that provider's own tier names instead of a normalised label that matches nobody.</p>
+<p>So the column set differs by panel, and that is deliberate:</p>
+<table><thead><tr><th>Provider</th><th>Price columns</th></tr></thead><tbody>
+<tr><td>Anthropic</td><td>std · cache read · cache write 5m/1h · std <em>(out)</em></td></tr>
+<tr><td>OpenAI, Google, xAI</td><td>std · cached input · std <em>(out)</em> · batch <em>(out)</em></td></tr>
+<tr><td>Mistral</td><td>std · std <em>(out)</em> — no Mistral model prices a cache tier, so no cache column is drawn</td></tr>
+</tbody></table>
+<p>Four price columns is the ceiling. Past that the model id starts getting truncated, and everything else is one click away.</p>
+
+<div class="help-callout"><strong>There is no cached-output column, and there never will be.</strong> No provider in the registry prices cached output — caching is an input-side concept. A fourth quadrant would have been permanently empty, so the grid is three columns and one, and the asymmetry is stated in the tier panel rather than drawn as a blank.</div>
+
+<h3>An em dash is never a zero</h3>
+<p>A dash means the provider does not sell that tier for that model. It is not $0.00, and the distinction matters in both directions:</p>
+<ul>
+<li><code>gpt-5.5-pro</code> has no cached input at all — its cache cell is a dash.</li>
+<li>Four models in the registry are genuinely <strong>free</strong> and show <code>$0</code> — <code>labs-leanstral-1-5</code> at the standard rate, and Gemma 3, Gemma 3n and GLM-4.7-Flash on a <code>free</code> tier. That zero has to keep meaning zero.</li>
+<li>Nineteen models have no <code>standard</code> tier: the realtime family is priced per modality, and the retired deep-research models were batch-only. Their headline row is all dashes, so the row carries a line saying what it <em>is</em> priced by — <em>"no standard tier — priced by audio $32.00, text $4.00 in · audio $64.00, text $24.00 out"</em> — instead of leaving you to open it and guess.</li>
+</ul>
+
+<h3>Launch prices are shown as the price you pay</h3>
+<p>A tier named <code>intro_…_until_YYYY_MM_DD</code> is a launch price with an end date, and it displaces the standard rate until that date passes. Claude Sonnet 5 has one: its stored standard is $3.00 / $15.00, but nobody pays that before 1 September 2026. The headline cell shows the rate in force today with an <span class="mp-intro">intro</span> marker, and the marker's tooltip names both the end date and the price that follows it. The tier panel lists the intro tier with an <em>in force</em> or <em>expired</em> tag.</p>
+<p>This is the same rule the cost model applies when pricing your actual usage, so a session dated inside the window costs at the introductory rate and one after it does not.</p>
+
+<h3>The tier panel</h3>
+
+<figure class="help-figure">
+  <a href="docs/img/models-tiers.png" target="_blank" rel="noopener"><img src="docs/img/models-tiers.png" alt="A model row expanded: description, specifications, capabilities, and a table of all six pricing tiers with input, output and a percentage against standard"></a>
+  <figcaption>Every tier of one model. Rows are tier names, columns are direction — so a tier priced in only one direction reads as a dash rather than as a missing row.</figcaption>
+</figure>
+
+<p>The registry stores input and output tiers as two independent lists, but their names overlap heavily. Joining them on the tier name turns nine scattered numbers into six comparable lines, and makes visible at a glance what the headline cannot: <strong>batch is −50% both ways, cache read is −90%, fast mode is +100%.</strong></p>
+<p>The percentage is measured against that <em>direction's</em> standard rate, and each direction has its own column, because the two do not always agree — <code>gpt-5.4</code>'s long-context tier is +100% on input and +50% on output. One shared column would have had to pick one of those and be wrong about the other.</p>
+
+<h3>Filters and the retired models</h3>
+<p>The sidebar filters the registry, not your logs: provider, status, capability, context window, a free-text search over name, id and description, and the sort order. Search matches on every keystroke and opens any provider that has a hit, for as long as the search is active.</p>
+<p><strong>Legacy and deprecated models are hidden by default.</strong> Thirty-seven of the 102 are retired, and they are kept in the registry for one reason: a six-month-old session has to price at what it actually cost. They are not something to shop from. Each provider panel says how many it is hiding and offers a one-click <em>show every status</em>; a deprecated model that is still listed carries its retirement date on the row.</p>
+
+<div class="help-callout"><strong>This page is a rate card, not a bill.</strong> It reports the provider's published API prices. What your agents actually spent is on the Metrics page, which prices real token counts against this same registry. If a model here looks wrong, the fix is to regenerate the registry — see <em>Agent logging prompts</em> for the update prompt — not to edit a number in the dashboard.</div>

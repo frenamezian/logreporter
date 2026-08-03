@@ -36,25 +36,28 @@ Playground  ███████████  1h 16m      │ …/task_executor
 <p>Bars are scaled against the largest value in view, not a fixed maximum, so a distribution stays legible whether the scope holds 40 rows or 40,000. Zero-count rows are dropped rather than drawn empty.</p>
 
 <h3>Token usage block</h3>
-<p>Appended below the two columns, sharing their scope. It extends this page rather than adding a sixth nav tab: cost is an attribute of the work already described here.</p>
-<pre>Token usage and cost   45,870 requests          [ Tokens │ Cost ]
+<p>Appended below the two columns, sharing their scope. It extends this page rather than becoming a page of its own: cost is an attribute of the work already described here, and it answers to the same filters and drill. The <em>Models</em> tab is not the other half of this — it is the rate card these figures are computed against, and it reads no logs at all.</p>
+<pre>Token usage and cost   178 requests                  [ Tokens │ Cost ]
 ┌────────────┐┌────────────┐┌────────────┐┌────────────┐
-│ 9.89B      ││ 9.87B      ││ 24.3M      ││ $34,389    │
-│ TOKENS     ││ INPUT+CACHE││ OUTPUT     ││ SAVED BY … │
+│ 19.59M     ││ 19.55M     ││ 33.2K      ││ $84.22     │
+│ TOTAL      ││ INPUT      ││ OUTPUT     ││ SAVED BY   │
+│ TOKENS     ││ (INCL.CACHE)││            ││ CACHE      │
 └────────────┘└────────────┘└────────────┘└────────────┘
-█████████████████████████████████████████████▌▌▌  ← 4 segments, 2px gaps
-● Cache read 97.5%  ● Cache write 2.3%  ● Fresh input 0.0%  ● Output 0.2%
+████████████████████████████████████████████████▌▌  ← 4 segments, 2px gaps
+● Cache read 95.6% · 18.72M   ● Cache write 4.3% · 836K
+● Fresh input &lt;0.1% · 356     ● Output 0.2% · 33.2K
 
-Where it went, by tokens              │ Sources
-[Repository][Branch][Task][Model]     │ Claude Code       [native parser]
-Playground   ███████████████  6.96B   │   775 files · 0 new · 775 unchanged
-Racecoster   ███              1.13B   │ ccusage (fallback)  [unavailable]
-fauxbiz      ██                 892M  │   not on PATH — npm i -g ccusage
-Unattributed ▨▨▨▨▨▨▨▨▨▨▨▨▨▨▨  9.72B   │ 45,870 rows · 102 models priced
+Where it went, by tokens               │ Sources
+rows keep their order across measures  │ Claude Code   [native parser]
+[Repository][Branch][Task][Agent][Model]│   794 files · 46,819 new · 0 unchanged
+Playground  ███████████████  19.59M    │ ccusage (fallback)  [unavailable]
+                                       │   not on PATH — npm install -g ccusage
+                                       │ 46,819 rows cached · last read … · 13.78s
+                                       │ 102 models priced from the registry
 
 Every row behind the charts
-WHEN         TASK   AGENT       MODEL    INPUT  CACHE READ  …   COST
-2026-08-01…  —      claude_code opus-5       2      18,057  …  $0.09</pre>
+WHEN              TASK        AGENT       MODEL     INPUT  CACHE READ  WRITE 5M  …
+2026-08-02 13:32  queue …+1   claude_code opus-5        2     168,785         0  …</pre>
 
 <table><thead><tr><th>Element</th><th>Behaviour</th></tr></thead><tbody>
 <tr><td>Tokens ⇄ Cost</td><td>Redraws the same layout against one measure. Ordering, colour and layout hold across the switch; only the values change. Never a shared axis.</td></tr>

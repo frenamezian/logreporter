@@ -1,0 +1,123 @@
+<p>Clone it, make a database, serve it — then tell your agents to log into it. The first half takes four commands; the second half is the one that matters, because an installed dashboard with unmodified agents shows you an empty tree forever.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/install-flow.svg" target="_blank" rel="noopener"><img src="docs/img/install-flow.svg" alt="The full installation process in three stages: install the dashboard, point your agents at it, and it works"></a>
+  <figcaption>The whole process. Stage 2 is the one people skip — nothing appears in the dashboard until agents call the writer by absolute path.</figcaption>
+</figure>
+
+<h3>Requirements</h3>
+<table><thead><tr><th>What</th><th>Why</th></tr></thead><tbody>
+<tr><td><strong>Python 3.8+</strong></td><td>Standard library only, nothing to <code>pip install</code>. It runs the server, the writer and the usage reader.</td></tr>
+<tr><td><strong>A modern browser</strong></td><td>Chromium-based (Chrome, Edge, Brave) is recommended: it supports file handles, which is what lets <em>Auto-poll</em> re-read a database you picked by hand. Firefox and Safari work — you press <em>Refresh</em> instead.</td></tr>
+<tr><td><strong>Internet on first load</strong></td><td>The SQLite engine (<code>sql.js</code>) is fetched from a CDN. It is the only remote dependency, and it can be removed — see <em>Running fully offline</em> below.</td></tr>
+<tr><td><strong>git on PATH</strong></td><td>Not optional in practice. It is what makes repository and branch auto-detection work, and that is what lets one prompt serve every repository.</td></tr>
+</tbody></table>
+<p>Windows, macOS and Linux all work. The only Windows-specific file is the <code>start_LogReporter.bat</code> launcher; everything else is plain Python.</p>
+
+<h3>1 · Clone</h3>
+<pre>git clone https://github.com/frenamezian/log_reporter.git
+cd log_reporter</pre>
+
+<h3>2 · Create the database</h3>
+<p><code>activity_logs.db</code> is deliberately <strong>not</strong> in git. It is runtime data that several agents write to continuously, and a tracked binary would produce diffs nobody can merge. So a fresh clone has no database until you make one — pick one:</p>
+<pre>bash seed/init_db.sh      # A — start from the bundled sample
+python seed/new_db.py     # B — start empty</pre>
+<p><strong>A</strong> gives you 148 rows across three repositories, so every page has something in it — the right choice for a first look. <strong>B</strong> is what you want for real use. Either way you end up with <code>activity_logs.db</code> in the repository root, in WAL mode so several agents can write while the dashboard reads. You can also start from the sample and clear it later from the <em>Maintenance</em> page.</p>
+
+<h3>3 · Start the dashboard</h3>
+<pre>python serve.py           # any OS → http://127.0.0.1:8250/index.html
+python serve.py 9000      # any port, if 8250 is busy</pre>
+<p>On Windows, double-clicking <strong><code>start_LogReporter.bat</code></strong> does the same thing and opens your browser for you.</p>
+
+<div class="help-callout"><strong>Do not open <code>index.html</code> by double-clicking it.</strong> On a <code>file://</code> origin the browser's <code>fetch()</code> cannot read <code>activity_logs.db</code> at all, and the dashboard falls back to demo data — quietly, apart from the grey dot in the header. It has to be served over <code>http://</code>.</div>
+
+<p><code>serve.py</code> binds to <code>127.0.0.1</code> only, so nothing is exposed to your network. It is not just a static server: it also provides the write endpoints the dashboard cannot perform itself — the row-level delete behind the <em>Maintenance</em> page, and the usage re-import. Serving the folder with <code>python -m http.server</code> instead will render every page correctly and silently break both.</p>
+
+<h3>4 · Check it works</h3>
+<p>Open <a href="http://127.0.0.1:8250/index.html" target="_blank" rel="noopener">http://127.0.0.1:8250/index.html</a>. The button at the top right should read <strong>activity_logs.db</strong> with a lit dot, and the header should show a row count. If it says <em>Demo data</em>, the page is not being served over <code>http://</code> or the file is missing.</p>
+
+<hr>
+
+<h3>Telling your agents to log — the part that makes it work</h3>
+<p>Everything above installs a viewer. Nothing appears in it until your agents write rows, and they will not do that on their own: <strong>you have to add logging instructions to every agent's prompt.</strong> The goal is one sentence — <em>every agent in every repository appends to the one <code>activity_logs.db</code> in your LogReporter clone.</em></p>
+
+<div class="help-callout"><strong>The one rule:</strong> agents call <code>log_activity.py</code> <strong>by absolute path</strong>, from whatever directory they happen to be working in. The writer appends to the <code>activity_logs.db</code> sitting next to <em>itself</em>, never next to the caller. That is the whole mechanism — one canonical copy of the writer, one canonical database, and any number of repositories calling into it. No per-repository configuration, no environment variable, no copy of anything.</div>
+
+<h4>5 · Get your absolute path</h4>
+<pre>python -c "import os; print(os.path.abspath('log_activity.py'))"</pre>
+<p>Run it from inside your clone. Substitute the result everywhere <code>&lt;LOGGER&gt;</code> appears below; do the same for <code>mint_trace.py</code> as <code>&lt;MINTER&gt;</code>.</p>
+<table><thead><tr><th>OS</th><th>Looks like</th></tr></thead><tbody>
+<tr><td>Windows</td><td><code>C:/Users/you/dev/log_reporter/log_activity.py</code></td></tr>
+<tr><td>macOS</td><td><code>/Users/you/dev/log_reporter/log_activity.py</code></td></tr>
+<tr><td>Linux</td><td><code>/home/you/dev/log_reporter/log_activity.py</code></td></tr>
+</tbody></table>
+<p>Forward slashes work fine on Windows and avoid backslash-escaping headaches inside prompts.</p>
+
+<h4>6 · Smoke-test it from a different repository</h4>
+<p>Do this before editing any prompt. Stand in some <em>other</em> project and write one row by hand:</p>
+<pre>cd ~/dev/some-other-project
+python &lt;LOGGER&gt; --sync --log-type start \
+  --task "Smoke test" --agent me --log-title "Hello from another repo"</pre>
+<p>It prints a row id. Refresh the dashboard and a node appears under <strong>that repository's name and its current branch</strong> — neither of which you passed:</p>
+<pre>some-other-project              ← repo name, from git
+  └ feat/whatever-you-are-on    ← current branch, from git
+      └ Smoke test              ← --task
+          └ me                  ← --agent</pre>
+<p>That is <code>--repo</code> and <code>--branch</code> auto-deriving from git in the caller's working directory, and it is the reason one prompt works everywhere. If this step fails, fix it here — no prompt edit will make it work later. Delete the test row from the <em>Maintenance</em> page when you are done.</p>
+
+<h4>7 · Give your lead agent the orchestrator prompt</h4>
+<p>Paste the contents of <code>orchestrator_logging_instructions.md</code> (repository root) into your lead agent's system prompt, with <strong>two edits</strong>:</p>
+<ol>
+<li>Replace every <code>python log_activity.py</code> and <code>python mint_trace.py</code> with the <strong>absolute</strong> paths from step 5.</li>
+<li><strong>Delete the <code>--repo</code> and <code>--branch</code> flags.</strong> The shipped file hardcodes <code>--repo log_reporter --branch main</code>, because that is what this project's own agents used. Dropping them is exactly what makes the prompt portable: git then fills both in correctly, per repository and per branch, with no editing.</li>
+</ol>
+<p>What the prompt asks the agent to do, in short:</p>
+<pre>python &lt;MINTER&gt;                     # mint ONE trace_id per task — lead only
+python &lt;LOGGER&gt; --log-type &lt;type&gt; --task "&lt;title&gt;" \
+  --agent &lt;name&gt; --agent-path &lt;lineage&gt; --trace-id &lt;id&gt; \
+  --log-title "&lt;one specific line&gt;" [--log-description "..."] \
+  [--log-level info] [--status in_progress] [--tags "#x #y"] \
+  [--error-details "..."] [--commit-reference &lt;sha&gt;]</pre>
+<ul>
+<li><strong>Bracket every task</strong> — a <code>start</code> row first, an <code>end</code> row last <em>even on failure</em>, carrying the final <code>--status</code>.</li>
+<li><strong>One row per meaningful step</strong> between them: <code>activity</code>, <code>decision</code>, <code>issue</code>, <code>github</code>. Not per token, not per line, not inside loops.</li>
+<li><strong>The lead owns trace identity.</strong> One trace per task, reused by every row of that task including its subagents'.</li>
+</ul>
+
+<h4>8 · Give every subagent the subagent prompt</h4>
+<p>Same treatment for <code>subagent_logging_instructions.md</code>: absolute path, no <code>--repo</code>/<code>--branch</code>. The lead fills in the placeholders when it dispatches:</p>
+<table><thead><tr><th>Placeholder</th><th>Filled in with</th><th>Example</th></tr></thead><tbody>
+<tr><td><code>&lt;name&gt;</code></td><td>the subagent's <code>--agent</code></td><td><code>code_reviewer</code></td></tr>
+<tr><td><code>&lt;lineage&gt;</code></td><td>its <code>--agent-path</code></td><td><code>lead_architect/task_executor/code_reviewer</code></td></tr>
+<tr><td><code>&lt;trace_id&gt;</code></td><td>the lead's trace, verbatim</td><td><code>9f2c41a8</code></td></tr>
+<tr><td><code>&lt;parent_trace_id&gt;</code></td><td>the lead's trace</td><td><code>9f2c41a8</code></td></tr>
+<tr><td><code>&lt;task_title&gt;</code></td><td>the lead's exact task title</td><td><code>task_0350 - Fix docstring</code></td></tr>
+</tbody></table>
+
+<div class="help-callout"><strong>Three things that quietly ruin the output if you get them wrong.</strong>
+A missing <code>end</code> row erases everything after the agent's last log from every time view — the run is closed at its last event.
+<code>task_title</code> is a grouping key matched character for character, so a title that drifts by one space becomes two tasks with two separate wall clocks.
+And <code>--agent-path</code> is what builds the agent tree, the waterfall's indentation and "own time"; get the lineage right and the whole time breakdown is right.</div>
+
+<h3>Optional · tokens and cost</h3>
+<p>The Metrics page can also report what the work cost. Nothing needs configuring and your agents are not involved — the numbers are read from the session transcripts your coding agents already write, so this works on history that predates the feature.</p>
+<pre>python usage_reader.py</pre>
+<p>That builds <code>token_usage.db</code> beside the log database. After the first run you never need the command again: <strong>Refresh usage</strong> and <strong>Rebuild usage</strong> on the Maintenance page do the same thing through <code>serve.py</code>. The file is a pure cache — delete it, re-run the reader, and you are exactly where you started. Only <code>activity_logs.db</code> is worth backing up.</p>
+<p>Prices come from a registry checked into the repository, so <em>Models &amp; pricing</em> works immediately whether or not you ever build the usage cache.</p>
+
+<h3>Troubleshooting</h3>
+<table><thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead><tbody>
+<tr><td>Header says <strong>Demo data</strong></td><td>Not served over <code>http://</code>, or <code>activity_logs.db</code> is missing. Start it with <code>python serve.py</code> and check the file exists.</td></tr>
+<tr><td><code>activity_logs.db not found at …</code> from an agent</td><td>The database was never created. Run step 2.</td></tr>
+<tr><td>Agent says it logged, nothing appears</td><td>Async writes report failures to <code>log_activity_errors.log</code> next to the database. Re-run the same call with <code>--sync</code> to see the error directly.</td></tr>
+<tr><td>Rows land under the wrong repository</td><td>The agent's working directory is not what you think, or the prompt still passes <code>--repo</code>/<code>--branch</code>. Delete those flags, or <code>cd</code> first.</td></tr>
+<tr><td>One task appears twice</td><td>Two spellings of the same <code>task_title</code>. It is a grouping key, matched exactly.</td></tr>
+<tr><td>A task shows huge idle time</td><td>Something ran without logging, or an <code>end</code> row never arrived. Both are real findings, not display bugs.</td></tr>
+<tr><td>Deleting does nothing, or says <strong>NOT saved</strong></td><td>The page is served by something other than <code>serve.py</code>, so the delete endpoint is missing.</td></tr>
+<tr><td>Nothing renders; the console shows a CDN error</td><td><code>sql.js</code> could not be fetched. See below.</td></tr>
+<tr><td>Port 8250 is busy</td><td><code>python serve.py 9000</code> — any port works.</td></tr>
+<tr><td>A change to the code does not show up</td><td>Assets are cached. Bump the <code>?v=</code> query in <code>index.html</code>, or hard-reload.</td></tr>
+</tbody></table>
+
+<h3>Running fully offline</h3>
+<p>Download <code>sql-wasm.js</code> and <code>sql-wasm.wasm</code> (sql.js 1.10.3), drop them next to <code>index.html</code>, and point the two constants at the top of <code>script/db.js</code> at the local copies. That is the only remote dependency in the project — there is no framework, no charting library, no icon package and no web font to account for. The diagram above is a checked-in SVG for the same reason.</p>

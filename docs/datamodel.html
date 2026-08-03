@@ -1,4 +1,7 @@
-<p>One table, <code>logs</code>, one row per event. Nothing is normalised away: repository, branch, task and agent identity live on every row, so a single append is always sufficient and no writer ever has to read before it writes.</p>
+<p>Three shapes of data: the log table you own, the usage cache the reader builds, and the price registry that is checked in. Only the first is ground truth.</p>
+
+<h3>activity_logs.db — one table, <code>logs</code></h3>
+<p>One row per event. Nothing is normalised away: repository, branch, task and agent identity live on every row, so a single append is always sufficient and no writer ever has to read before it writes.</p>
 <table><thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead><tbody>
 <tr><td>id</td><td>INTEGER PK</td><td>Rowid. The only key the UI uses to identify a row.</td></tr>
 <tr><td>timestamp</td><td>TEXT</td><td><code>YYYY-MM-DD HH:MM:SS</code>, UTC. Sorts lexically; parsed as UTC by the time model.</td></tr>
@@ -33,3 +36,46 @@
 
 <h3>Indexes</h3>
 <p>The shipped file has none, which is fine at this size — the dashboard issues one unindexed full scan per load. On a large file, <code>(timestamp)</code> helps the read and <code>(repo_name, branch_name, task_title)</code> helps any grouped query you run against the file directly.</p>
+
+<h3>token_usage.db — one row per API request</h3>
+<p>A separate file, and separate on purpose: it is a <em>cache</em>. Every row is re-derivable by re-reading the agents' session transcripts, which is what makes <strong>Rebuild usage</strong> safe and why the reader never has to open the database the README calls a contract. Back up <code>activity_logs.db</code>; ignore this one. The DDL lives in <code>seed/new_usage_db.py</code>, which <code>usage_reader.py</code> imports rather than repeating.</p>
+<table><thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead><tbody>
+<tr><td>request_id</td><td>TEXT PK</td><td>The dedupe, enforced by the schema rather than by the writer remembering. With <code>INSERT OR IGNORE</code> it makes re-import idempotent by construction.</td></tr>
+<tr><td>session_id</td><td>TEXT</td><td>The coding agent's session. Several logged agents commonly share one.</td></tr>
+<tr><td>timestamp</td><td>TEXT</td><td>ISO-8601. The only thing that joins a request to a task, together with repo and branch.</td></tr>
+<tr><td>model_id</td><td>TEXT</td><td>Matched against the registry to price the row. An id the registry does not know shows tokens and a dash for cost — never a guessed rate.</td></tr>
+<tr><td>repo_name / branch_name</td><td>TEXT</td><td>The scope keys. A usage row has no task, agent or trace of its own.</td></tr>
+<tr><td>input_tokens</td><td>INTEGER</td><td>The <em>uncached remainder</em>, not the input. On a real session here it read 1,449 against a true input of 1,091,210.</td></tr>
+<tr><td>cache_read_tokens</td><td>INTEGER</td><td>Usually the overwhelming majority of tokens and a rounding error in the bill.</td></tr>
+<tr><td>cache_write_5m / cache_write_1h</td><td>INTEGER</td><td>Kept apart because they are priced differently — 1.25× and 2× the input rate on Anthropic models.</td></tr>
+<tr><td>output_tokens</td><td>INTEGER</td><td>Including reasoning tokens unless an agent reports those separately, in which case they are in <code>extra_json</code>.</td></tr>
+<tr><td>service_tier / speed</td><td>TEXT</td><td>Tier modifiers. <code>batch</code> and <code>fast</code> select a different price tier for the whole row.</td></tr>
+<tr><td>source</td><td>TEXT</td><td>Which parser produced the row. Surfaced in the source-transparency panel.</td></tr>
+<tr><td>extra_json</td><td>TEXT (JSON)</td><td>A closed allow-list of ~10 keys, each capped at 64 characters — long enough for a model id, far too short for a sentence. <code>agent_type</code> lives here, and it is what makes per-agent cost possible.</td></tr>
+</tbody></table>
+<p>A second table, <code>watermark(parser_id, source_path, cursor, size_bytes, mtime_ns, last_run)</code>, is the staleness check: size and mtime both unchanged means the file is skipped without being opened, which is what keeps a refresh over hundreds of megabytes of transcripts cheap. <code>cursor</code> is deliberately opaque — the parser defines it, because a byte offset suits JSONL and would exclude any agent storing usage in SQLite or protobuf.</p>
+
+<div class="help-callout"><strong>NULL is not zero</strong>, and the distinction survives from the parser all the way to the pixel. <code>0</code> means the agent reported zero; <code>NULL</code> means it does not report that counter at all. Codex has no cache-write equivalent — rendering that as <code>0</code> would claim its cache writes were free. Anything that coerces one into the other is a bug, and <code>UsageRecord.problems()</code> is where it gets caught.</div>
+
+<h3>llm_registry — the price list</h3>
+<p>Not a database: a checked-in JavaScript object generated from <code>script/llm_registry.py</code>. It is keyed by provider, and every price in it is <strong>USD per 1,000,000 tokens</strong>.</p>
+<pre>provider                       e.g. "anthropic"
+  provider_name, provider_url
+  models[]
+    model_name, model_id, description
+    capabilities[]               coding · reasoning · vision · long-context · tools
+    latency_class                fastest · fast · medium · slow
+    regional_availability[], context_window
+    status                       active · preview · legacy · deprecated
+    expiration_date              set once a retirement date is published
+    pricing
+      input_token[]              tier_order, tier_name,
+      output_token[]             price_value, price_currency, price_per_qty</pre>
+<p>Four rules the file holds itself to, all of which the UI depends on:</p>
+<ul>
+<li><strong>Nothing is ever deleted.</strong> Superseded models become <code>legacy</code>, retired ones <code>deprecated</code> with a date — and they keep their historical prices, so a six-month-old session still costs correctly. 37 of the 102 models are retired for exactly this reason.</li>
+<li><strong>Nothing is invented.</strong> A value that cannot be verified against a fetched official page keeps its existing value.</li>
+<li><strong>The two directions are independent lists.</strong> Tier names overlap heavily but are not guaranteed to; a tier priced in one direction and not the other is normal, and no provider prices cached <em>output</em> at all.</li>
+<li><strong>Read <code>price_per_qty</code>, do not assume it.</strong> Everything is currently per 1,000,000, but a future provider quoted per 1,000 would otherwise be 1000× wrong and look entirely plausible.</li>
+</ul>
+<p>A tier named <code>intro_…_until_YYYY_MM_DD</code> is a launch price that displaces <code>standard</code> until that date passes — so a session dated inside the window prices at the introductory rate and one after it does not. Claude Sonnet 5 currently has one.</p>

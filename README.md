@@ -2,7 +2,7 @@
 
 **See what your AI coding agents actually did — and where the time went.**
 
-LogReporter is a local dashboard over a single SQLite file. Your agents append one row per meaningful step as they work; the dashboard reads that file in the browser and turns it into a hierarchy, a chronology, a time breakdown, metrics, and a maintenance view. No server-side database, no telemetry, no account — the file never leaves your laptop.
+LogReporter is a local dashboard over a single SQLite file. Your agents append one row per meaningful step as they work; the dashboard reads that file in the browser and turns it into a hierarchy, a chronology, a time breakdown, metrics, a model rate card, and a maintenance view. No server-side database, no telemetry, no account — the file never leaves your laptop.
 
 ![The Hierarchy page](docs/img/hierarchy.png)
 
@@ -33,7 +33,8 @@ It is built for the multi-repo, multi-agent case: a lead architect and its subag
 | **Hierarchy** | What work exists, and how does it nest? Repository → branch → task → log entries. |
 | **Chronology** | What happened, in the order it happened — including the stretches when nothing was logged. |
 | **Where time goes** | Where the wall-clock time went: which agent, which category, and how much was nobody working. |
-| **Metrics** | Counts, distributions, and the issues still open. |
+| **Metrics** | Counts, distributions, and the issues still open — plus what the work cost in tokens and money. |
+| **Models & pricing** | What every model costs per million tokens, and every pricing tier behind that. |
 | **Maintenance** | What is stored; delete or export part of it. |
 
 Every page has a full guide built in — click **Help** in the header, or **?**.
@@ -431,6 +432,8 @@ The Metrics page also reports how many tokens each task consumed and what it cos
                                             joined to the logs in memory, in JS
                                                 cost derived from llm_registry.js
 ```
+
+The **Models** page is the other half of that last line: `llm_registry.js` as a browsable rate card. One expandable panel per provider, one row per model with its standard and cache prices in both directions, and every remaining tier — batch, flex, priority, long-context, fast mode — one click further in. It is the only page that reads no logs at all, and the only place to check what the cost figures on Metrics are actually being computed from.
 
 **Only `activity_logs.db` matters for backup.** It is append-only ground truth that several agents write to continuously, and nothing can reconstruct it. `token_usage.db` is a cache: delete it, run `python usage_reader.py`, and you are exactly where you started — which is why it is a sibling file rather than a table inside the log database, and why **Rebuild usage** on the Maintenance page is safe.
 

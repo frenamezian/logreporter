@@ -7,12 +7,14 @@ const { esc } = window.LRC;
    titles and the nav order live here; the prose is edited as HTML. --- */
 const TITLES = {
   started: 'Getting started',
+  install: 'Installation',
   header: 'The header row',
   sidebar: 'Filters and the tree',
   hierarchy: 'Hierarchy page',
   chronology: 'Chronology page',
   timegoes: 'Where time goes',
   metrics: 'Metrics page',
+  models: 'Models & pricing',
   maint: 'Maintenance page',
   detail: 'Entry detail panel',
   architecture: 'Architecture',
@@ -25,16 +27,17 @@ const TITLES = {
   dschrono: 'Chronology layout',
   dstime: 'Where time goes layout',
   dsmetrics: 'Metrics layout',
+  dsmodels: 'Models layout',
   dsmaint: 'Maintenance layout',
   prompts: 'Agent logging prompts'
 };
 
 /* --- Nav structure --- */
-const USER_GUIDE = ['started', 'header', 'sidebar', 'hierarchy', 'chronology', 'timegoes', 'metrics', 'maint', 'detail'];
-const DEV_GUIDE = ['architecture', 'datamodel', 'queries', 'timemodel', 'design', 'dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmaint', 'prompts'];
-const SUB_ITEMS = new Set(['dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmaint']);
+const USER_GUIDE = ['started', 'install', 'header', 'sidebar', 'hierarchy', 'chronology', 'timegoes', 'metrics', 'models', 'maint', 'detail'];
+const DEV_GUIDE = ['architecture', 'datamodel', 'queries', 'timemodel', 'design', 'dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmodels', 'dsmaint', 'prompts'];
+const SUB_ITEMS = new Set(['dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmodels', 'dsmaint']);
 const FLAT = USER_GUIDE.concat(DEV_GUIDE);
-const DOC_VERSION = 12;
+const DOC_VERSION = 18;
 
 // Fragments are fetched once and kept, so revisiting a topic re-renders
 // synchronously — both components re-render on every state update. `text` is

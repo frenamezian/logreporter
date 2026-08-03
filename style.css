@@ -1034,3 +1034,108 @@ log-footer {
 .usage-foot code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 .usage-empty { border: 1px dashed var(--border); border-radius: var(--radius); padding: 18px; color: var(--text-dim); font-size: 13px; }
 .usage-empty code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--text); }
+
+/* =========================================================================
+   MODELS & PRICING PAGE (log-models)
+   Three levels of disclosure: provider panel -> model row -> tier panel.
+   Every price is right-aligned and tabular so a column of rates reads as a
+   column of magnitudes; the em dash standing in for a tier the provider does
+   not sell has to line up with them.
+   ========================================================================= */
+
+log-models-filters { display: block; padding: 12px; }
+log-models-filters .filter-search { width: 100%; }
+.mp-filter-group { margin-top: 14px; }
+.mp-filter-group h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; color: var(--text-dim); letter-spacing: .08em; }
+.mp-filter-group select { width: 100%; font-size: 12px; padding: 5px 8px; }
+.mp-opt-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-opt-count { flex: none; font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+/* --- summary strip -------------------------------------------------------- */
+.mp-summary { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; font-size: 13px; }
+.mp-summary-note { color: var(--text-dim); font-size: 12px; margin-left: auto; }
+
+/* --- provider panel ------------------------------------------------------- */
+.mp-provider { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; }
+.mp-provider.open { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.mp-provider-head { display: flex; align-items: center; }
+.mp-provider-toggle {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; background: transparent; border: 0; text-align: left; color: var(--text);
+}
+.mp-provider-toggle:hover { background: rgba(255,255,255,0.03); }
+.mp-provider-toggle .caret { flex: none; width: 14px; text-align: center; color: var(--text-dim); }
+.mp-provider-name { flex: none; font-weight: 600; font-size: 14px; }
+.mp-provider-count { flex: none; font-size: 12px; color: var(--text-dim); }
+.mp-provider-status { flex: none; display: flex; gap: 7px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.mp-provider-range { margin-left: auto; font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-provider-src { flex: none; padding: 0 14px; font-size: 11.5px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.mp-provider-src:hover { text-decoration: underline; }
+.mp-provider-body { padding: 0 6px 8px; overflow-x: auto; }
+
+/* --- status glyphs -------------------------------------------------------- */
+.mp-dot { display: inline-block; font-size: 11px; line-height: 1; }
+.mp-dot.active { color: var(--activity); }
+.mp-dot.preview { color: var(--accent-2); }
+.mp-dot.legacy { color: var(--text-dim); }
+.mp-dot.deprecated { color: var(--issue); }
+
+/* --- model table ---------------------------------------------------------- */
+.mp-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.mp-table th, .mp-table td { padding: 5px 8px; text-align: left; }
+.mp-table thead th { font-weight: 500; color: var(--text-dim); font-size: 11px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.mp-group-row th { padding-bottom: 0; border-bottom: 0; }
+.mp-group { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; text-align: center; border-bottom: 1px solid var(--border) !important; }
+.mp-group.in { color: var(--usage-input); }
+.mp-group.out { color: var(--usage-output); }
+.mp-table .mp-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mp-row { cursor: pointer; border-bottom: 1px solid rgba(255,255,255,.04); }
+.mp-row:hover { background: rgba(255,255,255,0.04); }
+.mp-row.open { background: rgba(91,141,239,0.12); }
+.mp-row .caret { display: inline-block; width: 14px; color: var(--text-dim); }
+.mp-name { font-weight: 500; white-space: nowrap; }
+.mp-id { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); white-space: nowrap; }
+.mp-row.open .mp-id { color: var(--text); }
+.mp-status { text-align: center; width: 22px; }
+.mp-chip {
+  display: inline-block; padding: 0 6px; font-size: 10.5px; line-height: 16px;
+  border: 1px solid var(--border); border-radius: 9px; color: var(--text-dim);
+}
+.mp-row:hover .mp-chip, .mp-row.open .mp-chip { border-color: var(--accent); color: var(--accent-2); }
+.mp-intro { font-size: 8.5px; margin-left: 3px; padding: 0 3px; border-radius: 3px; background: var(--accent); color: #fff; vertical-align: super; cursor: help; }
+
+/* A row the headline columns cannot summarise says why, instead of showing
+   four em dashes and leaving the reader to open it and guess. */
+.mp-note td { padding: 0 8px 5px 30px; font-size: 11.5px; color: var(--text-dim); border-bottom: 1px solid rgba(255,255,255,.04); }
+.mp-note.warn td { color: var(--issue); }
+
+.mp-more { padding: 8px 10px 2px; font-size: 11.5px; color: var(--text-dim); }
+.mp-link { background: transparent; border: 0; padding: 0 4px; font-size: 11.5px; color: var(--accent); text-decoration: underline; }
+
+/* --- tier panel ----------------------------------------------------------- */
+.mp-drawer-row td { padding: 0; }
+.mp-drawer { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin: 2px 4px 8px; }
+.mp-desc { margin: 0 0 10px; font-size: 12.5px; line-height: 1.55; color: var(--text); max-width: 78ch; }
+.mp-meta { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 12px; color: var(--text); margin-bottom: 8px; }
+.mp-meta-k { color: var(--text-dim); text-transform: uppercase; font-size: 10px; letter-spacing: .06em; margin-right: 5px; }
+.mp-caps { margin-bottom: 12px; }
+.mp-tiers-head { display: flex; align-items: baseline; gap: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.mp-tiers-head h5 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+.mp-tiers-note { font-size: 11px; color: var(--text-dim); margin-left: auto; }
+.mp-tier-table { border-collapse: collapse; font-size: 12.5px; margin: 8px 0 10px; min-width: min(560px, 100%); }
+.mp-tier-table th { font-weight: 500; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); padding: 3px 12px 5px 0; border-bottom: 1px solid var(--border); }
+.mp-tier-table td { padding: 4px 12px 4px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.mp-tier-table .mp-num { text-align: right; font-variant-numeric: tabular-nums; }
+.mp-tier-n { color: var(--text-dim); width: 24px; }
+.mp-tier { font-family: var(--mono); font-size: 11.5px; }
+.mp-ratio { color: var(--text-dim); }
+.mp-tag { font-family: var(--font); font-size: 10px; padding: 0 5px; border-radius: 8px; border: 1px solid var(--accent); color: var(--accent-2); margin-left: 6px; }
+.mp-drawer-foot { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.mp-drawer-hint { flex: 1; min-width: 260px; font-size: 11px; color: var(--text-dim); line-height: 1.5; max-width: 70ch; }
+.mp-drawer-actions { display: flex; gap: 8px; flex: none; }
+.mp-btn-link { display: inline-block; padding: 4px 8px; font-size: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); text-decoration: none; }
+.mp-btn-link:hover { border-color: var(--accent); }
+
+/* --- legend --------------------------------------------------------------- */
+.mp-legend { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--text-dim); }
+.mp-legend-note { margin-left: auto; max-width: 62ch; }

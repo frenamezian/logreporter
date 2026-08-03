@@ -1,4 +1,6 @@
-<p>A static page over a local SQLite file, plus a small Python server whose only job is to own the file. No build step, no framework, and one network dependency: the CDN fetch for the SQLite engine.</p>
+<p>A static page over local SQLite files, plus a small Python server whose only job is to own them. No build step, no framework, and one network dependency: the CDN fetch for the SQLite engine.</p>
+
+<p>There are <strong>two databases and one generated file</strong>, and their natures differ. <code>activity_logs.db</code> is append-only ground truth that several agents write to continuously and nothing can reconstruct. <code>token_usage.db</code> is a cache, re-derivable at any time by re-reading the agents' own session transcripts. <code>script/llm_registry.js</code> is neither — it is a generated price list, checked in, refreshed by hand.</p>
 
 <h3>The files</h3>
 <pre>index.html          loads everything, in order, as plain &lt;script&gt; tags
@@ -8,7 +10,11 @@ script/
   sample-logs.js    bundled demo rows (fallback data source)
   time-model.js     runs, segments, gaps, task/branch/repo totals
   filters.js        applyFilters, drillRows, unique
-  db.js             sql.js loading, open/read/delete/export
+  db.js             sql.js loading; LogDb and UsageDb
+  llm_registry.py   the price list, by hand — the source of truth
+  llm_registry.js   GENERATED from it by seed/py2js_registry.py
+  cost-model.js     prices a usage row against the registry
+  model-catalog.js  presents the registry as a rate card
   app.js            window.LogApp — the whole application state
 
 components/         one custom element each
@@ -19,14 +25,28 @@ components/         one custom element each
   log-timeline.js   Chronology page
   log-timegoes.js   Where time goes page
   log-metrics.js    Metrics page
+  log-usage.js        the token-usage block inside it
+  log-models.js     Models &amp; pricing page + its sidebar facets
   log-maintenance.js Maintenance page
   log-details.js    entry detail panel
   log-help.js       this guide (article + outline)
+  log-footer.js     sponsor strip — outside the shell, see Master layout
   app-shell.js      the shell: header, sidebar, breadcrumb, panel
 
+parsers/            one file per coding agent; found by globbing
+  loader.py         imports and contract-validates them
+  __init__.py       UsageRecord — the shape every parser emits
+
+seed/
+  new_db.py         DDL for activity_logs.db
+  new_usage_db.py   DDL for token_usage.db
+  py2js_registry.py llm_registry.py → llm_registry.js
+  render_mermaid.py docs/img/*.mmd → checked-in *.svg
+
 docs/               one HTML fragment per help topic, plus img/
-serve.py            static server + POST /api/delete
-log_activity.py     the writer agents call to append a row</pre>
+serve.py            static server + POST /api/delete, /api/refresh-usage
+log_activity.py     the writer agents call to append a row
+usage_reader.py     reads session transcripts → token_usage.db</pre>
 
 <h3>The data flow</h3>
 <pre>activity_logs.db  (agents append via log_activity.py)
@@ -49,8 +69,40 @@ state.rows          every row, as plain objects
                         tasks · runs · segments · gaps · totals
                                 │
                                 ▼
-                  five pages + the detail panel render from it</pre>
+                  six pages + the detail panel render from it</pre>
 <p>The database is read once per load or poll and never queried per view: every page is a pure function of the row array and the two derived models. That is what keeps interaction instant, and it is why filtering was kept out of SQL — see <em>Queries</em>.</p>
+
+<h4>The second flow: token usage</h4>
+<p>Usage is <em>observed</em>, not logged. Nothing was added to the logging contract and no agent was asked to report anything — the numbers come from the session transcripts coding agents already write.</p>
+<pre>~/.claude/projects/**.jsonl   (and whatever other agents write)
+      │
+      │  usage_reader.py, on demand or via POST /api/refresh-usage
+      ▼
+parsers/&lt;agent&gt;.py            one file per agent, found by globbing
+      │  each yields UsageRecord objects
+      ▼
+token_usage.db                INSERT OR IGNORE on request_id
+      │
+      │  fetch, HEAD-checked first — the file is tens of MB
+      ▼
+state.usage                   every row, as plain objects
+      │
+      └─ scopeUsage()   → state.usageInScope
+               joined to tasks in memory by (repo, branch, timestamp-in-span)
+                                │
+                                ▼
+                    Metrics · Where time goes</pre>
+<p>The two pipelines meet only in the browser, and only in memory. There is no join in SQL and no foreign key between the files — a usage row carries a repository, a branch and a timestamp, and that is the entire basis on which it is attributed to a task. The consequences of that (overlapping spans, unattributed rows, per-agent attribution) are on the <em>Metrics page</em> topic.</p>
+<p>Two properties are worth stating because they are what make a rebuild safe. <code>request_id</code> is the primary key, so re-import is idempotent <em>by construction</em> rather than by the writer remembering to check — a wrong watermark costs time, never correctness. And every counter is nullable the whole way through: <code>NULL</code> means the agent does not report that counter, <code>0</code> means it reported zero. Codex has no cache-write equivalent, and rendering that as <code>0</code> would claim its cache writes were free.</p>
+
+<h4>The third input: the price registry</h4>
+<p><code>script/llm_registry.js</code> is generated from <code>script/llm_registry.py</code> by <code>seed/py2js_registry.py</code>. Edit the Python and regenerate; editing the JavaScript directly means the next refresh silently discards the change. Both files carry the update prompt that refreshes them.</p>
+<p>Two modules read it, and they must not be merged:</p>
+<ul>
+<li><code>cost-model.js</code> <strong>prices a request</strong>. It resolves a counter to the one rate that applies, walking a fallback chain — <code>cache_read</code> → <code>cached_input</code> → <code>standard</code> — because providers name the same tier differently and one that does not discount cache reads should price them at the full input rate.</li>
+<li><code>model-catalog.js</code> <strong>presents the list</strong>. It reads tiers exactly as stored, because on a rate card the <em>absence</em> of a tier is the fact worth reporting. A cache column that fell back to the standard rate would tell the reader that provider caches for free.</li>
+</ul>
+<div class="help-callout"><strong>Cost is derived at render time, never stored.</strong> There is no cost column in <code>token_usage.db</code> and no second rate table anywhere. This mirrors the rule the project already holds for time: durations are recomputed from the <code>start</code>/<code>end</code> pairs on every draw. A stored cost silently becomes a lie the day a provider changes its prices, and nothing in the file would say so; a derived one is corrected by regenerating the registry.</div>
 
 <h3>Rendering</h3>
 <p>There is no virtual DOM. <code>LogApp.render()</code> dispatches a <code>logapp:update</code> event; every component extending <code>LogComponent</code> listens, rebuilds its own <code>innerHTML</code> from <code>render()</code>, and re-attaches its handlers in <code>attach()</code>. <code>LogApp.update()</code> is <code>recompute()</code> followed by <code>render()</code> — the distinction matters: state that only affects appearance (page, open panels, selected run) calls <code>render()</code>, while anything that changes which rows are in scope calls <code>update()</code>.</p>
@@ -64,6 +116,7 @@ state.rows          every row, as plain objects
 
 <h3>Writes</h3>
 <p>A page cannot write to a file it fetched over HTTP, so deletion is posted to <code>serve.py</code>, which owns <code>activity_logs.db</code> and issues a row-level <code>DELETE</code> against it. Whole-file save-back was rejected: agents in several repositories append continuously, and writing a mutated image over the file is last-writer-wins. Without <code>serve.py</code> the delete falls back to the in-memory copy and is flagged as not persisted. <strong>Save database copy</strong> exports the in-memory bytes as a download and never touches the original.</p>
+<p>Usage has the same shape of problem for a different reason: the browser cannot read <code>~/.claude/projects</code> at all. <strong>Refresh usage</strong> and <strong>Rebuild usage</strong> post to <code>serve.py</code>, which runs the reader and answers with its report; the page then re-fetches <code>token_usage.db</code>. Without <code>serve.py</code> both are unavailable and say so — the rows already loaded stay valid, only the re-import is gone. Rebuild is safe in a way a log delete never is: the file is a cache, so the worst case is the time it takes to read the transcripts again.</p>
 
 <h3>Dependencies</h3>
 <p><strong>sql.js 1.10.3</strong> from cdnjs — the script and its <code>.wasm</code> — and nothing else. No framework, no charting library, no date library, no icon package, no CSS framework. Bars, the timeline and the waterfall are DOM elements with percentage widths; timestamps use native <code>Date</code>; exports use <code>Blob</code> and an object URL. To run fully offline, vendor <code>sql-wasm.js</code> and <code>sql-wasm.wasm</code> next to the page and point the loader's <code>locateFile</code> at them.</p>
