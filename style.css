@@ -262,7 +262,12 @@ log-header {
   flex: 0 0 auto;
 }
 
-.brand { flex: none; min-width: 0; }
+.brand { flex: none; min-width: 0; display: flex; align-items: center; gap: 9px; }
+/* 28px is the largest mark the header can carry for free: the two lines of
+   brand text already stand 30px tall, so the mark rides inside their box and
+   the header keeps its height. */
+.brand-mark { flex: none; display: block; width: 28px; height: 28px; }
+.brand-text { min-width: 0; }
 .brand .title { font-weight: 600; font-size: 15px; }
 .brand .subtitle { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
 

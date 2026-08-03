@@ -3,6 +3,25 @@
 const LogComponent = window.LogComponent;
 const { esc } = window.LRC;
 
+// The brand mark: an L whose foot is a stacked category bar, in the fixed
+// stacking order activity -> decision -> github -> idle. It is inlined rather
+// than linked because an <img> gets its own document and cannot see the theme
+// tokens, so a linked mark would need two files and a swap on every toggle.
+// Decorative — the title beside it already reads "LogReporter" — hence
+// aria-hidden, and no issue red: red means an issue everywhere else in the app.
+const BRAND_MARK = `
+  <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+    <clipPath id="lr-ell-foot"><rect x="5" y="22.4" width="24" height="5.6" rx="2.8"/></clipPath>
+    <g clip-path="url(#lr-ell-foot)">
+      <rect x="5" y="22.4" width="7" height="5.6" fill="var(--accent)"/>
+      <rect x="12" y="22.4" width="6.5" height="5.6" fill="var(--activity)"/>
+      <rect x="18.5" y="22.4" width="4.5" height="5.6" fill="var(--decision)"/>
+      <rect x="23" y="22.4" width="3.5" height="5.6" fill="var(--github)"/>
+      <rect x="26.5" y="22.4" width="2.5" height="5.6" fill="var(--hatch-strong)"/>
+    </g>
+    <rect x="5" y="4" width="5.6" height="24" rx="2.8" fill="var(--accent)"/>
+  </svg>`;
+
 // Page key -> human-readable nav tab label (§2.4)
 const TAB_LABELS = {
   hierarchy: 'Hierarchy',
@@ -20,7 +39,7 @@ class LogHeader extends LogComponent {
     const tabs = ['hierarchy', 'chronology', 'timegoes', 'metrics', 'models', 'maintenance', 'help'];
     const dotClass = s.src.ok ? 'ok' : s.src.demo ? 'demo' : 'fail';
     return `
-      <div class="brand"><div class="title">LogReporter</div><div class="subtitle">Local monitor</div></div>
+      <div class="brand">${BRAND_MARK}<div class="brand-text"><div class="title">LogReporter</div><div class="subtitle">Local monitor</div></div></div>
       <nav class="nav-tabs">
         ${tabs.map((t) => {
           const active = s.page === t ? 'active' : '';
