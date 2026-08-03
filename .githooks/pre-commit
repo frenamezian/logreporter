@@ -1,0 +1,42 @@
+#!/bin/sh
+# Refuse to commit machine-local runtime data.
+#
+# This hook is one half of a deliberate trade. Neither database is in
+# .gitignore, because an ignored file is one git silently overwrites on
+# checkout — that is how a live 336-row activity_logs.db was destroyed once
+# already. Left unignored, git aborts such a checkout instead. The cost is that
+# `git add -A` would otherwise sweep a live database straight into a commit,
+# and this hook is what closes that.
+#
+# Both files are covered by the same rule on purpose. They differ in what a
+# loss costs — activity_logs.db cannot be reconstructed, token_usage.db can be
+# rebuilt from transcripts in seconds — but a guard with a per-file exception
+# is one that gets applied wrong, and neither is source.
+#
+# Enable in a fresh clone with:  git config core.hooksPath .githooks
+
+# Decide before printing, and make sure printing can never cost the verdict.
+# This hook writes ~10 lines of explanation; anything that truncates the
+# stream — `git commit | head -5`, a pager, a CI log collector — closes the
+# pipe underneath it and kills the hook with SIGPIPE partway through, before
+# it reaches `exit 1`. The commit then succeeds. Observed, not theoretical:
+# it let a live database into a commit while this hook was installed. The trap
+# turns that death into the refusal it was always meant to be.
+trap 'exit 1' PIPE
+
+blocked=$(git diff --cached --name-only |
+  grep -E '^(activity_logs\.db|token_usage\.db)(-wal|-shm)?$|^token_usage\.report\.json$')
+
+if [ -n "$blocked" ]; then
+  echo "pre-commit: refusing to commit machine-local runtime data" >&2
+  echo "$blocked" | sed 's/^/    /' >&2
+  echo >&2
+  echo "  activity_logs.db is append-only ground truth that nothing can" >&2
+  echo "  reconstruct; token_usage.db is a re-derivable cache. Neither is" >&2
+  echo "  source. Unstage them and commit again:" >&2
+  echo >&2
+  echo "    git restore --staged $(echo "$blocked" | tr '\n' ' ')" >&2
+  echo >&2
+  echo "  If you genuinely mean it:  git commit --no-verify" >&2
+  exit 1
+fi

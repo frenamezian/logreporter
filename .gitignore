@@ -1,16 +1,35 @@
-# The live database is runtime data (continuous writes from agents in multiple
-# repos), not source. Patterns are ANCHORED to the repo root so they do not
-# also ignore seed/activity_logs.db, which the bootstrap depends on.
-/activity_logs.db
+# NEITHER DATABASE IS IGNORED. Do not add activity_logs.db or token_usage.db
+# back to this file.
+#
+# That looks backwards — they are runtime data and must never be committed —
+# but ignoring a file is exactly what makes git willing to destroy it. Git
+# silently overwrites an *ignored* file when a checkout wants to write one
+# there, and refuses outright for an untracked-and-unignored one:
+#
+#   ignored      git checkout <sha that tracks it>  ->  silently clobbered
+#   not ignored  git checkout <sha that tracks it>  ->  "would be overwritten
+#                                                        by checkout. Aborting"
+#
+# Eleven commits in this repository's history still track an old copy of
+# activity_logs.db, and a checkout of one of them destroyed a live 336-row
+# database. token_usage.db has never been tracked, so nothing can overwrite it
+# *today* — but that is an accident of history, not a property of the file, and
+# it lapses silently the first time anyone commits it. Both files get the same
+# rule so there is one thing to remember rather than a per-file exception.
+#
+# The cost is one line each in `git status`. .githooks/pre-commit is what keeps
+# that harmless: enable it with `git config core.hooksPath .githooks`.
+#
+# Sidecars stay ignored. They are transient, were never tracked, and would be
+# pure noise; if a checkout ever threatens a database, the database itself is
+# what makes git abort.
 /activity_logs.db-wal
 /activity_logs.db-shm
-
-# The usage cache. Unlike the log database this one is fully re-derivable —
-# delete it, run usage_reader.py, and you are back where you started — but it
-# is still machine-local runtime data, and it records paths from this machine.
-/token_usage.db
 /token_usage.db-wal
 /token_usage.db-shm
+
+# Timestamped snapshots of both databases, taken by serve.py.
+/backups/
 
 __pycache__/
 

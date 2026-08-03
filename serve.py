@@ -38,6 +38,25 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(ROOT, "activity_logs.db")
 USAGE_DB_PATH = os.path.join(ROOT, "token_usage.db")
 
+# Snapshots of both databases, taken on startup and before either destructive
+# operation this server performs.
+#
+# The two files differ in how expensive a loss is — activity_logs.db cannot be
+# reconstructed at all, token_usage.db can be rebuilt from the agents'
+# transcripts in seconds — but they are protected identically anyway. A backup
+# policy with a per-file exception is one that gets applied wrong, and "this
+# one is only a cache" is exactly the reasoning that leaves you without a copy
+# on the day the cache turns out to have been the only record of something.
+#
+# The name records which database, when (UTC), and what prompted it, so a
+# directory listing reads as a history rather than a pile of files.
+BACKUP_DIR = os.path.join(ROOT, "backups")
+BACKUP_KEEP = 10          # per database, so worst case is 2 x this many files
+BACKUP_TARGETS = {
+    "activity_logs": (DB_PATH, "logs"),
+    "token_usage": (USAGE_DB_PATH, "token_usage"),
+}
+
 # Only one usage import may run at a time. ThreadingHTTPServer means two clicks
 # on Refresh, or a click arriving during the startup scan, would otherwise have
 # two readers writing the same SQLite file at once. Nothing would be corrupted
@@ -94,8 +113,63 @@ def _checkpoint(con):
             print(f"wal_checkpoint(PASSIVE) also failed: {e2}", file=sys.stderr)
 
 
+def snapshot(reason, which="activity_logs"):
+    """Copy one database into backups/, keeping the most recent few of its own.
+
+    Uses SQLite's online backup API rather than shutil.copy: both databases run
+    in WAL mode and may be mid-write, so a byte copy of the main file can miss
+    committed transactions still sitting in the -wal sidecar, or catch a torn
+    page. The backup API takes a consistent image of a live database.
+
+    Never raises. A failed snapshot must not stop the server from serving, a
+    delete from proceeding or an import from running — it is insurance, not a
+    precondition.
+    """
+    db_path, table = BACKUP_TARGETS[which]
+    try:
+        if not os.path.exists(db_path):
+            return None
+        src = sqlite3.connect(db_path, timeout=10)
+        try:
+            # An empty database is not worth a file. This keeps backups/ from
+            # filling with copies of nothing while a fresh install is being set
+            # up, and makes "the oldest snapshot" mean something.
+            if src.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0:
+                return None
+            os.makedirs(BACKUP_DIR, exist_ok=True)
+            stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
+            path = os.path.join(BACKUP_DIR, f"{which}.{stamp}.{reason}.db")
+            dst = sqlite3.connect(path)
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+
+        # Retention is per database: a burst of usage imports must not evict
+        # every snapshot of the log database, which is the irreplaceable one.
+        kept = sorted(
+            (f for f in os.listdir(BACKUP_DIR)
+             if f.startswith(which + ".") and f.endswith(".db")),
+            reverse=True,
+        )
+        for stale in kept[BACKUP_KEEP:]:
+            try:
+                os.remove(os.path.join(BACKUP_DIR, stale))
+            except OSError:
+                pass
+        return path
+    except Exception as e:                      # noqa: BLE001 - insurance only
+        print(f"backup failed ({which}/{reason}): {e}", file=sys.stderr)
+        return None
+
+
 def delete_ids(ids):
     """Delete the given ids in one transaction. Returns (deleted, remaining)."""
+    # Snapshot first: a delete is irreversible against the live file, and the
+    # scope is chosen in a browser where an over-broad filter is one click away.
+    snapshot("predelete", "activity_logs")
     backoff = INITIAL_BACKOFF
     for attempt in range(1, MAX_RETRIES + 1):
         con = None
@@ -145,9 +219,12 @@ def run_usage(rebuild=False):
     try:
         import usage_reader
         if rebuild:
-            # Safe precisely because this file is a cache: every row is
-            # re-derivable from the agents' own session files, which is why the
-            # feature keeps them out of activity_logs.db in the first place.
+            # Rebuild discards the whole file and re-reads every transcript.
+            # It is the usage database's counterpart to a delete, so it gets
+            # the same treatment: snapshot first. The rows are re-derivable,
+            # but the watermarks are not — losing them turns the next import
+            # into a full re-read of every session file on the machine.
+            snapshot("prerebuild", "token_usage")
             usage_reader.schema.create(USAGE_DB_PATH, force=True)
         report = usage_reader.run(USAGE_DB_PATH)
         _usage_state["last"] = report
@@ -277,6 +354,11 @@ def main():
         print(f"  database: {DB_PATH}")
         print(f"  usage:    {USAGE_DB_PATH}"
               + ("" if scan else " (startup scan disabled)"))
+        for which in BACKUP_TARGETS:
+            snap = snapshot("startup", which)
+            if snap:
+                print(f"  backup:   {os.path.basename(snap)}")
+        print(f"  keeping {BACKUP_KEEP} snapshots per database in backups/")
         print("Close this window (or press Ctrl+C) to stop the server.")
         if scan:
             usage_scan_at_startup()

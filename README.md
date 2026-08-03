@@ -79,6 +79,36 @@ python seed/new_db.py
 
 Either way you end up with `activity_logs.db` in the repository root, in WAL mode so several agents can write while the dashboard reads. You can also start from the sample and clear it later from the **Maintenance** page.
 
+### 2b. Protect it
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Enables a `pre-commit` guard that refuses to commit `activity_logs.db` or `token_usage.db`. It is per-clone config, so a fresh clone needs it again.
+
+Two protections are already in place:
+
+- **Neither database is in `.gitignore`.** Git silently overwrites an *ignored* file when a checkout wants to write one there, and refuses outright for an untracked, unignored one. Eleven commits in this repository's history still carry an old copy of `activity_logs.db`, so that is a live hazard — it destroyed a live database once. Unignored, the checkout aborts instead. The cost is one line each in `git status`, which the hook above keeps harmless.
+- **`serve.py` snapshots both** into `backups/` on every start and before every destructive operation, keeping the last ten of each. It uses SQLite's online backup API, so a snapshot taken while a database is being written to is still consistent.
+
+### The two databases, side by side
+
+Protected **identically**. They differ in what a loss costs, and the protections deliberately ignore that, because a rule with a per-file exception is a rule that gets applied wrong.
+
+| | `activity_logs.db` | `token_usage.db` |
+| --- | --- | --- |
+| Holds | one row per logged step | one row per API request |
+| Written by | `log_activity.py`, continuously | `usage_reader.py`, on demand |
+| Created by | `seed/new_db.py` | `seed/new_usage_db.py` |
+| If lost | **gone — unreconstructable** | rebuilt from transcripts in seconds |
+| In `.gitignore` | no | no |
+| Commit guard | yes | yes |
+| Snapshotted | on start + before every delete | on start + before every rebuild |
+| Destructive UI action | **Delete** (Maintenance) | **Rebuild usage** (Maintenance) |
+
+The one asymmetry worth knowing: the `watermark` table inside `token_usage.db` records how far the reader got through each transcript. Losing it costs no data, but turns the next import into a full re-read of every session file on the machine — which is why *Rebuild usage* snapshots first, exactly as a delete does.
+
 ### 3. Start the dashboard
 
 ```bash

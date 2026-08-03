@@ -24,6 +24,31 @@ cd log_reporter</pre>
 python seed/new_db.py     # B — start empty</pre>
 <p><strong>A</strong> gives you 148 rows across three repositories, so every page has something in it — the right choice for a first look. <strong>B</strong> is what you want for real use. Either way you end up with <code>activity_logs.db</code> in the repository root, in WAL mode so several agents can write while the dashboard reads. You can also start from the sample and clear it later from the <em>Maintenance</em> page.</p>
 
+<h3>2b · Protect it</h3>
+<p>One command, and it is worth the ten seconds. <code>activity_logs.db</code> is the only file here that nothing can reconstruct:</p>
+<pre>git config core.hooksPath .githooks</pre>
+<p>That enables a <code>pre-commit</code> guard which refuses to commit the log database or the usage cache — <code>git add -A</code> is one keystroke from sweeping a live database into history. It is per-clone config, not something the repository can set for you, so a fresh clone needs it again.</p>
+<p>Two other protections are already in place and need nothing from you:</p>
+<ul>
+<li><strong>Neither database is in <code>.gitignore</code>.</strong> That looks backwards and is not: git <em>silently overwrites</em> an ignored file when a checkout wants to write one there, and <em>refuses outright</em> for an untracked, unignored one. Eleven commits in this repository's history still carry an old copy of <code>activity_logs.db</code>, and a checkout of one of them destroyed a live database. Unignored, git aborts instead. The cost is one line each in <code>git status</code>.</li>
+<li><strong><code>serve.py</code> snapshots both</strong> into <code>backups/</code> on every start and before every destructive operation, keeping the last ten of each. It uses SQLite's online backup API, so a snapshot of a database being written to is still consistent. Empty databases are skipped.</li>
+</ul>
+
+<h4>The two databases, side by side</h4>
+<p>They are <strong>protected identically</strong>. They differ only in what they contain and what a loss costs — and the protections deliberately ignore that difference, because a rule with a per-file exception is a rule that gets applied wrong.</p>
+<table><thead><tr><th></th><th><code>activity_logs.db</code></th><th><code>token_usage.db</code></th></tr></thead><tbody>
+<tr><td>What it holds</td><td>One row per logged step, written by your agents</td><td>One row per API request, read from agent transcripts</td></tr>
+<tr><td>Written by</td><td><code>log_activity.py</code>, continuously, from any repo</td><td><code>usage_reader.py</code>, in batches, on demand</td></tr>
+<tr><td>Created by</td><td><code>seed/new_db.py</code></td><td><code>seed/new_usage_db.py</code></td></tr>
+<tr><td>If you lose it</td><td><strong>Gone.</strong> Nothing can reconstruct it</td><td>Rebuilt from transcripts in seconds</td></tr>
+<tr><td>In <code>.gitignore</code></td><td>No — so git refuses to overwrite it</td><td>No — same rule, same reason</td></tr>
+<tr><td>Commit guard</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Snapshotted to <code>backups/</code></td><td>Yes — on start, and before every delete</td><td>Yes — on start, and before every rebuild</td></tr>
+<tr><td>Destructive action in the UI</td><td><em>Delete</em> on the Maintenance page</td><td><em>Rebuild usage</em> on the Maintenance page</td></tr>
+<tr><td>Worth backing up yourself</td><td><strong>Yes</strong></td><td>Not really — but it is, anyway</td></tr>
+</tbody></table>
+<p>The one asymmetry worth knowing is the <code>watermark</code> table inside <code>token_usage.db</code>. It records how far the reader got through each transcript, and it is <em>not</em> re-derivable in the cheap sense: losing it does not lose data, but it turns the next import into a full re-read of every session file on the machine. That is why <em>Rebuild usage</em> takes a snapshot first, exactly as a delete does.</p>
+
 <h3>3 · Start the dashboard</h3>
 <pre>python serve.py           # any OS → http://127.0.0.1:8250/index.html
 python serve.py 9000      # any port, if 8250 is busy</pre>
