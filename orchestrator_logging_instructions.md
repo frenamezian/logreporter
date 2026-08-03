@@ -184,4 +184,3 @@ Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.
 # (exits immediately; row written in the background with commit_reference set)
 ```
 
-Full contract and rationale: `UPDATE_PLAN.md` §16.
