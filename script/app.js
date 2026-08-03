@@ -8,6 +8,27 @@ const { applyFilters, drillRows, unique } = window.Filters;
 
 const DEFAULT_FILTER = { search: '', repo: [], branch: [], agent: [], log_type: [], git: [], log_level: [], status: [], priority: [], from: '', to: '' };
 
+// --- theme ------------------------------------------------------------------
+// Dark is the default and needs no attribute, so the whole theme is one flag on
+// <html> that style.css keys off. The value has already been applied by the
+// inline bootstrap in index.html — that has to happen before first paint, or
+// every load flashes the other theme — so the state below reads the DOM rather
+// than assuming a default and fighting what is already on screen.
+const THEME_KEY = 'logreporter.theme';
+
+function readTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+function applyTheme(theme) {
+  if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+  // Wrapped: localStorage throws rather than no-ops when storage is blocked
+  // (some file:// configurations), and losing the preference across reloads is
+  // not a reason to take the dashboard down.
+  try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* not persisted */ }
+}
+
 // The Models page filters the LLM registry, not the logs, so it carries its own
 // filter object. Legacy and deprecated models are excluded by default: 31 of
 // the 102 in the registry are retired, and they are kept only so an old session
@@ -62,6 +83,7 @@ window.LogApp = {
     // the feature: the two views disagree, and the disagreement is the point.
     measure: 'tokens',
     // shell state (§11.1)
+    theme: readTheme(),
     sidebar: true,
     panels: { filters: false, nav: true },
     srcOpen: false,
@@ -233,6 +255,13 @@ window.LogApp = {
   },
 
   // --- shell / sidebar / panels (§11.2) ---
+  toggleTheme() {
+    this.state.theme = this.state.theme === 'light' ? 'dark' : 'light';
+    applyTheme(this.state.theme);
+    // render(), not update(): the theme changes no row, no filter and no scope.
+    // It redraws the header so the button's own label and title follow.
+    this.render();
+  },
   toggleSidebar() {
     this.state.sidebar = !this.state.sidebar;
     this.render();

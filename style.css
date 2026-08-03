@@ -1,4 +1,20 @@
+/* ============================================================================
+   THEME TOKENS
+
+   Two themes, one token vocabulary. Dark is the default and lives in :root, so
+   a page with no data-theme attribute renders exactly as it always has. Light
+   is an override on :root[data-theme="light"] — a (0,2,0) selector, which beats
+   the bare :root below it regardless of source order, so the two blocks cannot
+   fight.
+
+   The rule for adding anything here: no literal colour may appear outside these
+   two blocks. A hex or rgba() in a rule body is a value that only works in one
+   theme, and it will silently be wrong in the other one. Every wash, hairline,
+   scrollbar and focus mark below exists because it was such a literal.
+   ========================================================================= */
 :root {
+  color-scheme: dark;
+
   --bg: #0f1115;
   --surface: #161821;
   --surface-2: #1b1d2b;
@@ -12,6 +28,36 @@
   --decision: #2196f3;
   --github: #4fc3f7;
   --idle: repeating-linear-gradient(135deg, rgba(255,255,255,0.08) 0 4px, transparent 4px 8px);
+
+  /* --- surface modifiers ----------------------------------------------------
+     A dark theme builds elevation by adding light; a light theme builds it by
+     adding dark. These are the same three hover washes in both themes, which is
+     why they are tokens rather than rgba() literals at the point of use. */
+  --wash-1: rgba(255,255,255,0.03);   /* faintest: table row hover */
+  --wash-2: rgba(255,255,255,0.04);   /* standard row / entry hover */
+  --wash-3: rgba(255,255,255,0.06);   /* button-like hover */
+  --row-alt: rgba(255,255,255,0.02);  /* zebra striping */
+  --hairline: rgba(255,255,255,0.04); /* sub-border rules inside dense tables */
+  --hatch: rgba(255,255,255,0.05);    /* idle / gap diagonal hatch */
+  --hatch-strong: rgba(255,255,255,0.3); /* the same hatch at legend size */
+
+  --on-accent: #fff;                  /* text and marks on an accent fill */
+  --accent-hover: #6a9af5;
+  --btn-hover: #252838;
+
+  --scroll-thumb: #3a3f52;
+  --scroll-thumb-hover: #4a5068;
+
+  /* Hairline between adjacent bar segments. It has to read as a cut, so it is
+     the direction the surface is NOT: near-black on dark, near-white on light. */
+  --seg-edge: rgba(9,10,14,.5);
+  --seg-edge-strong: rgba(9,10,14,.55);
+  /* The mark on the waterfall's current segment — maximum contrast against the
+     four saturated log-type fills, which is the opposite colour per theme. */
+  --focus-mark: #fff;
+
+  --overlay: rgba(0,0,0,0.55);        /* modal backdrop */
+  --error-text: oklch(0.78 0.09 25);  /* error_details monospace block */
 
   /* --- token usage: a validated four-step ramp -------------------------------
      --activity / --issue / --decision / --github are RESERVED for log types.
@@ -57,6 +103,112 @@
   --shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 
+/* ============================================================================
+   LIGHT THEME — high summer
+
+   Not the dark theme inverted. A warm sunlit ground (sand, not paper) with the
+   saturated end of each hue family, so the palette reads as bright noon rather
+   than as a dark theme with the lights turned up.
+
+   Only colour is redefined. Fonts, radii and the grid tokens are shared, so a
+   layout change never has to be made twice.
+   ========================================================================= */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #fffaf2;         /* sunlit sand — the page */
+  --surface: #ffffff;    /* cards, panels, code blocks */
+  --surface-2: #fdeedb;  /* warm chrome: header, sidebar, inputs, table heads */
+  --text: #33261c;       /* warm near-black, never pure #000 on a warm ground */
+  /* Tuned against --surface-2, not --bg. Secondary labels sit on the sand
+     chrome as often as on the page, and that is the tightest of the three
+     grounds: the first candidate here cleared 4.5:1 on --bg and only made 4.1:1
+     on the header. 5.4 / 5.9 / 6.2 across surface-2 / bg / surface. */
+  --text-dim: #785c45;
+  --border: #f0dcc2;
+  --accent: #0a72c4;     /* deep sea blue; 5.0:1 under white, so --on-accent holds */
+  --accent-2: #05537f;   /* accent as TEXT: on light it has to go darker, not brighter */
+
+  /* The four log-type hues, re-derived for a light ground rather than reused.
+     Unlike the dark set (which predates the validator and fails three of its
+     checks), this one clears all five:
+
+       node scripts/validate_palette.js "#0d8442,#e02d1b,#3a5fe0,#0099b0" \
+            --mode light --surface "#fffaf0"
+       -> lightness band PASS · chroma floor PASS
+          CVD separation PASS (worst adjacent #e02d1b<->#0d8442 dE 9.4 deutan)
+          normal-vision floor PASS (18.6) · contrast vs surface PASS (all >= 3:1)
+
+     Stacking order is fixed by §Design (activity -> issue -> decision -> github),
+     and the validator checks ADJACENT pairs, so that order is what was tested.
+     Re-order these and the separation guarantee is gone. */
+  --activity: #0d8442;
+  --issue: #e02d1b;
+  --decision: #3a5fe0;
+  --github: #0099b0;
+  /* Absence is drawn as texture in both themes. On light the hatch is dark. */
+  --idle: repeating-linear-gradient(135deg, rgba(51,38,28,0.13) 0 4px, transparent 4px 8px);
+
+  --wash-1: rgba(51,38,28,0.035);
+  --wash-2: rgba(51,38,28,0.05);
+  --wash-3: rgba(51,38,28,0.08);
+  --row-alt: rgba(51,38,28,0.025);
+  --hairline: rgba(51,38,28,0.07);
+  --hatch: rgba(51,38,28,0.07);
+  --hatch-strong: rgba(51,38,28,0.35);
+
+  --on-accent: #fff;
+  --accent-hover: #0b83e0;
+  --btn-hover: #fbe3c4;
+
+  --scroll-thumb: #e3c9a4;
+  --scroll-thumb-hover: #d3b184;
+
+  /* Inverted against the dark theme: a white cut between two saturated fills is
+     what reads as a gap on a light ground; a black one reads as a shadow. */
+  --seg-edge: rgba(255,255,255,.55);
+  --seg-edge-strong: rgba(255,255,255,.65);
+  --focus-mark: #33261c;
+
+  --overlay: rgba(58,40,22,0.42);
+  --error-text: oklch(0.45 0.15 27);
+
+  /* Token usage, re-validated on the light ground. Same reasoning as the dark
+     set: the log-type families (green, red, blue, cyan) stay reserved, so these
+     four are amber, magenta, violet and burnt orange, in an order chosen so no
+     adjacent pair collapses under CVD.
+
+       node scripts/validate_palette.js "#b06f00,#c8306f,#6a4fd0,#d34a13" \
+            --mode light --surface "#fffaf0"
+       -> lightness band PASS · chroma floor PASS
+          CVD separation PASS (worst adjacent #c8306f<->#b06f00 dE 11.1 deutan)
+          normal-vision floor PASS (19.3) · contrast vs surface PASS (all >= 3:1) */
+  --usage-cache-read: #b06f00;
+  --usage-cache-write: #c8306f;
+  --usage-input: #6a4fd0;
+  --usage-output: #d34a13;
+
+  /* The ranking ramp RUNS THE OTHER WAY here, and that is the whole point of
+     re-deriving it rather than reusing the dark steps. On dark, more is
+     brighter, because a dark bar would recede into the background exactly where
+     the value is largest. On light the same logic inverts: more is darker.
+     rank-1 is the smallest bucket and rank-5 the largest (log-usage.js steps by
+     share of max), so step 1 is the palest here and the deepest on dark.
+
+       node scripts/validate_palette.js "#a695e6,#8a76d8,#6d5ac4,#50409e,#332869" \
+            --mode light --surface "#fffaf0" --ordinal
+       -> monotone L PASS · adjacent dL PASS · light-end contrast 2.50:1 PASS
+          single hue PASS (spread 6 degrees) */
+  --usage-rank-1: #a695e6;
+  --usage-rank-2: #8a76d8;
+  --usage-rank-3: #6d5ac4;
+  --usage-rank-4: #50409e;
+  --usage-rank-5: #332869;
+
+  /* Warm and diffuse: a neutral black shadow on a sand ground reads as dirt. */
+  --shadow: 0 2px 10px rgba(120,80,30,0.16);
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 /* The viewport column: the shell takes what is left, the sponsor strip keeps
@@ -73,11 +225,11 @@ body {
   flex-direction: column;
 }
 
-/* Visible scrollbars on the dark surfaces */
-* { scrollbar-width: thin; scrollbar-color: #3a3f52 transparent; }
+/* Visible scrollbars against the chrome, in whichever theme is on */
+* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #3a3f52; border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: #4a5068; }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
 ::-webkit-scrollbar-track { background: transparent; }
 
 button, input, select, textarea {
@@ -89,9 +241,9 @@ button, input, select, textarea {
   padding: 6px 10px;
 }
 button { cursor: pointer; }
-button:hover { background: #252838; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-button.primary:hover { background: #6a9af5; }
+button:hover { background: var(--btn-hover); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+button.primary:hover { background: var(--accent-hover); }
 button.small { padding: 4px 8px; font-size: 12px; }
 
 /* app.js mounts <app-shell> directly, so the column layout has to be attached
@@ -116,7 +268,7 @@ log-header {
 
 .nav-tabs { display: flex; gap: 2px; flex-wrap: wrap; }
 .nav-tabs button { padding: 5px 10px; font-size: 13px; border: 0; background: transparent; border-radius: 6px; }
-.nav-tabs button.active { background: var(--accent); color: #fff; }
+.nav-tabs button.active { background: var(--accent); color: var(--on-accent); }
 .nav-tabs button .count { margin-left: 5px; font-size: 11px; opacity: .7; }
 
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
@@ -126,6 +278,17 @@ log-header {
   display: flex; align-items: center; gap: 6px;
   padding: 5px 10px; font-size: 12px; background: var(--surface);
 }
+/* Fixed width, because the two glyphs do not have the same advance and the
+   header would shift under the pointer on every click otherwise.
+   Qualified with `button` so it outweighs `button.small`, which the element
+   also carries and which would otherwise win on padding and squeeze the glyph. */
+button.theme-toggle {
+  flex: none; width: 28px; padding: 4px 0;
+  font-size: 13px; line-height: 1; text-align: center;
+  background: var(--surface); color: var(--text-dim);
+}
+button.theme-toggle:hover { background: var(--btn-hover); color: var(--text); border-color: var(--accent); }
+
 .src-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 .src-dot.ok { background: var(--accent); }
 .src-dot.demo { background: var(--text-dim); }
@@ -136,15 +299,15 @@ log-header {
 /* --- collapsible sidebar / rail (§1.1) --- */
 .sidebar { width: 320px; flex: 0 0 320px; background: var(--surface-2); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; position: relative; }
 .sidebar-resize { position: absolute; right: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; }
-.sidebar-resize:hover { background: rgba(91,141,239,0.3); }
+.sidebar-resize:hover { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 .sidebar-collapse { flex: 0 0 auto; padding: 6px 10px; font-size: 14px; background: transparent; border: 0; border-bottom: 1px solid var(--border); text-align: right; color: var(--text-dim); }
-.sidebar-collapse:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+.sidebar-collapse:hover { background: var(--wash-2); color: var(--text); }
 .sidebar log-filters, .sidebar log-help-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
 .sidebar-rail { width: 46px; flex: 0 0 46px; background: var(--surface-2); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 10px; }
 .rail-filter { position: relative; width: 34px; height: 34px; padding: 0; font-size: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
-.rail-filter:hover { background: #252838; }
-.rail-badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; text-align: center; background: var(--accent); color: #fff; border-radius: 8px; }
+.rail-filter:hover { background: var(--btn-hover); }
+.rail-badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; text-align: center; background: var(--accent); color: var(--on-accent); border-radius: 8px; }
 
 log-filters {
   display: flex; flex-direction: column; gap: 12px; padding: 14px;
@@ -159,7 +322,7 @@ log-filters .section-head-btn {
   color: var(--accent-2); border: 1px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
-log-filters .section-head-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 34%, transparent); color: #fff; }
+log-filters .section-head-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--on-accent); }
 log-filters .section-head-btn:disabled { opacity: .35; cursor: default; color: var(--text-dim); border-color: var(--border); background: transparent; }
 log-filters .filter-body { display: flex; flex-direction: column; gap: 6px; }
 log-filters .filter-body[hidden] { display: none; }
@@ -173,7 +336,7 @@ log-filters .filter-group:first-child .filter-body { max-height: 44vh; overflow-
 .nav-tree ul { list-style: none; margin: 0; padding-left: 14px; }
 .nav-tree li { margin: 2px 0; }
 .nav-tree .node { display: flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-.nav-tree .node:hover, .nav-tree .node.active { background: rgba(91,141,239,0.15); }
+.nav-tree .node:hover, .nav-tree .node.active { background: color-mix(in srgb, var(--accent) 15%, transparent); }
 .nav-tree .caret { width: 12px; text-align: center; opacity: .6; }
 
 .content { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
@@ -190,9 +353,9 @@ log-filters .filter-group:first-child .filter-body { max-height: 44vh; overflow-
 
 .right-panel { width: 372px; flex: 0 0 372px; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; position: relative; }
 .right-panel-resize { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; }
-.right-panel-resize:hover { background: rgba(91,141,239,0.3); }
+.right-panel-resize:hover { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 .detail-close { position: absolute; top: 8px; right: 8px; z-index: 1; padding: 2px 8px; font-size: 14px; background: transparent; border: 0; color: var(--text-dim); }
-.detail-close:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+.detail-close:hover { color: var(--text); background: var(--wash-3); }
 log-details { flex: 1; overflow-y: auto; }
 
 .page-title { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
@@ -202,7 +365,7 @@ log-details { flex: 1; overflow-y: auto; }
 
 .tree-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; }
 .tree-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; }
-.tree-head:hover { background: rgba(255,255,255,0.03); }
+.tree-head:hover { background: var(--wash-1); }
 .tree-head .caret { width: 16px; text-align: center; }
 .tree-head .name { flex: 1; font-weight: 500; }
 .tree-head .meta { font-size: 12px; color: var(--text-dim); }
@@ -222,7 +385,7 @@ log-details { flex: 1; overflow-y: auto; }
 .bar-indent { color: var(--text-dim); margin-right: 4px; white-space: pre; }
 /* Hairline between the children that make up one colour block, so a long green
    run reads as several branches / tasks / agents / entries rather than one. */
-.bar-part { box-shadow: inset -1px 0 0 rgba(9,10,14,.5); }
+.bar-part { box-shadow: inset -1px 0 0 var(--seg-edge); }
 .bar-part:hover { filter: brightness(1.3); }
 .bar-part:last-child { box-shadow: none; }
 .bar-row-active { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 4px; box-shadow: inset 2px 0 0 var(--accent); }
@@ -231,8 +394,8 @@ log-details { flex: 1; overflow-y: auto; }
 .log-table th, .log-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
 .log-table th { background: var(--surface-2); position: sticky; top: 0; }
 .log-table tr { cursor: pointer; }
-.log-table tr:hover { background: rgba(255,255,255,0.04); }
-.log-table tr.selected { background: rgba(91,141,239,0.18); }
+.log-table tr:hover { background: var(--wash-2); }
+.log-table tr.selected { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 
 /* log-list-table: fixed layout so colgroup clamp() widths are honoured */
 .log-list-table { table-layout: fixed; }
@@ -271,7 +434,7 @@ code, .mono { font-family: var(--mono); }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #3f424d; border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 8px; }
 
 /* --- help page: the article is a page like any other; the outline lives in
        the sidebar, in place of the filters (see log-help-nav below) --- */
@@ -282,10 +445,10 @@ log-filters .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; 
 log-filters .chip {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px; font-size: 11px; line-height: 1.4;
-  background: var(--accent); color: #fff; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent);
   border-radius: 12px; cursor: pointer;
 }
-log-filters .chip:hover { background: #6a9af5; border-color: #6a9af5; }
+log-filters .chip:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
 /* --- §3.4 navigation tree enhancements --- */
 log-filters .nav-tree, log-filters .nav-tree ul { list-style: none; margin: 0; padding: 0; }
@@ -297,8 +460,8 @@ log-filters .nav-tree .node {
   padding: 3px 6px; border-radius: 6px; cursor: pointer; font-size: 12px;
   min-width: 0;
 }
-log-filters .nav-tree .node:hover { background: rgba(91,141,239,0.15); }
-log-filters .nav-tree .node.active { background: rgba(91,141,239,0.25); color: var(--accent-2); }
+log-filters .nav-tree .node:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+log-filters .nav-tree .node.active { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--accent-2); }
 log-filters .nav-tree .node.leaf { padding-left: 6px; }
 log-filters .nav-tree .node-label {
   flex: 1 1 auto; min-width: 0;
@@ -329,7 +492,7 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
 
 .timeline { display: flex; flex-direction: column; }
 .chrono-day { margin: 16px 0 8px; font-size: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); padding-bottom: 4px; letter-spacing: 0.04em; text-transform: uppercase; }
-.chrono-gap { margin: 4px 0; padding: 6px 10px; background: repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0 3px, transparent 3px 6px); border-radius: 6px; font-size: 12px; color: var(--text-dim); }
+.chrono-gap { margin: 4px 0; padding: 6px 10px; background: repeating-linear-gradient(135deg, var(--hatch) 0 3px, transparent 3px 6px); border-radius: 6px; font-size: 12px; color: var(--text-dim); }
 
 /* --- where time goes (§6) --- */
 .metric-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
@@ -376,7 +539,7 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
 /* A faint edge on every segment: consecutive logs of the same type would
    otherwise fuse into one indistinguishable colour block. Drawn as an inset
    shadow so it costs no width. */
-.wf-seg { cursor: pointer; box-shadow: inset -1px 0 0 rgba(9,10,14,.55); }
+.wf-seg { cursor: pointer; box-shadow: inset -1px 0 0 var(--seg-edge-strong); }
 .wf-seg:hover { filter: brightness(1.25); }
 /* Zero-length events (`end` logs, logs sharing a timestamp): a tick, so they
    are visible, hoverable and highlightable even though they cost no time. */
@@ -387,10 +550,12 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
 .wf-focus .wf-seg { opacity: .3; }
 .wf-focus .wf-seg.in-trace { opacity: 1; }
 /* inset, because .wf-bar clips its children */
-.wf-focus .wf-seg.current { opacity: 1; z-index: 2; box-shadow: inset 0 0 0 2px #fff; min-width: 3px; }
+.wf-focus .wf-seg.current { opacity: 1; z-index: 2; box-shadow: inset 0 0 0 2px var(--focus-mark); min-width: 3px; }
 /* a tick is too narrow for an inset outline — widen and whiten it instead */
-.wf-focus .wf-point.current { width: 5px; background: #fff; box-shadow: 0 0 0 1px var(--accent); }
-.wf-focus .wf-row-current .wf-name { color: #fff; font-weight: 600; }
+.wf-focus .wf-point.current { width: 5px; background: var(--focus-mark); box-shadow: 0 0 0 1px var(--accent); }
+/* --focus-mark, not --on-accent: this text sits on the plain row, not on an
+   accent fill, so it has to be the opposite of the surface in both themes. */
+.wf-focus .wf-row-current .wf-name { color: var(--focus-mark); font-weight: 600; }
 .wf-focus .wf-row-current .wf-track { background: color-mix(in srgb, var(--accent) 12%, var(--surface-2)); }
 .wf-legend-focus { margin-left: auto; color: var(--accent-2); }
 
@@ -471,10 +636,10 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
   max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.scope-pill:hover { background: #252838; border-color: var(--accent); }
-.scope-pill.current { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); color: #fff; }
+.scope-pill:hover { background: var(--btn-hover); border-color: var(--accent); }
+.scope-pill.current { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); color: var(--on-accent); }
 .scope-pill-kind { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
-.scope-pill.current .scope-pill-kind { color: color-mix(in srgb, #fff 75%, transparent); }
+.scope-pill.current .scope-pill-kind { color: color-mix(in srgb, var(--on-accent) 75%, transparent); }
 .scope-reset { flex: none; }
 .scope-reset:disabled { opacity: .45; cursor: default; }
 .log-table td.dim { color: var(--text-dim); }
@@ -490,7 +655,7 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
 /* --- custom confirm modal (§8.1) --- */
 .confirm-overlay {
   position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,0.55);
+  background: var(--overlay);
   display: flex; align-items: center; justify-content: center;
 }
 .confirm-modal {
@@ -545,7 +710,7 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
 
 .detail-section-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
 
-.error-pre { margin: 0; padding: 10px; border-radius: 4px; background: var(--surface); font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; color: oklch(0.78 0.09 25); font-family: var(--mono); border-left: 2px solid var(--issue); }
+.error-pre { margin: 0; padding: 10px; border-radius: 4px; background: var(--surface); font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; color: var(--error-text); font-family: var(--mono); border-left: 2px solid var(--issue); }
 
 .agent-path-chain { display: flex; flex-direction: column; gap: 3px; }
 .agent-path-item { align-self: flex-start; font-size: 12.5px; color: color-mix(in srgb, var(--text) 80%, transparent); border-left: 1px solid var(--border); padding: 1px 0 1px 8px; }
@@ -557,7 +722,7 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
 
 .trace-timeline-list { display: flex; flex-direction: column; }
 .trace-tl-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 0; border-left: 1px solid var(--border); background: transparent; cursor: pointer; font-family: inherit; text-align: left; }
-.trace-tl-row:hover { background: rgba(255,255,255,0.04); }
+.trace-tl-row:hover { background: var(--wash-2); }
 .trace-tl-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--text-dim); margin: 0 1px; }
 .trace-tl-dot.current { width: 8px; height: 8px; margin: 0; background: var(--accent); }
 .trace-tl-offset { font-variant-numeric: tabular-nums; font-size: 11.5px; color: color-mix(in srgb, var(--text) 50%, transparent); width: 52px; flex: none; }
@@ -640,7 +805,7 @@ log-header { position: relative; }
 /* compact button variant used by tree rows (Time →, legend) */
 .btn { padding: 4px 9px; font-size: 12px; border-radius: 6px; }
 .btn-secondary { background: transparent; border-color: var(--border); color: var(--text-dim); }
-.btn-secondary:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.btn-secondary:hover { background: var(--wash-3); color: var(--text); }
 .time-btn { flex: none; padding: 3px 8px; font-size: 11.5px; }
 
 /* tree-head refinements for branch / task rows */
@@ -678,7 +843,7 @@ log-header { position: relative; }
   color: var(--text-dim); padding: 3px 12px 5px; border-bottom: 1px solid var(--border);
 }
 .entry-row { position: relative; cursor: pointer; font-size: 12.5px; height: 28px; overflow: hidden; }
-.entry-row:hover { background: rgba(255,255,255,0.04); }
+.entry-row:hover { background: var(--wash-2); }
 .entry-row > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .entry-time { font-variant-numeric: tabular-nums; color: var(--text-dim); }
 .entry-type { white-space: nowrap; }
@@ -692,7 +857,7 @@ log-header { position: relative; }
 .entry-row-selected::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
   border-left: 2px solid var(--accent);
-  background: rgba(91,141,239,0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 /* --- help page nav + article (§10) --- */
@@ -703,10 +868,10 @@ log-help-nav .filter-search { flex: 0 0 auto; }
   padding: 0 4px 4px; font-size: 11px; color: var(--text-dim);
 }
 .help-nav-clear { padding: 1px 8px; font-size: 11px; border-radius: 10px; background: transparent; color: var(--text-dim); }
-.help-nav-clear:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.help-nav-clear:hover { background: var(--wash-3); color: var(--text); }
 .help-nav-empty { padding: 8px 4px; font-size: 12px; color: var(--text-dim); }
 .help-nav-hint { margin-left: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; }
-.help-nav-item mark { background: rgba(91,141,239,0.32); color: var(--text); border-radius: 2px; }
+.help-nav-item mark { background: color-mix(in srgb, var(--accent) 32%, transparent); color: var(--text); border-radius: 2px; }
 
 .help-nav-group { margin-bottom: 18px; }
 .help-nav-heading {
@@ -720,9 +885,9 @@ log-help-nav .filter-search { flex: 0 0 auto; }
   background: transparent; border: 0; border-radius: 6px;
   color: var(--text-dim); cursor: pointer; line-height: 1.4;
 }
-.help-nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.help-nav-item:hover { background: var(--wash-3); color: var(--text); }
 .help-nav-item.active {
-  background: rgba(91,141,239,0.18); color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-2);
   font-weight: 500;
 }
 .help-nav-item.help-nav-sub { padding-left: 36px; font-size: 12px; }
@@ -753,7 +918,7 @@ log-help-nav .filter-search { flex: 0 0 auto; }
 .help-article table th, .help-article table td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
 .help-article table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); background: var(--surface-2); }
 .help-article table td { color: color-mix(in srgb, var(--text) 85%, transparent); }
-.help-article table tbody tr:hover { background: rgba(255,255,255,0.03); }
+.help-article table tbody tr:hover { background: var(--wash-1); }
 
 /* Pull-quote box and the category legend used by a few doc pages */
 .help-callout {
@@ -764,7 +929,7 @@ log-help-nav .filter-search { flex: 0 0 auto; }
 .help-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 14px; font-size: 12.5px; }
 .help-legend > span { display: flex; align-items: center; gap: 6px; }
 .help-swatch { width: 10px; height: 10px; flex: none; border-radius: 2px; }
-.help-swatch.idle { background: repeating-linear-gradient(135deg, rgba(255,255,255,0.3) 0 3px, transparent 3px 6px); }
+.help-swatch.idle { background: repeating-linear-gradient(135deg, var(--hatch-strong) 0 3px, transparent 3px 6px); }
 .help-loading { color: var(--text-dim); }
 
 /* Screenshots. The captures are 2x, so they are readable when opened at full
@@ -801,7 +966,7 @@ log-help-nav .filter-search { flex: 0 0 auto; }
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
   font-size: 10.5px; font-weight: 600; line-height: 1;
-  background: var(--accent); color: #fff; border-radius: 9px;
+  background: var(--accent); color: var(--on-accent); border-radius: 9px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -828,7 +993,7 @@ log-help-nav .filter-search { flex: 0 0 auto; }
   padding: 4px 8px; font-size: 12px; cursor: pointer;
   border-radius: 4px; color: var(--text);
 }
-.ms-option:hover { background: rgba(255,255,255,0.06); }
+.ms-option:hover { background: var(--wash-3); }
 .ms-option input { margin: 0; flex: none; }
 .ms-empty { padding: 8px; font-size: 12px; color: var(--text-dim); }
 .ms-summary {
@@ -943,8 +1108,8 @@ log-footer {
   padding: 4px 12px; font-size: 12px;
 }
 .measure-toggle button + button { border-left: 1px solid var(--border); }
-.measure-toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
-.measure-toggle button:hover:not([aria-pressed="true"]) { background: #252838; }
+.measure-toggle button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.measure-toggle button:hover:not([aria-pressed="true"]) { background: var(--btn-hover); }
 
 /* KPI tiles reuse .metrics-grid / .metric-card. Values keep the font's default
    proportional figures: tabular-nums at 24px makes numbers look loose. The
@@ -1010,7 +1175,7 @@ log-footer {
   font-size: 11px; text-transform: uppercase; color: var(--text-dim); letter-spacing: .03em;
 }
 .usage-table thead th:hover { color: var(--text); }
-.usage-table tbody tr:nth-child(even) { background: rgba(255,255,255,.02); }
+.usage-table tbody tr:nth-child(even) { background: var(--row-alt); }
 .usage-table tbody tr:hover { background: var(--surface-2); }
 .usage-table .na { color: var(--text-dim); }
 .usage-sort-arrow { opacity: .7; }
@@ -1063,7 +1228,7 @@ log-models-filters .filter-search { width: 100%; }
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
   padding: 10px 14px; background: transparent; border: 0; text-align: left; color: var(--text);
 }
-.mp-provider-toggle:hover { background: rgba(255,255,255,0.03); }
+.mp-provider-toggle:hover { background: var(--wash-1); }
 .mp-provider-toggle .caret { flex: none; width: 14px; text-align: center; color: var(--text-dim); }
 .mp-provider-name { flex: none; font-weight: 600; font-size: 14px; }
 .mp-provider-count { flex: none; font-size: 12px; color: var(--text-dim); }
@@ -1089,9 +1254,9 @@ log-models-filters .filter-search { width: 100%; }
 .mp-group.in { color: var(--usage-input); }
 .mp-group.out { color: var(--usage-output); }
 .mp-table .mp-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.mp-row { cursor: pointer; border-bottom: 1px solid rgba(255,255,255,.04); }
-.mp-row:hover { background: rgba(255,255,255,0.04); }
-.mp-row.open { background: rgba(91,141,239,0.12); }
+.mp-row { cursor: pointer; border-bottom: 1px solid var(--hairline); }
+.mp-row:hover { background: var(--wash-2); }
+.mp-row.open { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .mp-row .caret { display: inline-block; width: 14px; color: var(--text-dim); }
 .mp-name { font-weight: 500; white-space: nowrap; }
 .mp-id { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); white-space: nowrap; }
@@ -1102,11 +1267,11 @@ log-models-filters .filter-search { width: 100%; }
   border: 1px solid var(--border); border-radius: 9px; color: var(--text-dim);
 }
 .mp-row:hover .mp-chip, .mp-row.open .mp-chip { border-color: var(--accent); color: var(--accent-2); }
-.mp-intro { font-size: 8.5px; margin-left: 3px; padding: 0 3px; border-radius: 3px; background: var(--accent); color: #fff; vertical-align: super; cursor: help; }
+.mp-intro { font-size: 8.5px; margin-left: 3px; padding: 0 3px; border-radius: 3px; background: var(--accent); color: var(--on-accent); vertical-align: super; cursor: help; }
 
 /* A row the headline columns cannot summarise says why, instead of showing
    four em dashes and leaving the reader to open it and guess. */
-.mp-note td { padding: 0 8px 5px 30px; font-size: 11.5px; color: var(--text-dim); border-bottom: 1px solid rgba(255,255,255,.04); }
+.mp-note td { padding: 0 8px 5px 30px; font-size: 11.5px; color: var(--text-dim); border-bottom: 1px solid var(--hairline); }
 .mp-note.warn td { color: var(--issue); }
 
 .mp-more { padding: 8px 10px 2px; font-size: 11.5px; color: var(--text-dim); }
@@ -1124,7 +1289,7 @@ log-models-filters .filter-search { width: 100%; }
 .mp-tiers-note { font-size: 11px; color: var(--text-dim); margin-left: auto; }
 .mp-tier-table { border-collapse: collapse; font-size: 12.5px; margin: 8px 0 10px; min-width: min(560px, 100%); }
 .mp-tier-table th { font-weight: 500; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); padding: 3px 12px 5px 0; border-bottom: 1px solid var(--border); }
-.mp-tier-table td { padding: 4px 12px 4px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.mp-tier-table td { padding: 4px 12px 4px 0; border-bottom: 1px solid var(--hairline); }
 .mp-tier-table .mp-num { text-align: right; font-variant-numeric: tabular-nums; }
 .mp-tier-n { color: var(--text-dim); width: 24px; }
 .mp-tier { font-family: var(--mono); font-size: 11.5px; }

@@ -6,6 +6,7 @@
 <tr><td><strong>CSV · JSON</strong></td><td>Download the rows in scope. Columns are written verbatim in the table's own order; JSON is the row objects as read.</td></tr>
 <tr><td><strong>Refresh</strong></td><td>Re-reads the database <em>from its source</em>, not from the copy in memory — a file you opened by hand is re-opened through its handle, otherwise <code>activity_logs.db</code> is fetched again. This is what surfaces rows agents appended while you were reading.</td></tr>
 <tr><td><strong>Data source</strong></td><td>The status dot, the current file name, and a menu (below).</td></tr>
+<tr><td><strong>☀ / ☾</strong></td><td>Switches between the light and dark themes. The glyph shows the theme you would <em>get</em>, not the one you are in. The choice is kept in <code>localStorage</code> and re-applied before the page paints, so a reload never flashes the other theme. Nothing else changes: no row leaves scope, no panel closes, no filter is cleared.</td></tr>
 <tr><td><strong>?</strong></td><td>This guide. It is the Help page, not a popup — the same tab, reachable either way.</td></tr>
 </tbody></table>
 

@@ -62,16 +62,23 @@ WHEN              TASK        AGENT       MODEL     INPUT  CACHE READ  WRITE 5M 
 <table><thead><tr><th>Element</th><th>Behaviour</th></tr></thead><tbody>
 <tr><td>Tokens ⇄ Cost</td><td>Redraws the same layout against one measure. Ordering, colour and layout hold across the switch; only the values change. Never a shared axis.</td></tr>
 <tr><td>Ranking rows</td><td>Ordered by tokens in <em>both</em> views, so rows do not jump on toggle. The cost view is therefore not always descending — that disagreement is the point of the toggle.</td></tr>
-<tr><td>Ranking colour</td><td>Sequential: one hue in five steps, dim→bright. A dark surface inverts "more is darker" — a darker bar would recede exactly where the value is largest. The step follows the value's share of the maximum, not the row index, so a filter that drops the largest row does not repaint the survivors.</td></tr>
+<tr><td>Ranking colour</td><td>Sequential: one hue in five steps, and <em>the ramp runs the other way in each theme</em>. On dark it goes dim→bright, because a darker bar would recede into the ground exactly where the value is largest; on light the same logic gives the familiar "more is darker". The step follows the value's share of the maximum, not the row index, so a filter that drops the largest row does not repaint the survivors.</td></tr>
 <tr><td>Segment colour</td><td>Its own validated four-step ramp. <code>--activity</code>, <code>--issue</code>, <code>--decision</code> and <code>--github</code> are reserved for log types: a cost bar in the issue red would read as an error.</td></tr>
 <tr><td>Unattributed</td><td>Hatched and italic so it never reads as a task, but ranked on its value like any other row.</td></tr>
 <tr><td>Table</td><td>Sortable on every column, nulls last in both directions, capped at 500 rows with the cap stated on screen.</td></tr>
 <tr><td>Empty states</td><td>No cache yet, unreachable, unreadable and "no rows match" are four different messages. The first tells you how to build it.</td></tr>
 </tbody></table>
 
-<p>The ramps are validated, not chosen by eye:</p>
-<pre>node scripts/validate_palette.js "#c98500,#d55181,#9085e9,#d95926" \
+<p>The ramps are validated, not chosen by eye — and each theme gets its own, validated against its own ground:</p>
+<pre># dark
+node scripts/validate_palette.js "#c98500,#d55181,#9085e9,#d95926" \
      --mode dark --surface "#161821"
 node scripts/validate_palette.js "#574aa5,#6b5cc4,#8071dc,#968bec,#b0a6f6" \
-     --mode dark --surface "#161821" --ordinal</pre>
-<p>Both pass every gate against this project's own surface. The <em>order</em> is the safety mechanism, not decoration: orange next to amber measures ΔE 4.8 under deuteranopia and 10.6 with full colour vision, which fails both floors — putting magenta and violet between them is what makes the set legible. If you re-order these, re-run the validator.</p>
+     --mode dark --surface "#161821" --ordinal
+
+# light
+node scripts/validate_palette.js "#b06f00,#c8306f,#6a4fd0,#d34a13" \
+     --mode light --surface "#fffaf0"
+node scripts/validate_palette.js "#a695e6,#8a76d8,#6d5ac4,#50409e,#332869" \
+     --mode light --surface "#fffaf0" --ordinal</pre>
+<p>All four pass every gate against the surface they are actually drawn on. The <em>order</em> is the safety mechanism, not decoration: on dark, orange next to amber measures ΔE 4.8 under deuteranopia and 10.6 with full colour vision, which fails both floors — putting magenta and violet between them is what makes the set legible. If you re-order either set, or re-tint a surface, re-run the validator for that mode.</p>

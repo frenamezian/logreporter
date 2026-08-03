@@ -36,10 +36,21 @@ class LogHeader extends LogComponent {
         <button class="small" data-json="1">JSON</button>
         <button class="small primary" data-refresh="1">Refresh</button>
         <button class="src-button" data-src="1"><span class="src-dot ${dotClass}"></span> ${esc(s.src.name)} <span>▾</span></button>
+        ${this._renderThemeToggle(s)}
         <button class="small" title="Help — user and developer guide" data-page="help">?</button>
       </div>
       ${s.srcOpen ? this._renderDropdown(s) : ''}
     `;
+  }
+
+  // The glyph shows the theme you would GET, not the one you are in: a button
+  // labelled with the current state reads as a status light, and gets clicked
+  // by people who wanted the thing it was already showing.
+  _renderThemeToggle(s) {
+    const toLight = s.theme !== 'light';
+    return `<button class="small theme-toggle" data-theme-toggle="1"
+              aria-pressed="${!toLight}"
+              title="Switch to ${toLight ? 'light' : 'dark'} mode">${toLight ? '☀' : '☾'}</button>`;
   }
 
   _renderDropdown(s) {
@@ -71,6 +82,8 @@ class LogHeader extends LogComponent {
     // Source button toggles the dropdown panel (§2.1)
     const src = this.querySelector('[data-src]');
     if (src) src.onclick = () => window.LogApp.toggleSrc();
+    const theme = this.querySelector('[data-theme-toggle]');
+    if (theme) theme.onclick = () => window.LogApp.toggleTheme();
     // Dropdown actions
     const openDb = this.querySelector('[data-open-db]');
     if (openDb) openDb.onclick = () => window.LogApp.openDb();
