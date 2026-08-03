@@ -40,17 +40,22 @@
   <h2>Run the real thing instead</h2>
 
   <p>
-    You have the dashboard already; it is the repository you cloned. From its
-    root:
+    You have the dashboard already; it is the repository you cloned.
+    <strong><a href="../../index.html">It is here</a></strong> — if something is
+    already serving this page, that link is the running application, and it
+    reads your own <code>activity_logs.db</code> rather than a sample of
+    someone else's.
   </p>
+
+  <p>Otherwise, from the repository root:</p>
 
 <pre>python seed/new_db.py     <em># or: bash seed/init_db.sh, for 148 sample rows</em>
 python serve.py           <em># then open http://127.0.0.1:8250/index.html</em></pre>
 
   <p>
     It has to be served over <code>http://</code>. Opened as a file, the
-    browser's <code>fetch()</code> cannot read the database and the page falls
-    back to demo data without saying so.
+    browser's <code>fetch()</code> cannot read the database at all — the
+    dashboard says so and shows you this same instruction.
   </p>
 
   <h2>Or build the site locally</h2>
