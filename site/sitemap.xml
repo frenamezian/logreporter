@@ -6,7 +6,7 @@
   headless <p> with no <html>, no title and no way back to the app. Listing them
   would put a dozen orphan fragments in the index, all outranking nothing.
 
-  A sitemap under /log_reporter/ may only name URLs under /log_reporter/, which
+  A sitemap under /logreporter/ may only name URLs under /logreporter/, which
   is exactly what it does. Submit it in Search Console directly — the Sitemap:
   line in robots.txt is inert on a github.io subpath, for the reason that file
   explains.
@@ -18,22 +18,22 @@
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
   <url>
-    <loc>https://frenamezian.github.io/log_reporter/</loc>
+    <loc>https://frenamezian.github.io/logreporter/</loc>
     <lastmod>2026-08-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
     <image:image>
-      <image:loc>https://frenamezian.github.io/log_reporter/assets/img/timegoes-usage.png</image:loc>
+      <image:loc>https://frenamezian.github.io/logreporter/assets/img/timegoes-usage.png</image:loc>
       <image:title>Where time goes — five subagents, with own time, tokens and cost</image:title>
     </image:image>
     <image:image>
-      <image:loc>https://frenamezian.github.io/log_reporter/assets/img/metrics-usage.png</image:loc>
+      <image:loc>https://frenamezian.github.io/logreporter/assets/img/metrics-usage.png</image:loc>
       <image:title>Metrics — token totals and the cost breakdown</image:title>
     </image:image>
   </url>
 
   <url>
-    <loc>https://frenamezian.github.io/log_reporter/app/index.html</loc>
+    <loc>https://frenamezian.github.io/logreporter/app/index.html</loc>
     <lastmod>2026-08-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>

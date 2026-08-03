@@ -60,8 +60,8 @@ Works on Windows, macOS and Linux. The only Windows-specific file is the `start_
 ### 1. Clone
 
 ```bash
-git clone https://github.com/frenamezian/log_reporter.git
-cd log_reporter
+git clone https://github.com/frenamezian/logreporter.git
+cd logreporter
 ```
 
 ### 2. Create the database
@@ -143,7 +143,7 @@ Agents call `log_activity.py` **by absolute path**, from whatever directory they
 ### Step 1 — get your absolute path
 
 ```bash
-# from inside your log_reporter clone
+# from inside your logreporter clone
 python -c "import os; print(os.path.abspath('log_activity.py'))"
 ```
 
@@ -151,9 +151,9 @@ Examples — substitute yours everywhere `<LOGGER>` appears below:
 
 | OS | Looks like |
 | --- | --- |
-| Windows | `C:/Users/you/dev/log_reporter/log_activity.py` |
-| macOS | `/Users/you/dev/log_reporter/log_activity.py` |
-| Linux | `/home/you/dev/log_reporter/log_activity.py` |
+| Windows | `C:/Users/you/dev/logreporter/log_activity.py` |
+| macOS | `/Users/you/dev/logreporter/log_activity.py` |
+| Linux | `/home/you/dev/logreporter/log_activity.py` |
 
 > Forward slashes work fine on Windows and avoid backslash-escaping headaches inside prompts.
 
@@ -183,7 +183,7 @@ Delete the test row from the **Maintenance** page when you are done.
 Paste the contents of **[`orchestrator_logging_instructions.md`](orchestrator_logging_instructions.md)** into your lead agent's system prompt, with two edits:
 
 1. Replace every `python log_activity.py` / `python mint_trace.py` with the **absolute** path.
-2. **Delete the `--repo` and `--branch` flags.** The shipped file hardcodes `--repo log_reporter --branch main` because that is what this project's own agents used. Dropping them is what makes the prompt portable — git fills both in correctly, per repo, per branch, with no editing.
+2. **Delete the `--repo` and `--branch` flags.** The shipped file hardcodes `--repo logreporter --branch main` because that is what this project's own agents used. Dropping them is what makes the prompt portable — git fills both in correctly, per repo, per branch, with no editing.
 
 Here is the portable form, ready to paste (replace `<LOGGER>` and `<MINTER>`):
 
@@ -267,15 +267,15 @@ Three repos, one database, no per-repo configuration:
 
 ```bash
 # terminal 1 — the dashboard, running all day
-cd ~/dev/log_reporter && python serve.py
+cd ~/dev/logreporter && python serve.py
 
 # an agent working in ~/dev/api
-python /home/you/dev/log_reporter/log_activity.py --log-type start \
+python /home/you/dev/logreporter/log_activity.py --log-type start \
   --task "Add rate limiting" --agent lead_architect --agent-path lead_architect \
   --trace-id 9f2c41a8 --log-title "Started rate limiting" --status in_progress
 
 # its subagent, same task, same trace, deeper path
-python /home/you/dev/log_reporter/log_activity.py --log-type decision \
+python /home/you/dev/logreporter/log_activity.py --log-type decision \
   --task "Add rate limiting" --agent handler_dev \
   --agent-path lead_architect/handler_dev \
   --trace-id 9f2c41a8 --parent-trace-id 9f2c41a8 \
@@ -283,7 +283,7 @@ python /home/you/dev/log_reporter/log_activity.py --log-type decision \
   --log-description "Sliding window needs per-key history; bucket is O(1) and good enough at our QPS"
 
 # a different agent, in ~/dev/web, a different task and trace
-python /home/you/dev/log_reporter/log_activity.py --log-type activity \
+python /home/you/dev/logreporter/log_activity.py --log-type activity \
   --task "Dark mode" --agent lead_architect --agent-path lead_architect \
   --trace-id 4d10be77 --log-title "Extracted colour tokens"
 ```
@@ -554,7 +554,7 @@ Four specific things to be aware of, because they are the ones that can actually
 
 Nothing here is sent anywhere: no telemetry, no account, no upload. That also means nothing is backed up for you.
 
-If you find a bug — especially one where a number is wrong rather than missing — please [open an issue](https://github.com/frenamezian/log_reporter/issues). Wrong numbers are worse than absent ones, and they are the bugs I most want to hear about.
+If you find a bug — especially one where a number is wrong rather than missing — please [open an issue](https://github.com/frenamezian/logreporter/issues). Wrong numbers are worse than absent ones, and they are the bugs I most want to hear about.
 
 ---
 

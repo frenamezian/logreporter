@@ -20,13 +20,13 @@ access layer, it versions with the schema it writes, and agents in every repo
 invoke this one canonical copy by absolute path rather than keeping their own.
 
 Usage (one line; --repo and --branch omitted so git fills them in):
-  python C:/Users/lotra/Documents/github/log_reporter/log_activity.py --log-type start
+  python C:/Users/lotra/Documents/github/logreporter/log_activity.py --log-type start
       --task "task_0042 - Account service" --agent lead_architect
       --agent-path lead_architect --trace-id 9f2c41a8
       --log-title "Started task 0042" --log-level info --status in_progress
 
   # Mint a trace_id (orchestrator only — use the dedicated tool):
-  python C:/Users/lotra/Documents/github/log_reporter/mint_trace.py
+  python C:/Users/lotra/Documents/github/logreporter/mint_trace.py
 
 Exit codes (default async mode):
   0 — args valid, write dispatched to background (row id NOT printed).

@@ -9,9 +9,9 @@
 <!-- The site has exactly one canonical origin: GitHub Pages for this repo. It
      is spelled absolutely here, and in every og: URL below, because a crawler
      may have arrived at a variant — a trailing /index.html, a ?utm_ tail, the
-     older frenamezian.github.io/log_reporter without the slash — and only an
+     older frenamezian.github.io/logreporter without the slash — and only an
      absolute href tells it which one of those is the page. -->
-<link rel="canonical" href="https://frenamezian.github.io/log_reporter/">
+<link rel="canonical" href="https://frenamezian.github.io/logreporter/">
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
 <meta name="author" content="frenamezian">
 
@@ -51,7 +51,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="LogReporter">
 <meta property="og:locale" content="en_US">
-<meta property="og:url" content="https://frenamezian.github.io/log_reporter/">
+<meta property="og:url" content="https://frenamezian.github.io/logreporter/">
 <meta property="og:title" content="LogReporter — see what your subagents did, and what it cost">
 <meta property="og:description" content="Hooks tell you what happened. LogReporter tells you why. Subagent lineage, honest time accounting, and per-agent token cost — all local.">
 <!-- og-card.png, not the hero screenshot. A card renders at roughly 524px wide;
@@ -62,14 +62,14 @@
      shaved. PNG rather than WebP: several unfurlers still will not render a
      WebP card, and this is the one image whose job is to be rendered by
      somebody else's server. -->
-<meta property="og:image" content="https://frenamezian.github.io/log_reporter/assets/img/og-card.png">
+<meta property="og:image" content="https://frenamezian.github.io/logreporter/assets/img/og-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="LogReporter — see what your subagents actually did, and what it cost. Hooks tell you what happened; LogReporter tells you why. Local, one SQLite file, no account, MIT.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="LogReporter — see what your subagents did, and what it cost">
 <meta name="twitter:description" content="Hooks tell you what happened. LogReporter tells you why. Subagent lineage, honest time accounting, and per-agent token cost — all local.">
-<meta name="twitter:image" content="https://frenamezian.github.io/log_reporter/assets/img/og-card.png">
+<meta name="twitter:image" content="https://frenamezian.github.io/logreporter/assets/img/og-card.png">
 <meta name="twitter:image:alt" content="LogReporter — see what your subagents actually did, and what it cost. Hooks tell you what happened; LogReporter tells you why. Local, one SQLite file, no account, MIT.">
 
 <!-- Structured data, as one @graph rather than three separate <script> blocks,
@@ -86,35 +86,35 @@
   "@graph": [
     {
       "@type": "WebSite",
-      "@id": "https://frenamezian.github.io/log_reporter/#website",
-      "url": "https://frenamezian.github.io/log_reporter/",
+      "@id": "https://frenamezian.github.io/logreporter/#website",
+      "url": "https://frenamezian.github.io/logreporter/",
       "name": "LogReporter",
       "description": "A local dashboard over one SQLite file that shows what your AI coding subagents did, how long it took, and what it cost.",
       "inLanguage": "en",
-      "publisher": { "@id": "https://frenamezian.github.io/log_reporter/#author" }
+      "publisher": { "@id": "https://frenamezian.github.io/logreporter/#author" }
     },
     {
       "@type": "Person",
-      "@id": "https://frenamezian.github.io/log_reporter/#author",
+      "@id": "https://frenamezian.github.io/logreporter/#author",
       "name": "frenamezian",
       "url": "https://github.com/frenamezian"
     },
     {
       "@type": "SoftwareApplication",
-      "@id": "https://frenamezian.github.io/log_reporter/#app",
+      "@id": "https://frenamezian.github.io/logreporter/#app",
       "name": "LogReporter",
-      "alternateName": "log_reporter",
+      "alternateName": "logreporter",
       "applicationCategory": "DeveloperApplication",
       "applicationSubCategory": "AI agent observability",
       "operatingSystem": "Windows, macOS, Linux",
-      "url": "https://frenamezian.github.io/log_reporter/",
-      "downloadUrl": "https://github.com/frenamezian/log_reporter",
-      "codeRepository": "https://github.com/frenamezian/log_reporter",
+      "url": "https://frenamezian.github.io/logreporter/",
+      "downloadUrl": "https://github.com/frenamezian/logreporter",
+      "codeRepository": "https://github.com/frenamezian/logreporter",
       "programmingLanguage": ["Python", "JavaScript", "SQL"],
       "license": "https://opensource.org/licenses/MIT",
       "isAccessibleForFree": true,
-      "author": { "@id": "https://frenamezian.github.io/log_reporter/#author" },
-      "screenshot": "https://frenamezian.github.io/log_reporter/assets/img/timegoes-usage.png",
+      "author": { "@id": "https://frenamezian.github.io/logreporter/#author" },
+      "screenshot": "https://frenamezian.github.io/logreporter/assets/img/timegoes-usage.png",
       "softwareRequirements": "Python 3.8 or newer. No pip install; the dashboard is a static page.",
       "description": "LogReporter turns an agent activity log — one SQLite file — into six views: a repository/branch/task/agent hierarchy, a chronology including idle gaps, a time waterfall separating wall clock from agent time and own time, metrics with token cost, a model price catalogue, and maintenance. Your AI coding agents append one row per meaningful step, so the dashboard can show the reasoning behind a change and not only the change.",
       "featureList": [
@@ -134,7 +134,7 @@
     },
     {
       "@type": "FAQPage",
-      "@id": "https://frenamezian.github.io/log_reporter/#faq",
+      "@id": "https://frenamezian.github.io/logreporter/#faq",
       "mainEntity": [
         {
           "@type": "Question",
@@ -196,7 +196,7 @@
      carries an id and an aria-labelledby. Both audiences want the same thing
      from that: a screen reader announces the region by its own heading, and a
      crawler or an agent reading the DOM gets an outline it can cite a fragment
-     of — /log_reporter/#cost is a linkable answer to "what does it cost", where
+     of — /logreporter/#cost is a linkable answer to "what does it cost", where
      a wall of unnamed <section>s is only ever the whole page. -->
 <a class="skip-link" href="#main">Skip to content</a>
 
@@ -210,7 +210,7 @@
       <a href="#how">How it works</a>
       <a href="#cost">Tokens &amp; cost</a>
       <a href="app/index.html">Live demo</a>
-      <a href="https://github.com/frenamezian/log_reporter">GitHub</a>
+      <a href="https://github.com/frenamezian/logreporter">GitHub</a>
       <!-- The glyph shows the theme you would GET, not the one you are in —
            same rule as the dashboard's toggle. -->
       <button class="theme-toggle" id="theme-toggle" type="button"
@@ -235,7 +235,7 @@
     <div class="cta-row">
       <a class="btn btn-primary" href="app/index.html">▶&nbsp; Try the live demo</a>
       <a class="btn" href="#how">Get started</a>
-      <a class="btn" href="https://github.com/frenamezian/log_reporter">★&nbsp; View on GitHub</a>
+      <a class="btn" href="https://github.com/frenamezian/logreporter">★&nbsp; View on GitHub</a>
     </div>
     <p class="meta-line">
       <strong>Python 3.8+</strong> · no <code>pip install</code> · no account ·
@@ -360,7 +360,7 @@
 
     <div class="scroll-x">
 <pre class="code"><span class="c"># 1. clone and create the sample database</span>
-git clone https://github.com/frenamezian/log_reporter &amp;&amp; cd log_reporter
+git clone https://github.com/frenamezian/logreporter &amp;&amp; cd logreporter
 bash seed/init_db.sh
 
 <span class="c"># 2. start the dashboard</span>
@@ -494,7 +494,7 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
       <div class="links">
         <a href="https://ccusage.com/">ccusage.com</a>
         <a href="https://github.com/ryoppippi/ccusage">GitHub</a>
-        <a href="https://github.com/frenamezian/log_reporter">Contribute a parser</a>
+        <a href="https://github.com/frenamezian/logreporter">Contribute a parser</a>
       </div>
     </div>
   </div>
@@ -588,7 +588,7 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
       <p>
         Nothing is sent anywhere — no telemetry, no account, no upload. That also means
         nothing is backed up for you. Found a wrong number?
-        <a href="https://github.com/frenamezian/log_reporter/issues">Open an issue</a> —
+        <a href="https://github.com/frenamezian/logreporter/issues">Open an issue</a> —
         those are the bugs most worth hearing about.
       </p>
     </div>
@@ -633,8 +633,8 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
          github.com. -->
     <nav class="foot-links" aria-label="Footer">
       <a href="app/index.html">Live demo</a>
-      <a href="https://github.com/frenamezian/log_reporter">GitHub</a>
-      <a href="https://github.com/frenamezian/log_reporter/issues">Issues</a>
+      <a href="https://github.com/frenamezian/logreporter">GitHub</a>
+      <a href="https://github.com/frenamezian/logreporter/issues">Issues</a>
       <a href="https://ccusage.com/">ccusage</a>
       <a href="#disclaimer">Disclaimer</a>
       <a href="llms.txt">llms.txt</a>

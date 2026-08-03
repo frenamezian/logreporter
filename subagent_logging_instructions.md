@@ -14,7 +14,7 @@ You are a **subagent** dispatched by the lead architect. You write an activity l
 ```
 python log_activity.py \
   --log-type <type> \
-  --repo log_reporter --branch main \
+  --repo logreporter --branch main \
   --task "<task title>" \
   --agent <name> --agent-path lead_architect/<name> \
   --trace-id <trace_id> \
@@ -51,7 +51,7 @@ Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defau
   your parent. Combine it with any other tags — `--tags "#subagent:code-reviewer #commit"`.
 - `--trace-id` = **`<trace_id>`** (the lead's trace for this task — use it verbatim on every row)
 - `--parent-trace-id` = **`<parent_trace_id>`** (the lead's trace_id — same value as `--trace-id` when the lead is your direct parent)
-- `--repo` = **`log_reporter`**
+- `--repo` = **`logreporter`**
 - `--branch` = **`main`**
 - `--task` = **`<task_title>`** (use the exact string the lead gave you, character for character — it is a grouping key)
 
@@ -93,21 +93,21 @@ Do NOT log per token, per line, or inside tight loops. One row per step a human 
 Given by the lead: `name=header_agent`, `trace_id=9f2c41a8`, `parent_trace_id=9f2c41a8`, `task_title="Implement header dropdown"`.
 
 ```
-$ python log_activity.py --log-type start --repo log_reporter --branch main \
+$ python log_activity.py --log-type start --repo logreporter --branch main \
     --task "Implement header dropdown" --agent header_agent \
     --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
     --parent-trace-id 9f2c41a8 --log-title "Started header dropdown component" \
     --log-level info --status in_progress
 # (exits immediately; row written in the background)
 
-$ python log_activity.py --log-type activity --repo log_reporter --branch main \
+$ python log_activity.py --log-type activity --repo logreporter --branch main \
     --task "Implement header dropdown" --agent header_agent \
     --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
     --parent-trace-id 9f2c41a8 --log-title "Read prototype header markup (L32-53)" \
     --log-level info
 # (exits immediately)
 
-$ python log_activity.py --log-type decision --repo log_reporter --branch main \
+$ python log_activity.py --log-type decision --repo logreporter --branch main \
     --task "Implement header dropdown" --agent header_agent \
     --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
     --parent-trace-id 9f2c41a8 \
@@ -116,7 +116,7 @@ $ python log_activity.py --log-type decision --repo log_reporter --branch main \
     --log-level info
 # (exits immediately)
 
-$ python log_activity.py --log-type end --repo log_reporter --branch main \
+$ python log_activity.py --log-type end --repo logreporter --branch main \
     --task "Implement header dropdown" --agent header_agent \
     --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
     --parent-trace-id 9f2c41a8 --log-title "Finished header dropdown component" \
@@ -130,7 +130,7 @@ After committing (e.g. `git rev-parse HEAD` → `a1b2c3d4e5f67890123456789012345
 `git log -1 --format=%h` → `a1b2c3d4`):
 
 ```
-$ python log_activity.py --log-type github --repo log_reporter --branch main \
+$ python log_activity.py --log-type github --repo logreporter --branch main \
     --task "Implement header dropdown" --agent header_agent \
     --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
     --parent-trace-id 9f2c41a8 \

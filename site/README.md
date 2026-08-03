@@ -2,7 +2,7 @@
 
 The source of the landing page and the live demo, published to GitHub Pages at
 
-    https://frenamezian.github.io/log_reporter/
+    https://frenamezian.github.io/logreporter/
 
 **Everything here is source. Nothing here is output.** `gh-pages` is the output,
 and it is a build artifact: it is regenerated from this directory and replaced
@@ -19,7 +19,7 @@ and they live with the rest of the source now.
 
 ```
 index.html              the landing page
-404.html                served for any miss under /log_reporter/
+404.html                served for any miss under /logreporter/
 assets/css/site.css     its only stylesheet — no build step, no framework
 assets/img/             screenshots (.png + .webp), the sponsor image, the
                         favicon, and og-card.png. GENERATED — see below
@@ -57,7 +57,7 @@ only touch `localStorage`, each in a `try`. No fonts, no CDN, no analytics, no
 `fetch`. It renders identically from `file://` and from Pages.
 
 One exception, deliberate: **`404.html` will look unstyled from a clone.** Its
-paths are root-absolute (`/log_reporter/assets/…`) because a 404 is served for a
+paths are root-absolute (`/logreporter/assets/…`) because a 404 is served for a
 miss at *any* depth, and a relative path would resolve differently for each one.
 That is correct on Pages and cannot be correct locally; it is not a regression.
 
@@ -138,7 +138,7 @@ editing the page, not a separate chore.
 Two things about this setup are easy to get wrong:
 
 - **`robots.txt` is inert.** It is only honoured at the root of an origin, and
-  this site lives at `frenamezian.github.io/log_reporter/` — the file crawlers
+  this site lives at `frenamezian.github.io/logreporter/` — the file crawlers
   fetch is `frenamezian.github.io/robots.txt`, which belongs to a different
   repository. Submit `sitemap.xml` directly in Google Search Console; the
   `Sitemap:` line in `robots.txt` will not be read. The file becomes real the

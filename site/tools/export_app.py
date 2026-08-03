@@ -52,14 +52,14 @@ INJECT = """  <!-- ===== Added by site/tools/export_app.py. Publication-only. ==
 
        The description and the <noscript> fallback are NOT here — they are true
        everywhere, so they live in the tracked document with the rest of it. -->
-  <link rel="canonical" href="https://frenamezian.github.io/log_reporter/app/index.html">
+  <link rel="canonical" href="https://frenamezian.github.io/logreporter/app/index.html">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="LogReporter">
-  <meta property="og:url" content="https://frenamezian.github.io/log_reporter/app/index.html">
+  <meta property="og:url" content="https://frenamezian.github.io/logreporter/app/index.html">
   <meta property="og:title" content="LogReporter — live demo">
   <meta property="og:description" content="The real dashboard, over 148 sample rows. Six views of one agent activity log: hierarchy, chronology, where time goes, metrics, model pricing, maintenance.">
-  <meta property="og:image" content="https://frenamezian.github.io/log_reporter/assets/img/og-card.png">
+  <meta property="og:image" content="https://frenamezian.github.io/logreporter/assets/img/og-card.png">
   <meta name="twitter:card" content="summary_large_image">
 """
 

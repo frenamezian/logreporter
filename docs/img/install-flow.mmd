@@ -12,7 +12,7 @@
 flowchart LR
     subgraph S1["1 · Install the dashboard"]
         direction TB
-        A["git clone<br/>frenamezian/log_reporter"] --> B{"Sample rows<br/>or empty?"}
+        A["git clone<br/>frenamezian/logreporter"] --> B{"Sample rows<br/>or empty?"}
         B -- "first look" --> C1["bash seed/init_db.sh<br/>148 rows, 3 repos"]
         B -- "real use" --> C2["python seed/new_db.py"]
         C1 --> D["python serve.py<br/>127.0.0.1:8250"]

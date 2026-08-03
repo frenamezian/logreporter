@@ -1,10 +1,10 @@
-# LogReporter — https://frenamezian.github.io/log_reporter/
+# LogReporter — https://frenamezian.github.io/logreporter/
 #
 # READ THIS BEFORE ASSUMING IT IS IN FORCE.
 #
 # robots.txt is only honoured at the root of an ORIGIN. This site is published
 # on a shared origin — frenamezian.github.io — where a project page lives under
-# /log_reporter/, so the file crawlers actually fetch is
+# /logreporter/, so the file crawlers actually fetch is
 # https://frenamezian.github.io/robots.txt, which belongs to the user page repo
 # and not to this one. This file is therefore INERT today.
 #
@@ -56,4 +56,4 @@ User-agent: meta-externalagent
 User-agent: Amazonbot
 Allow: /
 
-Sitemap: https://frenamezian.github.io/log_reporter/sitemap.xml
+Sitemap: https://frenamezian.github.io/logreporter/sitemap.xml

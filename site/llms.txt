@@ -2,9 +2,9 @@
 
 > A local dashboard over one SQLite file that shows what your AI coding subagents did, how long each took, and what it cost. Your agents append one row per meaningful step — decisions, blockers, git operations — and the dashboard turns those rows into a subagent tree, a time breakdown that separates wall clock from agent time from idle, and per-agent token cost. MIT licensed. Nothing leaves the machine.
 
-Site: https://frenamezian.github.io/log_reporter/
-Repository: https://github.com/frenamezian/log_reporter
-Live demo: https://frenamezian.github.io/log_reporter/app/index.html
+Site: https://frenamezian.github.io/logreporter/
+Repository: https://github.com/frenamezian/logreporter
+Live demo: https://frenamezian.github.io/logreporter/app/index.html
 
 ## What it is, in one paragraph
 
@@ -52,7 +52,7 @@ Requires Python 3.8 or newer. No `pip install` — the dashboard is a static pag
 and the server is the Python standard library, bound to 127.0.0.1.
 
 ```bash
-git clone https://github.com/frenamezian/log_reporter && cd log_reporter
+git clone https://github.com/frenamezian/logreporter && cd logreporter
 bash seed/init_db.sh          # create the sample database
 python serve.py               # → http://127.0.0.1:8250
 ```
@@ -60,7 +60,7 @@ python serve.py               # → http://127.0.0.1:8250
 Then, from any other repository, an agent writes a row:
 
 ```bash
-python <path-to>/log_reporter/log_activity.py --log-type decision \
+python <path-to>/logreporter/log_activity.py --log-type decision \
   --task "Add rate limiting" --agent handler_dev \
   --agent-path lead_architect/handler_dev \
   --log-title "Token bucket over sliding window"
@@ -74,7 +74,7 @@ python <path-to>/log_reporter/log_activity.py --log-type decision \
 - **Metrics** — counts, distributions, open issues, token totals and modelled cost.
 - **Models & pricing** — the price registry the cost figures are drawn from. Reads no logs.
 - **Maintenance** — what is stored; delete or export part of it. Destructive.
-- **Help** — the full guide: user guide, installation, data model, time model, duration and idle model, page-by-page design notes, and the agent logging contract. It ships inside the app at https://frenamezian.github.io/log_reporter/app/index.html#help
+- **Help** — the full guide: user guide, installation, data model, time model, duration and idle model, page-by-page design notes, and the agent logging contract. It ships inside the app at https://frenamezian.github.io/logreporter/app/index.html#help
 
 ## Token usage
 
@@ -93,11 +93,11 @@ disagreement is usually the finding.
 
 ## Links
 
-- [Landing page](https://frenamezian.github.io/log_reporter/) — what it is, how it differs, screenshots
-- [Live demo](https://frenamezian.github.io/log_reporter/app/index.html) — the real dashboard over 148 sample rows, read-only
-- [In-app documentation](https://frenamezian.github.io/log_reporter/app/index.html#help) — the complete guide
-- [GitHub repository](https://github.com/frenamezian/log_reporter) — source, MIT
-- [Issues](https://github.com/frenamezian/log_reporter/issues) — wrong numbers are the bugs most worth reporting
+- [Landing page](https://frenamezian.github.io/logreporter/) — what it is, how it differs, screenshots
+- [Live demo](https://frenamezian.github.io/logreporter/app/index.html) — the real dashboard over 148 sample rows, read-only
+- [In-app documentation](https://frenamezian.github.io/logreporter/app/index.html#help) — the complete guide
+- [GitHub repository](https://github.com/frenamezian/logreporter) — source, MIT
+- [Issues](https://github.com/frenamezian/logreporter/issues) — wrong numbers are the bugs most worth reporting
 - [ccusage](https://ccusage.com/) — the token counter LogReporter falls back to
 
 Sponsored by [LESPIRANT](https://www.lespirant.com).

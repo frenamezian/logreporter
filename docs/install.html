@@ -15,8 +15,8 @@
 <p>Windows, macOS and Linux all work. The only Windows-specific file is the <code>start_LogReporter.bat</code> launcher; everything else is plain Python.</p>
 
 <h3>1 · Clone</h3>
-<pre>git clone https://github.com/frenamezian/log_reporter.git
-cd log_reporter</pre>
+<pre>git clone https://github.com/frenamezian/logreporter.git
+cd logreporter</pre>
 
 <h3>2 · Create the database</h3>
 <p><code>activity_logs.db</code> is deliberately <strong>not</strong> in git. It is runtime data that several agents write to continuously, and a tracked binary would produce diffs nobody can merge. So a fresh clone has no database until you make one — pick one:</p>
@@ -72,9 +72,9 @@ python serve.py 9000      # any port, if 8250 is busy</pre>
 <pre>python -c "import os; print(os.path.abspath('log_activity.py'))"</pre>
 <p>Run it from inside your clone. Substitute the result everywhere <code>&lt;LOGGER&gt;</code> appears below; do the same for <code>mint_trace.py</code> as <code>&lt;MINTER&gt;</code>.</p>
 <table><thead><tr><th>OS</th><th>Looks like</th></tr></thead><tbody>
-<tr><td>Windows</td><td><code>C:/Users/you/dev/log_reporter/log_activity.py</code></td></tr>
-<tr><td>macOS</td><td><code>/Users/you/dev/log_reporter/log_activity.py</code></td></tr>
-<tr><td>Linux</td><td><code>/home/you/dev/log_reporter/log_activity.py</code></td></tr>
+<tr><td>Windows</td><td><code>C:/Users/you/dev/logreporter/log_activity.py</code></td></tr>
+<tr><td>macOS</td><td><code>/Users/you/dev/logreporter/log_activity.py</code></td></tr>
+<tr><td>Linux</td><td><code>/home/you/dev/logreporter/log_activity.py</code></td></tr>
 </tbody></table>
 <p>Forward slashes work fine on Windows and avoid backslash-escaping headaches inside prompts.</p>
 
@@ -94,7 +94,7 @@ python &lt;LOGGER&gt; --sync --log-type start \
 <p>Paste the contents of <code>orchestrator_logging_instructions.md</code> (repository root) into your lead agent's system prompt, with <strong>two edits</strong>:</p>
 <ol>
 <li>Replace every <code>python log_activity.py</code> and <code>python mint_trace.py</code> with the <strong>absolute</strong> paths from step 5.</li>
-<li><strong>Delete the <code>--repo</code> and <code>--branch</code> flags.</strong> The shipped file hardcodes <code>--repo log_reporter --branch main</code>, because that is what this project's own agents used. Dropping them is exactly what makes the prompt portable: git then fills both in correctly, per repository and per branch, with no editing.</li>
+<li><strong>Delete the <code>--repo</code> and <code>--branch</code> flags.</strong> The shipped file hardcodes <code>--repo logreporter --branch main</code>, because that is what this project's own agents used. Dropping them is exactly what makes the prompt portable: git then fills both in correctly, per repository and per branch, with no editing.</li>
 </ol>
 <p>What the prompt asks the agent to do, in short:</p>
 <pre>python &lt;MINTER&gt;                     # mint ONE trace_id per task — lead only
