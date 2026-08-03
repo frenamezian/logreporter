@@ -6,8 +6,8 @@
  *
  * The two ramps this project asserts:
  *
- *   node scripts/validate_palette.js "#c98500,#d55181,#9085e9,#d95926"  *        --mode dark --surface "#161821"
- *   node scripts/validate_palette.js "#574aa5,#6b5cc4,#8071dc,#968bec,#b0a6f6"  *        --mode dark --surface "#161821" --ordinal
+ *   node seed/validate_palette.js "#c98500,#d55181,#9085e9,#d95926"  *        --mode dark --surface "#161821"
+ *   node seed/validate_palette.js "#574aa5,#6b5cc4,#8071dc,#968bec,#b0a6f6"  *        --mode dark --surface "#161821" --ordinal
  *
  * Both must pass. --surface matters: the built-in default is #1a1a19, and this
  * project's chart surface is #161821.

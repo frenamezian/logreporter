@@ -385,7 +385,7 @@ them would make a cost bar look like an error. The four-segment stack needs its 
 validated against this project's dark surface (`--surface: #161821`) before shipping:
 
 ```
-node scripts/validate_palette.js "<hex,hex,hex,hex>" --mode dark
+node seed/validate_palette.js "<hex,hex,hex,hex>" --mode dark
 ```
 
 Do not reason about colourblind-safety — compute it. A contrast warning obligates visible
@@ -442,7 +442,7 @@ attribute of work already described there. Promote it later if it outgrows the p
 12. Cost for a `deprecated` model still resolves; unknown `model_id` renders `—`.
 13. Toggling Tokens ⇄ Cost changes only the measure — ordering, colour, layout hold.
 14. No chart plots tokens and cost on one axis.
-15. `node scripts/validate_palette.js` passes for the segment ramp in dark mode.
+15. `node seed/validate_palette.js` passes for the segment ramp in dark mode.
 16. `python seed/py2js_registry.py` output is deep-equal to the Python registry
     (8 providers / 102 models / 497 tiers today) and `node --check` passes.
 

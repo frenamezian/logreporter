@@ -483,6 +483,7 @@ index.html                index.html loads everything; no build step
 style.css                 all styling; design tokens at the top
 serve.py                  static server + the delete endpoint (127.0.0.1 only)
 start_LogReporter.bat     Windows convenience launcher
+LICENSE                   MIT
 
 log_activity.py           the writer your agents call — one row per invocation
 mint_trace.py             mints a trace_id (lead agent only)
@@ -496,17 +497,21 @@ script/
   db.js                   sql.js loading, open/read/delete/export
   app.js                  application state
   cost-model.js           prices usage rows from the registry, at render time
+  model-catalog.js        the Models page's view of that registry
   llm_registry.py         model + price registry — EDIT THIS ONE
   llm_registry.js         generated from it by seed/py2js_registry.py
-  sample-logs.js          fallback demo rows
 parsers/                  one file per supported agent; auto-discovered
   CONTRIBUTING.md         how to add an agent — one new file, nothing else
   conformance.py          `python -m parsers.conformance` — required to pass
 components/               one custom element per page and panel
 docs/                     the in-app help fragments, plus screenshots
 docs/lespirant/           sponsor strip: ads.json + the banner images
-scripts/                  validate_palette.js — chart colours are computed, not chosen
-seed/                     sample database + bootstrap scripts
+seed/                     sample database, bootstrap and authoring tools
+  validate_palette.js     chart colours are computed, not chosen
+  render_mermaid.py       docs/img/*.mmd → the checked-in SVG
+site/                     the landing page and the live demo — source, not output
+  build.py                assembles it into the gitignored site/_build/
+  publish.py              publishes that to the gh-pages branch
 ```
 
 ---

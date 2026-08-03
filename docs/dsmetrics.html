@@ -71,14 +71,14 @@ WHEN              TASK        AGENT       MODEL     INPUT  CACHE READ  WRITE 5M 
 
 <p>The ramps are validated, not chosen by eye — and each theme gets its own, validated against its own ground:</p>
 <pre># dark
-node scripts/validate_palette.js "#c98500,#d55181,#9085e9,#d95926" \
+node seed/validate_palette.js "#c98500,#d55181,#9085e9,#d95926" \
      --mode dark --surface "#161821"
-node scripts/validate_palette.js "#574aa5,#6b5cc4,#8071dc,#968bec,#b0a6f6" \
+node seed/validate_palette.js "#574aa5,#6b5cc4,#8071dc,#968bec,#b0a6f6" \
      --mode dark --surface "#161821" --ordinal
 
 # light
-node scripts/validate_palette.js "#b06f00,#c8306f,#6a4fd0,#d34a13" \
+node seed/validate_palette.js "#b06f00,#c8306f,#6a4fd0,#d34a13" \
      --mode light --surface "#fffaf0"
-node scripts/validate_palette.js "#a695e6,#8a76d8,#6d5ac4,#50409e,#332869" \
+node seed/validate_palette.js "#a695e6,#8a76d8,#6d5ac4,#50409e,#332869" \
      --mode light --surface "#fffaf0" --ordinal</pre>
 <p>All four pass every gate against the surface they are actually drawn on. The <em>order</em> is the safety mechanism, not decoration: on dark, orange next to amber measures ΔE 4.8 under deuteranopia and 10.6 with full colour vision, which fails both floors — putting magenta and violet between them is what makes the set legible. If you re-order either set, or re-tint a surface, re-run the validator for that mode.</p>
