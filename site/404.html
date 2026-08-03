@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Not found — LogReporter</title>
+<!-- A 404 that gets indexed is a soft-404 penalty waiting to happen: the page
+     returns the right status, but only the meta tag stops a crawler that
+     followed a stale link from keeping this in the index. -->
+<meta name="robots" content="noindex, follow">
+<!-- Paths are root-absolute, not relative. GitHub Pages serves this same file
+     for a miss at any depth — /log_reporter/app/docs/gone.html included — and a
+     relative href would resolve against that missing directory.
+
+     The consequence: this page only looks right when the site is served from
+     /log_reporter/. Open it from a plain `python -m http.server` in this branch
+     and it renders unstyled, because /log_reporter/assets/… is not there. That
+     is the test being wrong, not the page. To check it locally, serve the
+     PARENT of a directory named log_reporter. -->
+<link rel="icon" href="/log_reporter/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/log_reporter/assets/css/site.css">
+<meta name="color-scheme" content="dark light">
+<script>
+  try {
+    if (localStorage.getItem('logreporter.theme') === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  } catch (e) { /* storage blocked — fall through to the dark default */ }
+</script>
+</head>
+<body>
+
+<main>
+<section class="hero">
+  <div class="wrap">
+    <h1>404 — that page isn't here</h1>
+    <p class="lede" style="margin: 0 auto 32px">
+      The link may be stale, or the file may have moved when the demo was last
+      rebuilt. Everything the site has is one click away.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="/log_reporter/">Landing page</a>
+      <a class="btn" href="/log_reporter/app/index.html">Live demo</a>
+      <a class="btn" href="/log_reporter/app/index.html#help">Documentation</a>
+      <a class="btn" href="https://github.com/frenamezian/log_reporter">GitHub</a>
+    </div>
+    <p class="meta-line">
+      Followed a link from somewhere and landed here?
+      <a href="https://github.com/frenamezian/log_reporter/issues">Tell us where it was.</a>
+    </p>
+  </div>
+</section>
+</main>
+
+</body>
+</html>

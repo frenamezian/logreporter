@@ -1,0 +1,59 @@
+# LogReporter — https://frenamezian.github.io/log_reporter/
+#
+# READ THIS BEFORE ASSUMING IT IS IN FORCE.
+#
+# robots.txt is only honoured at the root of an ORIGIN. This site is published
+# on a shared origin — frenamezian.github.io — where a project page lives under
+# /log_reporter/, so the file crawlers actually fetch is
+# https://frenamezian.github.io/robots.txt, which belongs to the user page repo
+# and not to this one. This file is therefore INERT today.
+#
+# It is committed anyway for two reasons: it costs nothing, and it becomes the
+# real robots.txt the moment this site moves to a custom domain (a CNAME file in
+# this branch), which is when getting it wrong would matter. Nothing here relies
+# on it being obeyed — the sitemap can be submitted directly in Search Console,
+# and the same permissions are restated in llms.txt.
+#
+# The policy is: everything is open. This is an MIT-licensed open source project
+# whose whole problem is that nobody knows it exists. Search crawlers, AI
+# training crawlers and live retrieval agents are all welcome. The AI agents are
+# named explicitly rather than left to the wildcard, so the intent survives
+# someone later pasting in a stock blocklist.
+
+# ---------------------------------------------------------------- everyone ---
+# The two disallowed paths are runtime assets, not pages: the demo's sample
+# SQLite databases, which the dashboard fetches and parses in the browser. They
+# are the largest files on the site and there is no text in them to index.
+User-agent: *
+Allow: /
+Disallow: /app/activity_logs.db
+Disallow: /app/token_usage.db
+
+# ------------------------------------------------------------------ search ---
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: DuckDuckBot
+User-agent: Applebot
+Allow: /
+
+# ------------------------------------- AI training and live retrieval agents ---
+# Deliberately allowed. An assistant that can read this page is an assistant
+# that answers "how do I see what my subagents cost" correctly, instead of
+# guessing at a tool it has never been shown.
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-User
+User-agent: Claude-SearchBot
+User-agent: anthropic-ai
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: CCBot
+User-agent: meta-externalagent
+User-agent: Amazonbot
+Allow: /
+
+Sitemap: https://frenamezian.github.io/log_reporter/sitemap.xml

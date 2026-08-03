@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live demo — not built yet · LogReporter</title>
+<meta name="description" content="The LogReporter live demo is build output. This placeholder stands in for it inside a clone.">
+<meta name="robots" content="noindex">
+
+<!-- This file exists so that every "Try the live demo" link on the landing page
+     resolves in a clone as well as on the published site.
+
+     The real app/ is 76 files exported from HEAD by site/tools/export_app.py,
+     and it is build output — it does not belong in the repository. But the
+     landing page's links to it are relative (they have to be: the site is a
+     project page at a subpath), so in a clone they would all land on a dead
+     path. This is what they land on instead.
+
+     site/build.py deletes this whole directory and replaces it with the export,
+     so nothing here is ever published. Paths are relative and there is not one
+     network call, so it works from file:// exactly like the landing page. -->
+
+<link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/css/site.css">
+</head>
+<body>
+
+<main class="wrap" style="max-width:44rem;padding:4rem 1.5rem">
+
+  <p><a href="../index.html">&larr; LogReporter</a></p>
+
+  <h1>The demo is not in this clone</h1>
+
+  <p>
+    You are looking at a placeholder. The live demo is a full copy of the
+    dashboard, exported from a commit at publication time — build output rather
+    than source, so it is not in the repository.
+  </p>
+
+  <h2>Run the real thing instead</h2>
+
+  <p>
+    You have the dashboard already; it is the repository you cloned. From its
+    root:
+  </p>
+
+<pre>python seed/new_db.py     <em># or: bash seed/init_db.sh, for 148 sample rows</em>
+python serve.py           <em># then open http://127.0.0.1:8250/index.html</em></pre>
+
+  <p>
+    It has to be served over <code>http://</code>. Opened as a file, the
+    browser's <code>fetch()</code> cannot read the database and the page falls
+    back to demo data without saying so.
+  </p>
+
+  <h2>Or build the site locally</h2>
+
+<pre>python site/build.py      <em># then open site/_build/app/index.html</em></pre>
+
+  <p>
+    That exports the dashboard from <code>HEAD</code> into
+    <code>site/_build/app/</code>, alongside a synthetic sample database — the
+    same thing the published demo is.
+  </p>
+
+  <p>
+    The published copy lives at
+    <a href="https://frenamezian.github.io/log_reporter/app/index.html">frenamezian.github.io/log_reporter/app/</a>.
+  </p>
+
+</main>
+
+</body>
+</html>

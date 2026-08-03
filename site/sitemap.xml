@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Two URLs, because the site is two pages: the landing page and the live demo.
+  The in-app documentation is NOT listed — every Help topic is an HTML fragment
+  under app/docs/ that is fetched and injected by log-help.js, so each one is a
+  headless <p> with no <html>, no title and no way back to the app. Listing them
+  would put a dozen orphan fragments in the index, all outranking nothing.
+
+  A sitemap under /log_reporter/ may only name URLs under /log_reporter/, which
+  is exactly what it does. Submit it in Search Console directly — the Sitemap:
+  line in robots.txt is inert on a github.io subpath, for the reason that file
+  explains.
+
+  lastmod is the date the page's content last changed. Update it when you edit
+  index.html; leaving it stale is worse than omitting it.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+
+  <url>
+    <loc>https://frenamezian.github.io/log_reporter/</loc>
+    <lastmod>2026-08-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://frenamezian.github.io/log_reporter/assets/img/timegoes-usage.png</image:loc>
+      <image:title>Where time goes — five subagents, with own time, tokens and cost</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://frenamezian.github.io/log_reporter/assets/img/metrics-usage.png</image:loc>
+      <image:title>Metrics — token totals and the cost breakdown</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://frenamezian.github.io/log_reporter/app/index.html</loc>
+    <lastmod>2026-08-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+</urlset>
