@@ -71,9 +71,10 @@ const SCHEMA_SQL = `CREATE TABLE logs (
   resolution_time TEXT, performance_metrics TEXT, input_output_hash TEXT
 );`;
 
-// Build an in-memory SQLite database from a set of rows. Used by loadSample()
-// so that deletes and saves work on demo data exactly as they do on a real .db
-// file — without this, this.db stays null and every mutation is lost on reload.
+// Build an in-memory SQLite database from a set of rows. Used by
+// LogDb.download() to turn whatever is currently in scope into a real .db file
+// for "Save database copy" — the rows on screen are plain objects, and the
+// point of the export is that what lands on disk is a database.
 function dbFromRows(SQL, rows) {
   const db = new SQL.Database();
   db.run(SCHEMA_SQL);
@@ -82,12 +83,6 @@ function dbFromRows(SQL, rows) {
   stmt.free();
   return db;
 }
-
-const MIN_SAMPLE = [
-  { id: 1, timestamp: '2026-07-29 09:00:00', repo_name: 'demo', branch_name: 'main', task_title: 'Sample task', agent_name: 'lead_architect', agent_path: 'lead_architect', log_title: 'Task started', log_description: 'Started sample task.', log_type: 'start', log_level: 'info', status: 'in_progress', user_id: 'admin' },
-  { id: 2, timestamp: '2026-07-29 09:05:00', repo_name: 'demo', branch_name: 'main', task_title: 'Sample task', agent_name: 'lead_architect', agent_path: 'lead_architect', log_title: 'Did some work', log_description: 'A sample activity log.', log_type: 'activity', log_level: 'info', user_id: 'admin' },
-  { id: 3, timestamp: '2026-07-29 09:10:00', repo_name: 'demo', branch_name: 'main', task_title: 'Sample task', agent_name: 'lead_architect', agent_path: 'lead_architect', log_title: 'Task complete', log_description: 'Completed sample task.', log_type: 'end', log_level: 'info', status: 'completed', user_id: 'admin' }
-];
 
 // The usage cache, opened as a *second* sql.js database.
 //
@@ -210,26 +205,10 @@ class LogDb {
     return this.readAll();
   }
 
-  async loadSample() {
-    // window.sampleLogs is populated by script/sample-logs.js (loaded via a
-    // plain <script> tag so it works over file:// as well as http://).
-    let rows = (window.sampleLogs && window.sampleLogs.length) ? window.sampleLogs : null;
-    if (!rows) {
-      // Fallback: try a dynamic import (works over http:// only)
-      try {
-        const mod = await import('../prototype/project/sample-logs.js');
-        rows = mod.sampleLogs || MIN_SAMPLE;
-      } catch (e) {
-        rows = MIN_SAMPLE;
-      }
-    }
-    // Build an in-memory SQLite database from the sample rows so that deletes,
-    // saves, and reloads all work the same way they do with a real .db file.
-    const SQL = await ensureSqlJs();
-    this.db = dbFromRows(SQL, rows);
-    this.name = 'Demo data (in-memory)';
-    return this.readAll();
-  }
+  // There is deliberately no loadSample(). When activity_logs.db cannot be read,
+  // the application reports that and shows the reader how to create one; it does
+  // not substitute invented rows, which render as a working dashboard and are
+  // indistinguishable from real ones on every page that draws them.
 
   readAll() {
     if (!this.db) return [];

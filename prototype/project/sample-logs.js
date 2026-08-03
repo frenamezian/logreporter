@@ -72,7 +72,7 @@ const tasks = [
     ],
   },
   {
-    repo: 'log-reporter', branch: 'main', task: 'Harden Log_Reporter write path',
+    repo: 'ledger-svc', branch: 'main', task: 'Harden ledger-svc write path',
     trace: '2ed6b915', day: 28, hour: 16,
     runs: [
       { ag: 'lead_architect', span: [0, 5], st: 'in_progress', pr: 'medium',
@@ -105,7 +105,7 @@ const tasks = [
     ],
   },
   {
-    repo: 'log-reporter', branch: 'feat/redaction', task: 'Redact sensitive fields before write',
+    repo: 'ledger-svc', branch: 'feat/redaction', task: 'Redact sensitive fields before write',
     trace: '5a71c308', day: 29, hour: 11,
     runs: [
       { ag: 'compliance_agent', span: [0, 5], st: 'in_progress', pr: 'high',

@@ -1212,6 +1212,21 @@ log-footer {
 .usage-empty { border: 1px dashed var(--border); border-radius: var(--radius); padding: 18px; color: var(--text-dim); font-size: 13px; }
 .usage-empty code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--text); }
 
+/* The setup panel: shown by app-shell when there are no rows to draw, either
+   because activity_logs.db could not be read or because it is empty. Dashed like
+   .usage-empty, and for the same reason — it marks a place where content will
+   appear once a step is done, rather than a component that failed. */
+.setup-panel {
+  border: 1px dashed var(--border); border-radius: var(--radius);
+  padding: 16px 18px; margin: 0 0 14px;
+  color: var(--text-dim); font-size: 13px; line-height: 1.55;
+}
+.setup-panel strong { color: var(--text); }
+.setup-panel code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--text); }
+.setup-panel a { color: var(--accent); }
+.setup-how { margin-top: 10px; }
+.setup-note { margin-top: 10px; font-size: 12px; opacity: 0.85; }
+
 /* =========================================================================
    MODELS & PRICING PAGE (log-models)
    Three levels of disclosure: provider panel -> model row -> tier panel.

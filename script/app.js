@@ -70,6 +70,16 @@ function pageFromHash() {
   return PAGES.has(h) ? h : null;
 }
 
+// The source state for "there is no database to read". Distinct from an empty
+// one: an activity_logs.db with no rows in it is a correct, expected state on a
+// fresh install and is reported as such — name lit, 0 rows. This is the other
+// case, where the file could not be fetched at all, and the difference is what
+// the setup panel in app-shell keys off.
+function noDatabase(e) {
+  return { name: 'No database', ok: false,
+    detail: 'activity_logs.db not reachable (' + e.message + ')' };
+}
+
 window.LogApp = {
   state: {
     rows: [],
@@ -83,7 +93,7 @@ window.LogApp = {
     page: pageFromHash() || 'hierarchy',
     treeModel: { repos: [], totals: {} },
     model: { repos: [], totals: {} },
-    src: { name: 'Demo data', demo: true, ok: false, detail: 'no database open' },
+    src: { name: 'No database', ok: false, detail: 'no database open' },
     db: new LogDb(),
     // Token usage lives in a second database and is joined to the logs in
     // memory, not in SQL. It is optional: everything on every page works
@@ -128,13 +138,20 @@ window.LogApp = {
     try {
       const rows = await this.state.db.loadDefault();
       this.state.rows = rows;
-      this.state.src = { name: 'activity_logs.db', demo: false, ok: true,
+      this.state.src = { name: 'activity_logs.db', ok: true,
         detail: rows.length + ' rows · loaded by default' };
     } catch (e) {
-      const sample = await this.state.db.loadSample();
-      this.state.rows = sample;
-      this.state.src = { name: 'Demo data', demo: true, ok: false,
-        detail: 'activity_logs.db not reachable (' + e.message + '); using demo data' };
+      // No rows. Not sample rows — none.
+      //
+      // This used to fall back to a fabricated 89-row dataset, which reads as a
+      // working dashboard: every page fills with plausible repositories, agents
+      // and durations, and the only thing saying otherwise is one word in the
+      // header. The published demo never took that path — it ships a real
+      // activity_logs.db — so the fallback fired nowhere except a local install
+      // that was not set up yet, which is precisely where inventing data is
+      // most expensive. app-shell renders the setup panel instead.
+      this.state.rows = [];
+      this.state.src = noDatabase(e);
     }
     this.update();
     // Deliberately after the first render: the usage cache can be tens of
@@ -330,13 +347,20 @@ window.LogApp = {
         if (file.lastModified !== this._lastMtime) {
           this._lastMtime = file.lastModified;
           this.state.rows = await this.state.db.open(file);
-          this.state.src = { name: file.name, demo: false, ok: true, detail: new Date(file.lastModified).toLocaleString() };
+          this.state.src = { name: file.name, ok: true, detail: new Date(file.lastModified).toLocaleString() };
           this.update();
         }
-      } else if (!this.state.src.demo) {
+      } else {
         // re-fetch the default DB (§17.5)
         const rows = await this.state.db.loadDefault();
         this.state.rows = rows;
+        // A database that appears while the page is open — the reader finally
+        // ran seed/new_db.py — should take the setup panel down with it, rather
+        // than loading behind a header still reporting there is none.
+        if (!this.state.src.ok) {
+          this.state.src = { name: 'activity_logs.db', ok: true,
+            detail: rows.length + ' rows · loaded by default' };
+        }
         this.update();
       }
       // The usage cache is checked with a HEAD first. It is orders of
@@ -514,7 +538,7 @@ window.LogApp = {
         this.state.fileHandle = handle;
         this._lastMtime = file.lastModified;
         this.state.rows = await this.state.db.open(file);
-        this.state.src = { name: file.name, demo: false, ok: true, detail: new Date(file.lastModified).toLocaleString() };
+        this.state.src = { name: file.name, ok: true, detail: new Date(file.lastModified).toLocaleString() };
         this.state.srcOpen = false;
       } else {
         const input = document.createElement('input');
@@ -524,7 +548,7 @@ window.LogApp = {
           const file = e.target.files[0];
           if (!file) return;
           this.state.rows = await this.state.db.open(file);
-          this.state.src = { name: file.name, demo: false, ok: true, detail: new Date(file.lastModified).toLocaleString() };
+          this.state.src = { name: file.name, ok: true, detail: new Date(file.lastModified).toLocaleString() };
           this.state.srcOpen = false;
           this.update();
         };
@@ -533,7 +557,10 @@ window.LogApp = {
       }
       this.update();
     } catch (e) {
-      this.state.src = { name: 'Demo data', demo: true, ok: false, detail: e.message };
+      // Dismissing the file picker is not a failure and must not be reported as
+      // one: the previous source is still open and still correct.
+      if (e.name === 'AbortError') { this.state.srcOpen = false; this.update(); return; }
+      this.state.src = { ...this.state.src, ok: false, detail: 'could not open: ' + e.message };
       this.update();
     }
   },
@@ -549,19 +576,22 @@ window.LogApp = {
         const file = await this.state.fileHandle.getFile();
         this._lastMtime = file.lastModified;
         this.state.rows = await this.state.db.open(file);
-        this.state.src = { name: file.name, demo: false, ok: true,
-          detail: this.state.rows.length + ' rows · reloaded ' + stamp() };
-      } else if (!this.state.src.demo) {
-        this.state.rows = await this.state.db.loadDefault();
-        this.state.src = { name: 'activity_logs.db', demo: false, ok: true,
+        this.state.src = { name: file.name, ok: true,
           detail: this.state.rows.length + ' rows · reloaded ' + stamp() };
       } else {
-        // No database is open, so the sample set is the only available source.
-        this.state.rows = await this.state.db.loadSample();
-        this.state.src = { ...this.state.src, detail: 'demo data · restamped ' + stamp() };
+        // Unconditionally, even from the empty state: Refresh is the button a
+        // reader presses straight after creating the database, and it is what
+        // makes that work without reloading the page.
+        this.state.rows = await this.state.db.loadDefault();
+        this.state.src = { name: 'activity_logs.db', ok: true,
+          detail: this.state.rows.length + ' rows · reloaded ' + stamp() };
       }
     } catch (e) {
-      this.state.src = { ...this.state.src, ok: false, detail: 'refresh failed: ' + e.message };
+      // Still nothing to read: stay in the empty state rather than reporting a
+      // failed refresh of a database that was never open in the first place.
+      this.state.src = this.state.db.db
+        ? { ...this.state.src, ok: false, detail: 'refresh failed: ' + e.message }
+        : noDatabase(e);
     }
     // Refresh means "go back to the source", and for usage the source is the
     // agents' session files, not the cache. Ask serve.py to re-read them; if
@@ -616,15 +646,6 @@ window.LogApp = {
     this.state.confirm = null;
     const ids = Array.from(new Set(toDelete.map((l) => l.id)));
 
-    // Demo data has no backing file, so the in-memory delete is all there is.
-    if (this.state.src.demo) {
-      this.state.db.deleteByIds(ids);
-      this.state.rows = this.state.db.readAll();
-      this.state.src = { ...this.state.src, detail: 'demo data · ' + ids.length + ' rows removed in memory' };
-      this.update();
-      return;
-    }
-
     try {
       const res = await fetch('api/delete', {
         method: 'POST',
@@ -634,7 +655,7 @@ window.LogApp = {
       const out = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(out.error || 'HTTP ' + res.status);
       this.state.rows = await this.state.db.loadDefault();
-      this.state.src = { name: 'activity_logs.db', demo: false, ok: true,
+      this.state.src = { name: 'activity_logs.db', ok: true,
         detail: out.deleted + ' deleted · ' + this.state.rows.length + ' rows remain' };
     } catch (e) {
       // Reached when the page is not being served by serve.py (plain

@@ -37,6 +37,7 @@ class AppShell extends HTMLElement {
         ${s.sidebar ? this._sidebarHTML() : this._railHTML()}
         <div class="content">
           ${this._breadcrumbHTML(s)}
+          ${this._setupHTML(s)}
           <div class="content-row">
             <div class="page-host" id="pages">
               <div data-page="hierarchy"><log-tree></log-tree></div>
@@ -56,6 +57,62 @@ class AppShell extends HTMLElement {
     this.querySelectorAll('#pages > [data-page]').forEach((el) => { el.hidden = el.getAttribute('data-page') !== p; });
     this._wireShell();
   }
+  // Shown when there is nothing to draw, in place of leaving six pages blank and
+  // letting the reader work out why. Two distinct causes, and telling them apart
+  // is the whole value of the panel: a database that could not be read is a
+  // setup step not yet done, an empty one is a setup step done correctly with no
+  // agent having logged yet. Both are normal on a fresh install; neither is an
+  // error, and neither is a reason to invent rows.
+  //
+  // Models and Help read no logs at all, so the panel would be noise there.
+  _setupHTML(s) {
+    if (s.rows.length || s.page === 'models' || s.page === 'help') return '';
+
+    if (!s.src.ok) {
+      // On a file:// origin the fetch cannot succeed whether or not the database
+      // exists, so leading with "no database" would send the reader off to
+      // create one they may already have. The origin is the finding here.
+      if (window.location.protocol === 'file:') {
+        return `
+          <div class="setup-panel">
+            <strong>This page is open as a file.</strong>
+            On a <code>file://</code> origin the browser cannot read
+            <code>activity_logs.db</code> at all, however many rows are in it.
+            <div class="setup-how">
+              Start it with <code>python serve.py</code> and open
+              <code>http://127.0.0.1:8250/index.html</code> — on Windows,
+              double-click <code>start_LogReporter.bat</code> instead.
+            </div>
+            <div class="setup-note">Reported: ${esc(s.src.detail || '')}</div>
+          </div>`;
+      }
+      return `
+        <div class="setup-panel">
+          <strong>No activity_logs.db yet.</strong>
+          A fresh clone has no database until you make one — it is runtime data,
+          deliberately not in git.
+          <div class="setup-how">
+            <code>python seed/new_db.py</code> for an empty one, or
+            <code>bash seed/init_db.sh</code> to start from the 148-row sample.
+            Then press <strong>Refresh</strong>.
+          </div>
+          <div class="setup-note">Reported: ${esc(s.src.detail || '')}</div>
+        </div>`;
+    }
+
+    return `
+      <div class="setup-panel">
+        <strong>activity_logs.db is empty.</strong>
+        The database is there and being read correctly; no agent has logged to it
+        yet.
+        <div class="setup-how">
+          Point your agents at <code>log_activity.py</code> by absolute path —
+          see <a href="#help">Help → Installation</a> — then turn
+          on <strong>Auto-poll</strong> and the tree fills in as they work.
+        </div>
+      </div>`;
+  }
+
   _sidebarHTML() {
     const s = window.LogApp.state;
     const w = s.sidebarWidth || 320;

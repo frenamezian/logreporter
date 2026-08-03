@@ -54,7 +54,7 @@ class LogHeader extends LogComponent {
   render() {
     const s = window.LogApp.state;
     const tabs = ['hierarchy', 'chronology', 'timegoes', 'metrics', 'models', 'maintenance', 'help'];
-    const dotClass = s.src.ok ? 'ok' : s.src.demo ? 'demo' : 'fail';
+    const dotClass = s.src.ok ? 'ok' : 'fail';
     return `
       ${brandHtml()}
       <nav class="nav-tabs">
