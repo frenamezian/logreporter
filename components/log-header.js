@@ -33,13 +33,30 @@ const TAB_LABELS = {
   help: 'Help',
 };
 
+// The brand links home only where a home exists. `serve.py` serves the app at
+// the root of its own clone, with nothing above it — a hard-coded href there
+// would walk the user out of the application into a directory listing. The
+// published site sets window.LR_HOME (to '../', since the app is bundled under
+// /app/), so the link appears there and nowhere else.
+//
+// The two link properties are inline rather than in style.css because .brand is
+// otherwise a <div>: they exist only for the <a> form, and are too small to earn
+// a rule that would read as dead code in every local checkout.
+function brandHtml() {
+  const inner = `${BRAND_MARK}<div class="brand-text"><div class="title">LogReporter</div><div class="subtitle">Local monitor</div></div>`;
+  const home = window.LR_HOME;
+  if (!home) return `<div class="brand">${inner}</div>`;
+  return `<a class="brand" href="${esc(home)}" style="color:inherit;text-decoration:none"
+             title="Back to the LogReporter home page">${inner}</a>`;
+}
+
 class LogHeader extends LogComponent {
   render() {
     const s = window.LogApp.state;
     const tabs = ['hierarchy', 'chronology', 'timegoes', 'metrics', 'models', 'maintenance', 'help'];
     const dotClass = s.src.ok ? 'ok' : s.src.demo ? 'demo' : 'fail';
     return `
-      <div class="brand">${BRAND_MARK}<div class="brand-text"><div class="title">LogReporter</div><div class="subtitle">Local monitor</div></div></div>
+      ${brandHtml()}
       <nav class="nav-tabs">
         ${tabs.map((t) => {
           const active = s.page === t ? 'active' : '';
