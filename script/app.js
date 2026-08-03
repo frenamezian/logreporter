@@ -57,6 +57,19 @@ function exportRows(rows, format) {
   }
 }
 
+// The seven pages, and the hash that names each one. The published site links
+// straight at a page (.../app/index.html#chronology), so the hash has to be
+// readable at boot as well as written on every tab click. An unknown or absent
+// hash falls back to Hierarchy rather than rendering nothing.
+const PAGES = new Set([
+  'hierarchy', 'chronology', 'timegoes', 'metrics', 'models', 'maintenance', 'help',
+]);
+
+function pageFromHash() {
+  const h = (window.location.hash || '').replace(/^#/, '');
+  return PAGES.has(h) ? h : null;
+}
+
 window.LogApp = {
   state: {
     rows: [],
@@ -65,7 +78,9 @@ window.LogApp = {
     filter: { ...DEFAULT_FILTER },
     drill: {},
     selectedLog: null,
-    page: 'hierarchy',
+    // Read at parse time, before init() — a deep link should land on its page
+    // directly, not flash Hierarchy first.
+    page: pageFromHash() || 'hierarchy',
     treeModel: { repos: [], totals: {} },
     model: { repos: [], totals: {} },
     src: { name: 'Demo data', demo: true, ok: false, detail: 'no database open' },
@@ -168,9 +183,17 @@ window.LogApp = {
   },
 
   setPage(page) {
+    if (!PAGES.has(page)) return;
     this.state.page = page;
     if (page === 'help' || page === 'maintenance' || page === 'models') this.state.selectedLog = null;
     this.state.srcOpen = false;
+    // Keep the address bar in step, so any page can be linked to and the back
+    // button walks pages instead of leaving the app. Writing a hash that is
+    // already current is a no-op, which is what stops this and the hashchange
+    // listener below from bouncing off each other.
+    if (pageFromHash() !== page) {
+      try { window.location.hash = page; } catch (e) { /* about:, sandboxed */ }
+    }
     this.render();
   },
 
@@ -631,5 +654,13 @@ window.LogApp = {
 // own innerHTML on every render, which would restart the ad rotation and
 // re-request the images on every filter change.
 document.body.innerHTML = '<app-shell></app-shell><log-footer></log-footer>';
+
+// Back/forward, and a hash edited by hand, both move the app. setPage writes the
+// hash itself, but only when it differs, so this cannot loop.
+window.addEventListener('hashchange', () => {
+  const page = pageFromHash();
+  if (page && page !== window.LogApp.state.page) window.LogApp.setPage(page);
+});
+
 window.LogApp.init();
 })(window);
