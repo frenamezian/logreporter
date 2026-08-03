@@ -7,8 +7,8 @@
   <!-- Bump ?v= on every asset when shipping a change: browsers keep serving a
        cached copy of these files otherwise, and the dashboard silently runs
        last week's code. -->
-  <link rel="icon" href="favicon.svg?v=18" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="icon" href="favicon.svg?v=19" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css?v=19">
   <!-- Theme, applied before the first paint. Everything else on this page loads
        at the end of <body>, but the theme cannot: reading the preference after
        the stylesheet has painted means every load of the light theme starts
@@ -24,33 +24,33 @@
 </head>
 <body>
   <!-- data layer first -->
-  <script src="script/sample-logs.js?v=18"></script>
-  <script src="script/time-model.js?v=18"></script>
-  <script src="script/filters.js?v=18"></script>
-  <script src="script/db.js?v=18"></script>
+  <script src="script/sample-logs.js?v=19"></script>
+  <script src="script/time-model.js?v=19"></script>
+  <script src="script/filters.js?v=19"></script>
+  <script src="script/db.js?v=19"></script>
   <!-- llm_registry.js is GENERATED from script/llm_registry.py by
        seed/py2js_registry.py. It must load before cost-model.js, which
        reads window.LLM_REGISTRY at call time to price usage rows, and before
        model-catalog.js, which reads it to draw the Models page. -->
-  <script src="script/llm_registry.js?v=18"></script>
-  <script src="script/cost-model.js?v=18"></script>
-  <script src="script/model-catalog.js?v=18"></script>
-  <script src="script/app.js?v=18"></script>
+  <script src="script/llm_registry.js?v=19"></script>
+  <script src="script/cost-model.js?v=19"></script>
+  <script src="script/model-catalog.js?v=19"></script>
+  <script src="script/app.js?v=19"></script>
   <!-- components: base + helpers first, app-shell last -->
-  <script src="components/log-component.js?v=18"></script>
-  <script src="components/log-header.js?v=18"></script>
-  <script src="components/log-filters.js?v=18"></script>
-  <script src="components/log-tree.js?v=18"></script>
-  <script src="components/log-list.js?v=18"></script>
-  <script src="components/log-details.js?v=18"></script>
-  <script src="components/log-timeline.js?v=18"></script>
-  <script src="components/log-timegoes.js?v=18"></script>
-  <script src="components/log-usage.js?v=18"></script>
-  <script src="components/log-metrics.js?v=18"></script>
-  <script src="components/log-models.js?v=18"></script>
-  <script src="components/log-maintenance.js?v=18"></script>
-  <script src="components/log-help.js?v=18"></script>
-  <script src="components/log-footer.js?v=18"></script>
-  <script src="components/app-shell.js?v=18"></script>
+  <script src="components/log-component.js?v=19"></script>
+  <script src="components/log-header.js?v=19"></script>
+  <script src="components/log-filters.js?v=19"></script>
+  <script src="components/log-tree.js?v=19"></script>
+  <script src="components/log-list.js?v=19"></script>
+  <script src="components/log-details.js?v=19"></script>
+  <script src="components/log-timeline.js?v=19"></script>
+  <script src="components/log-timegoes.js?v=19"></script>
+  <script src="components/log-usage.js?v=19"></script>
+  <script src="components/log-metrics.js?v=19"></script>
+  <script src="components/log-models.js?v=19"></script>
+  <script src="components/log-maintenance.js?v=19"></script>
+  <script src="components/log-help.js?v=19"></script>
+  <script src="components/log-footer.js?v=19"></script>
+  <script src="components/app-shell.js?v=19"></script>
 </body>
 </html>

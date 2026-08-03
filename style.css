@@ -935,6 +935,13 @@ log-help-nav .filter-search { flex: 0 0 auto; }
 .help-legend > span { display: flex; align-items: center; gap: 6px; }
 .help-swatch { width: 10px; height: 10px; flex: none; border-radius: 2px; }
 .help-swatch.idle { background: repeating-linear-gradient(135deg, var(--hatch-strong) 0 3px, transparent 3px 6px); }
+
+/* The brand mark shown at display size beside its rationale. Drawn at 64px
+   rather than the header's 28px because this is the one place the foot's
+   segments are the point being made. */
+.brand-figure { display: flex; align-items: center; gap: 18px; margin: 0 0 14px; }
+.brand-figure-mark { flex: none; display: block; width: 64px; height: 64px; }
+.brand-figure p { margin: 0; }
 .help-loading { color: var(--text-dim); }
 
 /* Screenshots. The captures are 2x, so they are readable when opened at full

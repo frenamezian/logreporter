@@ -29,6 +29,25 @@
 <p>Idle is a diagonal hatch rather than a colour: absence should not read as another kind of work. <code>start</code> and <code>end</code> rows are drawn in the activity colour, because that is the category their time is attributed to.</p>
 <p>Stacking order is always activity → issue → decision → GitHub → idle, on every bar at every level, so the same horizontal position means the same category everywhere.</p>
 
+<h3>The mark is built from the same parts</h3>
+<div class="brand-figure">
+  <svg class="brand-figure-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+    <clipPath id="doc-ell-foot"><rect x="5" y="22.4" width="24" height="5.6" rx="2.8"/></clipPath>
+    <g clip-path="url(#doc-ell-foot)">
+      <rect x="5" y="22.4" width="7" height="5.6" fill="var(--accent)"/>
+      <rect x="12" y="22.4" width="6.5" height="5.6" fill="var(--activity)"/>
+      <rect x="18.5" y="22.4" width="4.5" height="5.6" fill="var(--decision)"/>
+      <rect x="23" y="22.4" width="3.5" height="5.6" fill="var(--github)"/>
+      <rect x="26.5" y="22.4" width="2.5" height="5.6" fill="var(--hatch-strong)"/>
+    </g>
+    <rect x="5" y="4" width="5.6" height="24" rx="2.8" fill="var(--accent)"/>
+  </svg>
+  <p>The letter L, with its foot built as a stacked category bar in the stacking order above. The letterform carries the name and the foot carries what the product does. It invents no colour and no radius of its own.</p>
+</div>
+<p><strong>Issue red is held back from the mark.</strong> Red means an issue everywhere else in this app, so a logo carrying it would read as a permanent alarm. The foot therefore runs activity → decision → GitHub → idle, skipping the one category it would be dishonest to show.</p>
+<p>The mark is <em>inlined</em> in <code>log-header.js</code> rather than linked, and that is the whole reason it can exist as one file: its fills are <code>var(--accent)</code>, <code>var(--activity)</code>, <code>var(--decision)</code> and <code>var(--github)</code>, so it re-colours itself on the ☀ / ☾ toggle like everything else. An <code>&lt;img&gt;</code> gets its own document, cannot see those tokens, and would have needed two files and a swap on every toggle. The idle segment uses <code>--hatch-strong</code> rather than <code>--hatch</code>, for the reason that token exists: at 28px a real diagonal hatch is noise and <code>--hatch</code> is invisible.</p>
+<p><code>favicon.svg</code> is the one deliberate exception to the no-literals rule. A tab icon is fetched as its own document and can never reach <code>style.css</code>, so it carries two hexes and a <code>prefers-color-scheme</code> query to pick between them. It is also the reduced drawing — solid foot, no segments, strokes thickened from 5.6 to 7 — because below 24px the category splits merge into one muddy band. The silhouette is what survives at tab size, not the split.</p>
+
 <h3>Layout rules the pages share</h3>
 <ul>
 <li><strong>One scroll region per page.</strong> The header, the breadcrumb strip, the sidebar and the detail panel are fixed; only the content region scrolls, so the columns you are reading against never leave the screen.</li>
