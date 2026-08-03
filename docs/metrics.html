@@ -27,6 +27,13 @@
 <h3>Token usage and cost</h3>
 <p>Below the distributions, the same scope again — this time measured in tokens and money. Usage is <em>observed</em>, not logged: it is read from the session transcripts your coding agents already write, so it works on history that predates this feature and <code>log_activity.py</code> never had to change. Nothing here asks anything of your agents.</p>
 
+<figure class="help-figure">
+  <a href="docs/img/metrics-usage.png" target="_blank" rel="noopener"><img src="docs/img/metrics-usage.png" alt="The token usage block: four stat tiles, the four-segment composition bar with direct labels, the ranking tabs, and the source panel"></a>
+  <figcaption>Scoped to one task. Four tiles, the composition bar with every segment labelled, the ranking below it, and the source panel on the right.</figcaption>
+</figure>
+
+<p>Read the tiles against the bar and the disagreement is immediate: cache reads are <strong>95.6%</strong> of the tokens, and the whole task costs <strong>$15.44</strong> while the cache saved <strong>$84.22</strong> — five times the bill. Fresh input is 356 tokens, which is why the bar's third segment is a sliver held open by its minimum width rather than dropped.</p>
+
 <h3>Tokens ⇄ Cost</h3>
 <p>The toggle at the top right of the section redraws the same layout against one measure at a time. It exists because tokens and cost differ by six orders of magnitude, and putting them on one axis would draw a correlation that is not in the data.</p>
 <p><strong>Rows keep their position when you toggle.</strong> The ranking is ordered by tokens in both views, so a row that is 3% of the tokens and 20% of the bill stays put and visibly changes length. That means the cost view is not always descending — which is the finding, not a rendering fault. From a real session in this repository:</p>
@@ -60,6 +67,13 @@
 <p>The panel on the right lists, per agent, which parser read it, how many files were scanned, how many were skipped as unchanged, and anything that failed to load. It is small, and it prevents the worst failure mode this feature has: a confident total that is quietly partial. A parser that failed to load is named there, because its agent's tokens are missing from every number on the page.</p>
 
 <p>Only the filters that a usage row can answer are applied to it — repository, branch and date. A usage row is not a log entry, so it has no log type, level, status or agent path to filter on. The section header names any active filter it cannot honour rather than quietly showing a total that does not match your filters.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/metrics-usage-table.png" target="_blank" rel="noopener"><img src="docs/img/metrics-usage-table.png" alt="Every row behind the charts: when, task, agent, model, and each token counter in its own sortable column"></a>
+  <figcaption>One row per API request, each counter in its own column, sortable on any of them. <code>Write 5m</code> and <code>Write 1h</code> stay apart because they are priced differently.</figcaption>
+</figure>
+
+<p>This is where the two rules the reader enforces become visible. <strong>Input</strong> reads 2 on almost every row — that is the uncached remainder, not the input; the real input is beside it under <strong>Cache read</strong>, in the hundreds of thousands. And each row is one API request, already deduplicated: the transcript wrote several lines for most of them, all carrying the same counters.</p>
 
 <h3>How usage aggregates</h3>
 <p>Time and tokens come from two different places — your agents' own log rows, and the coding agent's session transcript — so it is worth being precise about how they meet.</p>

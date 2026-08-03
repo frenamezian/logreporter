@@ -56,3 +56,15 @@ REPO         BRANCH    TASK             FROM    TO      IDLE</pre>
 <li><strong>OWN</strong> reads "—" for a run with no subagents; there is nothing to subtract, so repeating the span would only be noise.</li>
 <li>The <strong>IDLE</strong> row shares the same horizontal frame, so a gap lines up with the runs on either side of it.</li>
 </ul>
+
+<h3>Token columns</h3>
+<p>Both the bars panel and the waterfall carry <strong>Tokens</strong> and <strong>Cost</strong> after <em>Own</em>, and both use one grid template so the four numeric columns line up between the panels:</p>
+<pre>--tg-grid: 212px 1fr 62px 62px 66px 66px
+           label  bar  time  own   tok   cost</pre>
+<p>Scoped to <code>.bars</code> on the left-hand side, so the Metrics page — which reuses <code>.bar-row</code> for its own distributions and for the usage rankings — keeps its original layout.</p>
+<table><thead><tr><th>Cell</th><th>Contents</th></tr></thead><tbody>
+<tr><td>Tokens / Cost</td><td>This agent's own requests inside <em>this run</em>, matched on the exact agent path — not its subagents', which have their own rows. An agent that ran three times gets three separate figures.</td></tr>
+<tr><td>Own</td><td>Span minus the runs of its subagents. A dash where the agent dispatched nothing, since there is nothing to exclude.</td></tr>
+<tr><td>IDLE row</td><td>A dash in both token columns: idle time is nobody's work, so it has no requests.</td></tr>
+<tr><td>A request between runs</td><td>Belongs to no row and appears in neither column. It is still counted in the card above and on the Metrics page.</td></tr>
+</tbody></table>

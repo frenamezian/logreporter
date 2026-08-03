@@ -1,8 +1,8 @@
 <p>Where the wall-clock time went, with idle treated as a first-class category rather than a residual. This is the only page whose shape follows the drill depth, and the only one where the numbers need explaining — so this topic explains them.</p>
 
 <figure class="help-figure">
-  <a href="docs/img/timegoes.png" target="_blank" rel="noopener"><img src="docs/img/timegoes.png" alt="Where time goes at task level: five stat cards, per-agent bars, the waterfall, and the run log list"></a>
-  <figcaption>Drilled to one task: stat cards, one bar per agent run, the waterfall, and the logs behind the focused run.</figcaption>
+  <a href="docs/img/timegoes.png" target="_blank" rel="noopener"><img src="docs/img/timegoes.png" alt="Where time goes at task level: six stat cards, per-agent bars, the waterfall, and the run log list"></a>
+  <figcaption>Drilled to one task: six stat cards, one bar per agent run, the waterfall, and the logs behind the focused run.</figcaption>
 </figure>
 
 <h3>1 · The vocabulary</h3>
@@ -93,6 +93,16 @@
 
 <h3>Tokens on this page</h3>
 <p>A sixth card carries the scope's token total with its modelled cost underneath. Like every other card in that row it describes the <em>whole scope</em>, while the waterfall below shows one task — so the two only match when you are drilled into that task.</p>
+<figure class="help-figure">
+  <a href="docs/img/timegoes-usage.png" target="_blank" rel="noopener"><img src="docs/img/timegoes-usage.png" alt="Where time goes at task level with the token card and the Tokens and Cost columns on both panels"></a>
+  <figcaption>The six cards, then the same six runs twice — once as bars, once as a waterfall — with Time, Own, Tokens and Cost lining up across both panels.</figcaption>
+</figure>
+
+<p>The columns reconcile with the card above them. In the run above: 348K + 14.44M + 950.6K + 630.7K + 628.2K + 2.59M = <strong>19.59M</strong>, and $0.33 + $10.68 + $0.97 + $0.77 + $0.67 + $2.01 = <strong>$15.44</strong> — the card's figures exactly, because every request inside the task span belongs to exactly one run.</p>
+
+<h4>Own time and own tokens are different measures</h4>
+<p>The <code>lead_architect</code> row in that run reads <strong>Own 0s</strong> but <strong>348K tokens</strong>, and both are right. It was open for the full 44 minutes while its subagents worked, so no minute of that span is its own — but the requests <em>it</em> made are still its own, and they are what the token column reports. Time is apportioned by span; tokens are attributed by which agent made the request. An agent can therefore own tokens without owning any time.</p>
+<p>The reverse also happens: <code>code_reviewer</code> shows <strong>Own —</strong> on all three of its runs, because it dispatched nothing and Own is only meaningful for an agent that has subagents to exclude. Its whole span is its own.</p>
 <p>The bars panel and the waterfall gained a <strong>Tokens</strong> and a <strong>Cost</strong> column after <em>Own</em>, and both panels now share one grid, so their columns line up. At task level that matters more than it looks: the two panels list the <em>same runs</em>, once as magnitude and once as position in time.</p>
 <p>Both columns follow <em>Own</em>'s meaning — <strong>this agent's own requests inside this run</strong>, not its subagents'. Subagents have their own rows. Because a row is one run rather than one agent, an agent that ran three times gets three separate figures; on the sampled task the reviewer's runs read 37, 29 and 28, summing to the 94 the Metrics page reports for it.</p>
 <p>A request that falls between an agent's runs belongs to no row and is left out of both columns; it is still counted in the card above and on the Metrics page. The <strong>IDLE</strong> row shows a dash: idle time is nobody's work, so it has no tokens.</p>
