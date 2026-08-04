@@ -72,7 +72,10 @@ TIMEOUT_S = 120
 KNOWN_AGENTS = (
     "claude", "codex", "gemini", "copilot", "opencode", "amp", "droid",
     "codebuff", "goose", "kilo", "qwen", "antigravity", "kimi", "openclaw",
-    "hermes", "pi-agent",
+    # `pi`, not `pi-agent`: the agent is called pi-agent but ccusage's
+    # subcommand for it is `pi`, and asking for the wrong one is indis-
+    # tinguishable here from an agent ccusage has never heard of.
+    "hermes", "pi",
 )
 
 # ccusage's name for an agent -> the AGENT_ID a native parser would use. Only
