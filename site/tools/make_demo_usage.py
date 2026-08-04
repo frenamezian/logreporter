@@ -1,5 +1,5 @@
 """
-Generate _build/app/token_usage.db for the public demo.
+Generate _build/app/token_usage.db and its run report for the public demo.
 
 The demo ships seed/activity_logs.db (synthetic sample logs). Its usage sibling
 has to be synthetic too — publishing a real token_usage.db would expose actual
@@ -16,6 +16,7 @@ Runs after export_app.py, which is what puts _build/app/activity_logs.db in
 place. site/build.py runs the two in that order for you.
 """
 
+import json
 import random
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -24,6 +25,7 @@ from _paths import BUILD, REPO
 
 LOGS = BUILD / "app" / "activity_logs.db"
 OUT = BUILD / "app" / "token_usage.db"
+REPORT = BUILD / "app" / "token_usage.report.json"
 
 SEED = 20260803          # fixed: rebuilds must be reproducible
 MODELS = [
@@ -151,6 +153,39 @@ def main():
     ).fetchone()
     print(f"{OUT.relative_to(REPO)}: {len(rows)} requests across {len(spans)} tasks")
     print(f"  input {tot[0]:,} tokens · output {tot[1]:,} tokens")
+
+    write_report(len(rows))
+
+
+def write_report(rows_total: int) -> None:
+    """Write the reader's run report beside the usage database.
+
+    The dashboard fetches this on every load to draw the source-transparency
+    panel. Nothing writes one here — usage_reader.py does that, and it does not
+    run for the demo — so without this the published site answers 404 on every
+    page load, which is a red line in the console of anyone who opens dev tools
+    on it and a panel that says no report was found.
+
+    What it must not do is imitate a reader run. The panel exists to say where
+    the numbers came from, so a fixture claiming to have scanned somebody's
+    session files would be the one lie the panel is there to prevent. Hence no
+    agents, no parsers, and a note saying plainly what these rows are.
+    """
+    report = {
+        "started": datetime.now(timezone.utc).strftime(TS),
+        "agents": [],
+        "failures": [],
+        "loaded": [],
+        "inactive": [],
+        "rows_total": rows_total,
+        "elapsed_s": 0,
+        "note": ("Demo fixture. These usage rows were generated from a fixed "
+                 "seed to match the sample logs — no session transcripts were "
+                 "read, and no parser ran. On your own install the reader fills "
+                 "this panel with what it actually scanned."),
+    }
+    REPORT.write_text(json.dumps(report, indent=1), encoding="utf-8", newline="\n")
+    print(f"  {REPORT.name}  {REPORT.stat().st_size:,} bytes")
 
 
 if __name__ == "__main__":

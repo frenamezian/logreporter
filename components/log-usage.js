@@ -435,6 +435,14 @@ class LogUsage {
         No reader report found. Usage rows may predate it, or the reader has not
         run since this feature was installed.</span></div>`);
     } else {
+      // A report may say in words where its rows came from, and that goes first
+      // because it qualifies everything under it. The published demo uses it to
+      // state that its usage rows are generated rather than read from anyone's
+      // transcripts — a panel called source transparency is the wrong place to
+      // let a synthetic fixture pass for a parser run.
+      if (rep.note) {
+        rows.push(`<div class="usage-src-row"><span class="usage-src-detail">${esc(rep.note)}</span></div>`);
+      }
       (rep.agents || []).forEach((a) => {
         const errs = (a.errors || []).length;
         rows.push(`
