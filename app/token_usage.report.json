@@ -1,0 +1,10 @@
+{
+ "started": "2026-08-04 05:50:50",
+ "agents": [],
+ "failures": [],
+ "loaded": [],
+ "inactive": [],
+ "rows_total": 251,
+ "elapsed_s": 0,
+ "note": "Demo fixture. These usage rows were generated from a fixed seed to match the sample logs \u2014 no session transcripts were read, and no parser ran. On your own install the reader fills this panel with what it actually scanned."
+}
