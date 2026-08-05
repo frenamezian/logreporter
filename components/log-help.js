@@ -20,6 +20,7 @@ const TITLES = {
   architecture: 'Architecture',
   datamodel: 'Data model',
   queries: 'Queries',
+  parsers: 'Model parsers',
   timemodel: 'Duration and idle model',
   design: 'Page design',
   dsmaster: 'Master layout',
@@ -34,10 +35,10 @@ const TITLES = {
 
 /* --- Nav structure --- */
 const USER_GUIDE = ['started', 'install', 'header', 'sidebar', 'hierarchy', 'chronology', 'timegoes', 'metrics', 'models', 'maint', 'detail'];
-const DEV_GUIDE = ['architecture', 'datamodel', 'queries', 'timemodel', 'design', 'dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmodels', 'dsmaint', 'prompts'];
+const DEV_GUIDE = ['architecture', 'datamodel', 'queries', 'parsers', 'timemodel', 'design', 'dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmodels', 'dsmaint', 'prompts'];
 const SUB_ITEMS = new Set(['dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmodels', 'dsmaint']);
 const FLAT = USER_GUIDE.concat(DEV_GUIDE);
-const DOC_VERSION = 23;
+const DOC_VERSION = 24;
 
 // Fragments are fetched once and kept, so revisiting a topic re-renders
 // synchronously — both components re-render on every state update. `text` is

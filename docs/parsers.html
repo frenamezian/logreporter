@@ -1,0 +1,140 @@
+<p>One file per coding agent, found by globbing <code>parsers/</code>. Each one reads a single agent's private format and yields <code>UsageRecord</code> objects; everything downstream — the reader, the writer, the schema, the pages — knows only the record. This topic is about the two shipped native parsers, because they are the two <em>shapes</em> the plugin contract has to accommodate: an append-only text file, and somebody else's live SQLite database.</p>
+
+<figure class="help-figure">
+  <a href="docs/img/parser-flow.svg" target="_blank" rel="noopener"><img src="docs/img/parser-flow.svg" alt="Data flow from each agent's own store through discover, the watermark decision and parse, to UsageRecord and token_usage.db, with the two parsers diverging only at the cursor step"></a>
+  <figcaption>The path from an agent's own store to <code>token_usage.db</code>. Everything is shared except the one rank where <code>parse()</code> diverges — a byte offset into a JSONL file, or a row index into a SQLite table.</figcaption>
+</figure>
+
+<h3>The contract: seven names</h3>
+<p>A parser is a module in <code>parsers/</code> that exposes seven names. There is no registration list to edit, deliberately: a central registry would put every contributor's pull request in the same file, so every pull request would conflict with every other one. <code>loader.py</code> imports every <code>.py</code> in the directory that does not start with <code>_</code>, and a module declaring <em>none</em> of these names is not treated as a parser at all — that is how <code>loader.py</code> and <code>conformance.py</code> live in the same folder without a hard-coded list of the framework's own files.</p>
+<table><thead><tr><th>Name</th><th>Type</th><th>Notes</th></tr></thead><tbody>
+<tr><td><code>AGENT_ID</code></td><td>str</td><td>Stable key, and the value of the <code>source</code> column.</td></tr>
+<tr><td><code>AGENT_NAME</code></td><td>str</td><td>Shown in the source-transparency panel.</td></tr>
+<tr><td><code>HOMEPAGE</code></td><td>str</td><td>Linked from that panel.</td></tr>
+<tr><td><code>PRIORITY</code></td><td>int</td><td>Highest wins a contested <code>AGENT_ID</code>; ties break on module name. Both native parsers are <code>100</code>, the <code>ccusage</code> fallback is <code>1</code>.</td></tr>
+<tr><td><code>detect()</code></td><td>→ bool</td><td>Is this agent on this machine? Runs on <strong>every refresh, for every parser, before anything is read</strong> — so it is a path test and nothing else.</td></tr>
+<tr><td><code>discover()</code></td><td>→ list[Path]</td><td>The files this parser owns.</td></tr>
+<tr><td><code>parse(path, cursor)</code></td><td>→ (Iterator[UsageRecord], str)</td><td>The records appended since <code>cursor</code>, and the new cursor.</td></tr>
+</tbody></table>
+<p>A module declaring <em>some</em> of the seven is a parser with a mistake in it, and the loader reports exactly which names are missing. A module that raises on import is skipped, logged with its traceback, and named in the dashboard — one broken community parser costs that parser and nothing else, but it never silently reads as zero.</p>
+<p>Three optional names the reader uses if they are present, and ignores otherwise: <code>PARSE_STATS</code> (a counter dict — lines skipped, shapes not understood — surfaced in the source panel), <code>UNAVAILABLE_HINT</code> (shown when <code>detect()</code> is false, so "unsupported" reads as "not installed"), and <code>exclude_agents()</code>, which fallback adapters use to stand down for an agent that already has a native parser.</p>
+
+<h3>UsageRecord — the normalized output</h3>
+<p>Defined in <code>parsers/__init__.py</code> rather than in <code>usage_reader.py</code>, because parsers import the record and the reader imports the parsers; putting it in the reader would make that a cycle. Here it is a leaf that imports nothing of ours.</p>
+<p>Three properties carry most of the design:</p>
+<ul>
+<li><strong><code>request_id</code> is the dedupe key <em>and</em> the primary key of the table.</strong> The dedupe is not something the writer has to remember: with <code>INSERT OR IGNORE</code> it is a property of the schema. An agent with no request identity of its own must synthesize a <em>stable</em> id — the same input must hash the same way on every run, or re-import stops being idempotent.</li>
+<li><strong>Every counter is <code>Optional</code>, all the way to the browser.</strong> <code>0</code> means the agent reported zero; <code>None</code> means it has no such counter. <code>problems()</code> lives on the record so the writer and the conformance harness cannot drift apart about what "a valid record" means.</li>
+<li><strong><code>input_tokens</code> is the uncached remainder, never the total input.</strong> The total is <code>input_tokens + cache_read_tokens + cache_write_5m + cache_write_1h</code>, computed at render time and never stored. The parser's job is only to keep the four apart.</li>
+</ul>
+<p><code>extra_json</code> is the one open-ended field, and it is closed by a whitelist of about ten keys in <code>parsers/__init__.py</code>, each value capped at 64 characters — long enough for a model id or a CLI version, far too short for a sentence. The list lives in one place and is enforced twice: by the parser, and again by <code>usage_reader.py</code> on the way into the database. The second gate exists so a future community parser cannot widen it by accident.</p>
+
+<h3>The storage mechanism</h3>
+<p>The reader's loop is four steps: load every parser, ask the ones that claim this machine for their files, skip the files whose size and mtime are unchanged, and parse the rest from their recorded cursor.</p>
+
+<h4>The cursor is opaque to the framework</h4>
+<p>Nothing outside a parser ever looks inside its cursor. The reader stores the string in <code>watermark.cursor</code> and hands it back on the next run; the parser is the only code that interprets it. Fixing it to "byte offset" in the framework would have excluded every agent that does not keep its usage in a text file — which is precisely the second parser on this page.</p>
+<p>Both shipped parsers put their <code>PARSE_VERSION</code>, their <code>AGENT_ID</code> and their <code>PRIORITY</code> inside the cursor and refuse one they do not recognise, falling back to reading the file from the start. That is what makes "the meaning of what this parser emits changed, re-read everything" work without adding a column to the watermark table, and it is self-healing: an unrecognised cursor costs one full re-read, not a wrong number.</p>
+
+<h4>The watermark is a speed optimisation, never a correctness one</h4>
+<p><code>watermark(parser_id, source_path, cursor, size_bytes, mtime_ns, last_run)</code>. A file whose size <em>and</em> mtime both match what was recorded is not opened at all — the common case, and the one that keeps a refresh cheap over hundreds of megabytes of transcripts. Two conditions invalidate the cursor outright and force a full re-read: a file smaller than recorded was truncated or rotated, and an mtime that moved <em>backwards</em> means the file was replaced or restored from a backup.</p>
+<p>The stat is taken <em>before</em> the parse, on purpose. If the agent appends while the file is being read, the recorded size is behind the cursor and the file gets read again next time — which costs a little time and inserts nothing. The other direction would lose the appended rows.</p>
+<div class="help-callout"><strong>Getting the cursor wrong costs time, never accuracy.</strong> <code>request_id</code> is the primary key and every insert is <code>INSERT OR IGNORE</code>, so resuming too early re-reads rows that are already there and inserts nothing new. This is what makes it safe to be aggressive about skipping, and what makes <em>Rebuild usage</em> a complete escape hatch rather than a repair tool.</div>
+
+<h4>Two kinds of source</h4>
+<p><code>SOURCE_KIND</code> defaults to <code>"files"</code>: things on disk that get stat-ed, watermarked, and appended to. The alternative is <code>"command"</code> — a CLI that reports <em>aggregates</em> rather than a file you read incrementally, which is what <code>parsers/ccusage.py</code> is. For those the reader skips stat and watermark entirely and <strong>deletes and replaces the parser's whole <code>source</code> namespace on every run</strong>. That is required, not a shortcut: an aggregate row's numbers change as the day goes on, and <code>INSERT OR IGNORE</code> would freeze the first snapshot of the day forever. Both parsers described below are <code>"files"</code>.</p>
+
+<hr>
+
+<h3><code>claude_code.py</code> — appended JSONL</h3>
+<p>Claude Code writes <code>~/.claude/projects/&lt;encoded-cwd&gt;/&lt;session-uuid&gt;.jsonl</code>, one JSON object per line, appended as the session runs. <code>CLAUDE_CONFIG_DIR</code> is honoured, because a user who moved their config would otherwise look like a user who has never run it.</p>
+<p><strong>Discovery is recursive</strong> — <code>rglob("*.jsonl")</code>, not a top-level scan. Subagent runs live one level deeper, in <code>&lt;session-uuid&gt;/subagents/agent-*.jsonl</code>, and a subagent frequently runs a <em>different model</em> than its parent. A top-level-only scan would omit that spend entirely while still presenting a confident-looking total. Each sidechain file has an <code>agent-&lt;id&gt;.meta.json</code> beside it; the parser reads <code>agentType</code> from it — one small read per file, not per line — and that single field is what makes "subagents cost 40% of this task" answerable at all. It lands in <code>extra_json</code> as <code>agent_type</code>.</p>
+
+<h4>A byte-offset cursor, and the partial last line</h4>
+<p>The cursor is <code>{"parser","parse_version","priority","offset"}</code>; <code>offset</code> is a byte position and resuming is a <code>seek()</code>. Three details are load-bearing:</p>
+<ul>
+<li><strong>The file is opened in binary, not text mode.</strong> A text-mode <code>tell()</code> returns an opaque cookie rather than a byte offset, so it could neither be compared against the file size nor stored as a resumable position.</li>
+<li><strong>A line that does not end in a newline is left unread.</strong> The agent is mid-write; the offset stays <em>before</em> that line so the complete version is read next time. Without this, a half-written line is either lost or parsed as garbage.</li>
+<li><strong>The file is read eagerly into a list.</strong> <code>parse()</code> returns <code>(iterator, new_cursor)</code>, and the new offset is only known once the last complete line has been consumed — so it cannot be produced lazily. Session files reach about 14 MB, but on a normal refresh only the appended part is read, so the memory is bounded by one file's growth between refreshes rather than by history.</li>
+</ul>
+
+<h4>Dedupe, because one response is many lines</h4>
+<p>One API response is written as several lines — one per content block — each carrying a byte-identical <code>usage</code> object. Summing lines overcounts. In the fixture committed to this repository, <strong>44 lines carrying a usage object collapse to 12 distinct requests</strong>, and summing them instead inflates the total by <strong>3.36×</strong>: 3,710,184 tokens against a true 1,105,582.</p>
+<p>The dedupe is belt-and-braces: a <code>seen</code> set within a single parse pass, and <code>request_id</code> being the table's primary key across passes. Lines with no <code>requestId</code> get a synthetic one — <code>sha256(sessionId | uuid | filename)</code>, truncated and prefixed <code>syn_</code>. Stability is the entire requirement: the same line must hash the same way on every run or <code>INSERT OR IGNORE</code> stops making re-import idempotent.</p>
+<p>Two kinds of line are dropped rather than emitted. API-error placeholders — <code>isApiErrorMessage</code>, or a model of <code>&lt;synthetic&gt;</code> — represent no spend, and emitting them would put <code>&lt;synthetic&gt;</code> in front of the user as an unpriceable model with a "go add it to the registry" hint, which is advice that makes no sense. Lines with no usable timestamp are dropped too. Both are counted in <code>PARSE_STATS</code> rather than swallowed, and the counters are arranged so they reconcile: <code>usage_lines = skipped_api_errors + skipped_no_timestamp + deduped_lines + records</code>.</p>
+
+<h4>The cache-write TTL split</h4>
+<p>Modern transcripts carry <code>usage.cache_creation</code> as an object, and the two ephemeral tiers map straight across:</p>
+<pre>cache_creation.ephemeral_5m_input_tokens  → cache_write_5m
+cache_creation.ephemeral_1h_input_tokens  → cache_write_1h</pre>
+<p>Older transcripts, written before the one-hour cache existed, carry only the <code>cache_creation_input_tokens</code> total. Every cache write back then was five-minute ephemeral, so mapping it to <code>cache_write_5m</code> is a fact about the old format rather than a guess about the TTL — but it is flagged in <code>extra_json</code> as <code>cache_write_ttl: "implied_5m"</code> either way, because which tier applies changes the price (1.25× and 2× the input rate).</p>
+
+<h4>Why <code>input_tokens</code> is so small</h4>
+<p>Anthropic's <code>input_tokens</code> is the uncached remainder. In the same fixture it reads <strong>1,449</strong> against a true input of <strong>1,091,210</strong> — <code>1,449 + 804,539 + 0 + 285,222</code> — which the bare field understates by 753×. A parser that maps that field to "input" and stops produces a number that is wrong by nearly three orders of magnitude and looks entirely reasonable.</p>
+
+<h4>What is deliberately not extracted</h4>
+<p><code>message.content</code>: the prompts, the replies, tool arguments, file contents and whatever secrets passed through them. The parser reads the numeric counters and a short envelope — <code>isSidechain</code>, <code>entrypoint</code>, <code>version</code>, <code>effort</code>, each an enum-like token or a version string — and nothing else in the line is ever touched. Repository attribution is derived from the transcript's <code>cwd</code> by walking up to the nearest <code>.git</code> in the same way <code>log_activity.py</code> does (a linked worktree reports the main repo, a submodule reports itself), as a cached stat walk rather than a subprocess: <code>git rev-parse</code> is about 70 ms on Windows and a history holds hundreds of distinct directories.</p>
+
+<hr>
+
+<h3><code>antigravity.py</code> — a SQLite database per conversation</h3>
+<p>Not in the IDE's VS Code storage, which is where you would look first and where there is nothing. The agent half of Antigravity is a separate language-server process with its own data directory, named after the <code>--app_data_dir</code> it was launched with:</p>
+<pre>~/.gemini/antigravity-ide/conversations/&lt;cascade-uuid&gt;.db   (current)
+~/.gemini/antigravity/conversations/&lt;cascade-uuid&gt;.db       (older install)</pre>
+<p>Each file is a SQLite database for one conversation. <code>gen_metadata(idx, data, size)</code> holds one row per LLM request, <code>data</code> being a raw protobuf blob with no base64 wrapper. <code>trajectory_metadata_blob</code> holds the workspace, git remote and branch; <code>trajectory_meta</code> holds the ids.</p>
+<p>The blob wraps one <code>exa.cortex_pb.ChatModelMetadata</code> in field 1. Field 4 of that message is <code>usage</code>, an <code>exa.codeium_common_pb.ModelUsageStats</code>, and the counters are its fields 2 (<code>input_tokens</code>), 3 (<code>output_tokens</code>), 4 (<code>cache_write_tokens</code>), 5 (<code>cache_read_tokens</code>), 9 (<code>thinking_output_tokens</code>), 10 (<code>response_output_tokens</code>) and 11 (<code>response_id</code>). The field <em>names</em> are not inferred from value shapes: both schemas are compiled into the IDE bundle as protobuf <code>FileDescriptorProto</code>s, so they are the real ones. Three things were then checked against every request on the machine this was written on — 7,679 of them across 69 conversations:</p>
+<ul>
+<li><code>thinking + response == output</code> held on all 7,679, so field 3 is the output <em>total</em> and 9 and 10 are its split. Summing all three would double-count output. The thinking figure is reported separately in <code>extra_json</code> as <code>reasoning_output_tokens</code>.</li>
+<li><code>response_id</code> was unique across all 7,650 rows that had one, which is what makes it usable as the dedupe key rather than something synthesized. The 29 rows without one fall back to <code>antigravity:&lt;session&gt;:&lt;idx&gt;</code>, stable for the same conversation and row.</li>
+<li>Field 4 <strong>never appeared</strong>.</li>
+</ul>
+<p>The parser reaches for named fields and never walks the tree. Field <code>1.9.10</code> of the same blob is a context breakdown — section names, the user's rule and skill names, tool names, a token count each. It is not message content, but it is close enough that none of it belongs in a usage database, so nothing outside the map above is ever decoded.</p>
+
+<h4>An <code>idx</code> cursor, and why the sentinel is −1</h4>
+<p><code>gen_metadata.idx</code> is the table's <code>INTEGER PRIMARY KEY</code> and rows are appended one per request, so the whole of the cursor is "the idx to resume after" and the whole of the query is <code>WHERE idx &gt; ? ORDER BY idx</code>. The read-everything sentinel is <strong>−1, not 0</strong>: <code>idx</code> starts at 0, so <code>WHERE idx &gt; 0</code> would silently drop each conversation's very first request. That is one whole request per conversation missing — a shortfall no total would show as obviously wrong.</p>
+<p>A conversation with no rows at all leaves nothing to resume after, so the parser returns a <code>NULL</code> cursor and the file is read from the start next time, which is the wanted behaviour rather than an oversight.</p>
+
+<h4>Read-only access to a live database</h4>
+<p>The connection is a <code>file:…?mode=ro</code> URI against the live file. This is another process's data and there is 745 MB of it, so copying it on every refresh is out of the question; and opening it read-write could let SQLite checkpoint or recover — writing into a running agent's store. A read-only open still updates <code>&lt;uuid&gt;.db-shm</code>, SQLite's shared-memory index, but that file is ephemeral, rebuildable, and rewritten by Antigravity constantly. The two files that hold data are left untouched.</p>
+
+<h4>Why <code>discover()</code> returns the <code>-wal</code> path</h4>
+<p>These databases are in WAL mode and Antigravity holds them open for weeks at a time. A new request therefore lands in <code>&lt;uuid&gt;.db-wal</code> and the <code>.db</code> file's size and mtime <em>do not move at all</em>. The reader skips a file whose size and mtime are unchanged — so returning the <code>.db</code> path would mean every new request stayed invisible until Antigravity happened to checkpoint. This is the case where the watermark's speed optimisation would have become a correctness problem, and the fix is at the parser's end, not the framework's: <code>discover()</code> hands back the path that actually changes.</p>
+<p>It is not a rare corner. On the development machine this was written against, <strong>59 of the 95 conversation databases had a live WAL</strong> at the time of writing. When a WAL is checkpointed away the <code>.db</code> path is returned instead; that is a new watermark key and costs exactly one re-read, which <code>INSERT OR IGNORE</code> on the response id absorbs.</p>
+
+<h4><code>repo_name</code> comes from the git remote, not the folder</h4>
+<p>The workspace blob carries both the workspace folder URI and the git remote, and they differ in practice — a folder called <code>Playground-Harness</code> cloned from <code>frenamezian/Playground</code>. The parser takes the repository name from the <strong>remote</strong>, because that is what <code>log_activity.py</code> records, and attribution joins a usage row to a task on repository and branch. Taking the folder name would produce rows that are correct in isolation and attributable to nothing. The folder name is the fallback, for a workspace with no remote at all.</p>
+
+<h4>Cache writes are <code>NULL</code>, not <code>0</code></h4>
+<div class="help-callout"><strong><code>ModelUsageStats</code> field 4 <em>is</em> <code>cache_write_tokens</code> — Antigravity simply never writes it.</strong> It was absent in all 7,679 real requests checked. So <code>cache_write_5m</code> and <code>cache_write_1h</code> are both <code>NULL</code> for every Antigravity row. Reporting <code>0</code> would claim its cache writes had been measured and found free, which is a different and false statement. <code>service_tier</code> and <code>speed</code> are <code>NULL</code> for the same reason: this agent does not report them.</div>
+<p>The model id is stored as the string the agent recorded in field 19 — <code>gemini-3-flash-a</code>, <code>claude-sonnet-4-6</code> — rather than a prettied one. That string is an alias, and it is not one-to-one with anything: <code>gemini-3-flash-a</code> appears against model enums 1020 <em>and</em> 1132, while enum 1020 appears as <code>gemini-3-flash-a</code>, <code>gemini-3-flash-b</code> and <code>gemini-default</code>. The <code>-a</code>/<code>-b</code> pairs run concurrently on the same enum, so they read as experiment arms rather than models.</p>
+
+<p>The identity is the enum in field 1.4.1, which the IDE resolves through a catalog in its own storage (<code>antigravityUnifiedStateSync.userStatus</code>, field 33 <code>cascade_model_config_data</code>). The parser deliberately does not use it. That catalog is a server-provided snapshot and the enums are <strong>renumbered over time</strong>: enum 1133 meant &ldquo;Gemini 3.5 Flash (High)&rdquo; in the older install&rsquo;s catalog, is absent from the current one where 1084 now holds that label, and 1132 carried the same label in July while appearing in neither. Resolving today&rsquo;s catalog against rows written in May would label them confidently and wrongly.</p>
+
+<p>There is an honest fix available: field 21, <code>model_display_name</code>, is the resolved name written at the time of the request, so it cannot rot. It is present on 42% of requests, so adopting it means first deciding what the other 58% should say. Until that is settled, an id the registry does not know shows its tokens and a dash for cost, never a guessed rate.</p>
+
+<h3>The two shapes, side by side</h3>
+<table><thead><tr><th></th><th><code>claude_code</code></th><th><code>antigravity</code></th></tr></thead><tbody>
+<tr><td>Store</td><td>One appended JSONL per session</td><td>One SQLite database per conversation</td></tr>
+<tr><td>Discovery</td><td>Recursive <code>rglob</code>, including subagent sidechains</td><td>One path per <code>.db</code> — the <code>-wal</code> when a live one exists</td></tr>
+<tr><td>Cursor</td><td>Byte offset, resumed with <code>seek()</code></td><td><code>gen_metadata.idx</code>, resumed with <code>WHERE idx &gt; ?</code></td></tr>
+<tr><td>Read-everything value</td><td><code>0</code></td><td><code>-1</code> — <code>idx</code> starts at 0</td></tr>
+<tr><td>Dedupe key</td><td><code>requestId</code>, or a stable <code>syn_</code> hash</td><td><code>antigravity:&lt;response_id&gt;</code>, or <code>&lt;session&gt;:&lt;idx&gt;</code></td></tr>
+<tr><td>Records per response</td><td>Many lines, one record — 44 → 12 in the fixture</td><td>One row, one record</td></tr>
+<tr><td>Cache writes</td><td>Split by TTL, 5m and 1h</td><td><code>NULL</code> — the field exists and is never written</td></tr>
+<tr><td>Repository name</td><td>Walked up from the transcript's <code>cwd</code> to the nearest <code>.git</code></td><td>The git remote's repository name</td></tr>
+<tr><td>Partial-write hazard</td><td>A line with no trailing newline</td><td>A database another process holds open — opened <code>mode=ro</code></td></tr>
+</tbody></table>
+
+<h3>Fixtures</h3>
+<p>A pull request without a fixture is not mergeable, and the reason is not test coverage. <strong>A parser can only be reviewed by someone who has that agent installed</strong> — otherwise the reviewer is reading code against a file format they have never seen and taking the contributor's word for it. A redacted fixture plus its expected output turns that into something anyone can run in two seconds on any machine, with no agent installed.</p>
+<pre>parsers/tests/&lt;agent_id&gt;/
+    fixture.*              a small, redacted session (conformance rejects &gt; 512 KB)
+    expected.json          the records the parser must produce
+    expected_totals.json   hand-counted totals, and a note saying why they are right</pre>
+<p><code>expected_totals.json</code> is the one that carries the weight, and its <code>_why</code> field is not decoration: generating <code>expected.json</code> from the parser is fine — it pins behaviour against regressions — but a fixture that only pins a parser to its own output would happily pin in a 3.4× overcount forever. <code>python -m parsers.conformance</code> checks totals against the hand-count, records against <code>expected.json</code>, that parsing twice is identical, the <code>UsageRecord</code> invariants, that <code>NULL</code> survives as <code>NULL</code>, that the cursor round-trips, and that nothing long enough to be message content reached a field. Every parser that <em>loaded</em> is checked, not only the ones <code>detect()</code> claims — a contributor on Windows must be able to run conformance for a parser whose agent only exists on macOS, which is the entire point.</p>
+
+<h4>One is scrubbed; the other is constructed</h4>
+<p>The two fixtures here were made in different ways, and the difference is worth being honest about.</p>
+<p><strong><code>claude_code</code>'s is scrubbed from a real session.</strong> <code>python -m parsers._template scrub</code> is a <em>whitelist</em>: it keeps the handful of keys a parser reads and drops everything else, including the whole message body. A blacklist of "sensitive-looking" keys would let the next format change quietly reintroduce a field nobody thought to ban. It is real data, so it proves the field map as well as the arithmetic.</p>
+<p><strong><code>antigravity</code>'s is constructed</strong> by <code>parsers/tests/antigravity/make_fixture.py</code>, which writes the same protobuf shape with invented contents — every number, id, path, repository and branch made up, response ids included. Scrubbing was not an option: the rows are protobuf blobs with no field names in them, so "keep these keys" has nothing to match on, and scrubbing would have meant re-encoding the message anyway. And it does need scrubbing — every real blob carries that context breakdown naming the user's rules, skills and tools, and a fixture is committed forever, so the safe thing is a blob that never contained it.</p>
+<p>What that buys: the numbers in <code>expected_totals.json</code> were chosen by hand before the parser ever ran, so "hand-counted" is literally true and a regression that inflates a total fails there. What it costs, and this is the real risk: <strong>it cannot prove the field map is right.</strong> A fixture encoded by the parser's own author agrees with the parser even if both are wrong about Antigravity. That is why the map was pinned down separately — from the protobuf descriptors in the IDE bundle, and from the three invariants checked against 7,679 real requests. The fixture pins the parser's behaviour; those checks pinned its premises. The five rows cover a request with no cache read, one with a cache read, a model that reports no thinking split, a request with neither a response id nor a model string, and a step that ran no model at all and must produce no record.</p>

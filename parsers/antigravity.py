@@ -17,18 +17,47 @@ workspace, git remote and branch; `trajectory_meta` holds the ids.
 
 The field map, and how it was checked
 --------------------------------------
-The blob is `exa.cortex_pb.CortexStepMetadata`; the counters are field 9,
-`exa.codeium_common_pb.ModelUsageStats`. Both schemas are compiled into the
-IDE bundle as protobuf `FileDescriptorProto`s, so the field *names* below are
-the real ones rather than a guess from value shapes:
+The stored blob wraps one `exa.cortex_pb.ChatModelMetadata` in field 1, and
+that message's field 4 is `usage`, an `exa.codeium_common_pb.ModelUsageStats`.
+Both schemas are compiled into the IDE bundle as protobuf
+`FileDescriptorProto`s, so the field *names* below are the real ones rather
+than a guess from value shapes:
 
     1.4.1   Model  model            1.4.5   uint64 cache_read_tokens
     1.4.2   uint64 input_tokens     1.4.6   APIProvider api_provider
     1.4.3   uint64 output_tokens    1.4.9   uint64 thinking_output_tokens
     1.4.4   uint64 cache_write_tokens       1.4.10 uint64 response_output_tokens
     1.4.11  string response_id
-    1.19    the model id as a string ("gemini-3-flash-a", "claude-sonnet-4-6")
+    1.19    an alias, NOT a model identity — see below
+    1.21    string model_display_name ("Gemini 3.5 Flash (Medium)"), on 42% of
+            requests; the resolved name, written at request time
     1.9.4   the request's timestamp, {seconds, nanos}
+
+`ChatModelMetadata` also declares `model_cost` (field 5) and `credit_cost`
+(field 13). Neither is ever written: absent from all 11,795 requests across
+both installs, so there is no per-request price to read and cost stays the
+dashboard's job.
+
+Why `model_id` is field 19 and not something better
+----------------------------------------------------
+Field 19 is an alias and is not one-to-one with anything: `gemini-3-flash-a`
+appears against model enums 1020 *and* 1132, and enum 1020 appears as
+`gemini-3-flash-a`, `gemini-3-flash-b` and `gemini-default`. The `-a`/`-b`
+pairs run concurrently on the same enum, so they read as experiment arms.
+
+The identity is the enum in field 1.4.1, and the IDE resolves it through a
+catalog in its own storage (`antigravityUnifiedStateSync.userStatus`, field 33
+`cascade_model_config_data`). That catalog cannot be used here: it is a
+server-provided snapshot and the enums are **renumbered over time**. Enum 1133
+meant "Gemini 3.5 Flash (High)" in the older install's catalog, is absent from
+the current one, and 1084 holds that label there now; 1132 carried the same
+label in July and is in neither catalog. Resolving today's catalog against
+2026-05 rows would label them confidently and wrongly.
+
+Field 1.21 is the honest fix — the same name, recorded per request, at the time
+of the request — but it is present on only 42% of them, so adopting it means
+deciding what the other 58% should say. Until then this reports field 19 as it
+was written, which is at worst unhelpful and never false.
 
 Checked against every request on the machine this was written on — 7,679 of
 them across 69 conversations:

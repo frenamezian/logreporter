@@ -1,0 +1,59 @@
+%% Source for parser-flow.svg, shown in the Model parsers help topic.
+%% Regenerate:  python seed/render_mermaid.py
+%%
+%% The SVG is rendered ahead of time and checked in on purpose: the dashboard
+%% has exactly one remote dependency (sql.js) and the Installation topic tells
+%% the reader how to remove even that one. Shipping a ~3 MB diagramming library
+%% to draw one picture would contradict both, so mermaid runs at authoring time
+%% and the page gets a self-contained SVG and no new script tag.
+%%
+%% Laid out as two columns (LR between stages, TB inside each), the same trick
+%% install-flow.mmd records: a single top-down chain of these nodes renders at a
+%% ratio that is thousands of pixels tall by the time it fills the article
+%% column. The left column is what each agent writes and what discover() hands
+%% back; the right column is the reader's loop, which is identical for both
+%% except for the one rank where parse() diverges, and the write they share.
+%%
+%% A2 ~~~ B1 is an invisible edge. Without it the two stores are unconnected
+%% chains and mermaid lays them out side by side, which doubles the width.
+flowchart LR
+    subgraph S1["1 · Where each agent keeps it"]
+        direction TB
+        A1["Claude Code<br/>~/.claude/projects/<br/>ENCODED-CWD/SESSION.jsonl<br/>appended, one JSON object per line"]
+        A2["discover: rglob *.jsonl<br/>incl. subagent sidechains"]
+        B1["Antigravity<br/>~/.gemini/APP-DATA-DIR/<br/>conversations/UUID.db<br/>one SQLite database per conversation"]
+        B2["discover: the -wal path<br/>when a live WAL exists<br/>59 of 95 databases here"]
+        A1 --> A2
+        B1 --> B2
+        A2 ~~~ B1
+    end
+
+    subgraph S2["2 · One loop, one divergence, one write"]
+        direction TB
+        C1{"watermark:<br/>size AND mtime<br/>unchanged?"}
+        C1 -- "yes" --> C2["skip: never opened"]
+        C1 -- "no" --> C3["parse(path, cursor)<br/>the cursor is opaque<br/>to the framework"]
+        C3 --> D1["cursor = byte offset<br/>seek; stop before a<br/>partial last line<br/>dedupe on requestId"]
+        C3 --> D2["cursor = gen_metadata.idx<br/>open mode=ro; select the<br/>rows after it; decode<br/>named protobuf fields"]
+        D1 --> E1["UsageRecord<br/>five nullable counters"]
+        D2 --> E1
+        E1 --> E2["problems() empty;<br/>extra_json whitelisted"]
+        E2 --> E3["INSERT OR IGNORE<br/>request_id is the key"]
+        E3 --> E4[("token_usage.db")]
+        E3 --> E5["watermark row:<br/>cursor, size, mtime"]
+    end
+
+    A2 --> C1
+    B2 --> C1
+
+    classDef store fill:#161821,stroke:#2a2d3a,stroke-width:1px,color:#e6e6e6
+    classDef step fill:#161821,stroke:#2a2d3a,stroke-width:1px,color:#e6e6e6
+    classDef ask fill:#1b1d2b,stroke:#5b8def,stroke-width:1px,color:#e6e6e6
+    classDef opt fill:#161821,stroke:#2a2d3a,stroke-width:1px,color:#9aa0b2
+    classDef done fill:#1d2a44,stroke:#5b8def,stroke-width:2px,color:#e6e6e6
+
+    class A1,B1 store
+    class A2,B2,C3,D1,D2,E2,E3 step
+    class C1 ask
+    class C2,E5 opt
+    class E1,E4 done
