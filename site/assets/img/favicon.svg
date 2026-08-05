@@ -7,7 +7,11 @@
        one place in the project where a colour literal is unavoidable. The
        brand red (Task 0010, Paper & Ink) reads on both tab strips, so the
        old per-scheme media query is gone. Corners are square, like every
-       other corner in the brand. -->
+       other corner in the brand.
+
+       This file is the SOURCE: site/build.py --images copies it verbatim to
+       site/assets/img/favicon.svg, and export_app.py ships it with the demo
+       — edit it here, never in the generated copy. -->
   <style>
     .ell { fill: #ec3013; }
   </style>

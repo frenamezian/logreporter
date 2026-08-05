@@ -18,7 +18,7 @@ const { esc } = window.LRC;
 // only place the brand red appears inside the app.
 const BRAND_MARK = `
   <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-    <clipPath id="lr-ell-foot"><rect x="5" y="22.4" width="24" height="5.6" rx="2.8"/></clipPath>
+    <clipPath id="lr-ell-foot"><rect x="5" y="22.4" width="24" height="5.6"/></clipPath>
     <g clip-path="url(#lr-ell-foot)">
       <rect x="5" y="22.4" width="7" height="5.6" fill="var(--brand)"/>
       <rect x="12" y="22.4" width="6.5" height="5.6" fill="var(--activity)"/>
@@ -26,7 +26,7 @@ const BRAND_MARK = `
       <rect x="23" y="22.4" width="3.5" height="5.6" fill="var(--github)"/>
       <rect x="26.5" y="22.4" width="2.5" height="5.6" fill="var(--hatch-strong)"/>
     </g>
-    <rect x="5" y="4" width="5.6" height="24" rx="2.8" fill="var(--brand)"/>
+    <rect x="5" y="4" width="5.6" height="24" fill="var(--brand)"/>
   </svg>`;
 
 // Page key -> human-readable nav tab label (§2.4)

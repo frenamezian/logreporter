@@ -73,6 +73,8 @@ Approved changes to the app, exhaustively:
 
 Everything else — layout, spacing structure, component markup, JS logic, the dark theme's rendered output, view content — is **out of scope**. A finding that something else "should" change is escalated to the owner, not implemented.
 
+> **Escalations resolved by the owner during execution (2026-08-05):** (a) `docs/design.html` — the in-app design doc contradicted the restyle after Stage B round 1; owner approved updating it within this task. (b) The brand mark's corners are squared in both themes (third sanctioned dark exception, recorded in the acceptance criteria above).
+
 ### App light theme — target palette ("Paper & Ink")
 
 | Role | Current (high summer) | Target | Note |
@@ -120,7 +122,7 @@ Everything else — layout, spacing structure, component markup, JS logic, the d
 - [ ] The nav and footer brand is the shared **L mark** (inline SVG, geometry copied from `components/log-header.js`'s `BRAND_MARK`), in the landing's red-family dialect: stem `#ec3013`, foot `#ec3013`/`#7a1a0c`/`#3a3735`/`#8a8582`/hatch. This is an owner-approved deviation from the brief's plain red square, recorded in the reference brief's header.
 
 ### App
-- [ ] Dark theme is **render-identical**, with exactly two permitted exceptions: the new category stripe, and the brand mark's stem turning brand-red — both styled in dark from tokens. Everything else in dark: no visible difference on a before/after screenshot pair of at least Hierarchy + Metrics.
+- [ ] Dark theme is **render-identical**, with exactly three permitted exceptions (the third added by owner decision during execution, 2026-08-05): the new category stripe, the brand mark's stem turning brand-red, and the brand mark's corners squared (rx 2.8 → 0) — all styled in dark from tokens. Everything else in dark: no visible difference on a before/after screenshot pair of at least Hierarchy + Metrics.
 - [ ] Light theme shows: paper ground, white cards with visible borders, ink top bar with red brand square and paper-on-ink active tab, 5-segment category stripe (idle hatched), dark stat tiles, square corners, no soft shadows, stronger zebra.
 - [ ] Diff limited to: `style.css`, the header markup file (stripe only), `components/log-header.js` (`BRAND_MARK` colors + its comment, nothing else), font files + their `@font-face`, and any `?v=` cache-bust bumps. All other `components/*.js` untouched.
 - [ ] No color literal outside the two token blocks of `style.css` (the file's own rule) — verified by grep, allowing only the documented exceptions (`og-card`, `favicon`).

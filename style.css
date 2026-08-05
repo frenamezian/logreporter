@@ -175,10 +175,11 @@
      checks), this one clears all five:
 
        node seed/validate_palette.js "#0d8442,#e02d1b,#3a5fe0,#0099b0" \
-            --mode light --surface "#fffaf0"
+            --mode light --surface "#f3f2f2"     (and again vs "#ffffff")
        -> lightness band PASS · chroma floor PASS
           CVD separation PASS (worst adjacent #e02d1b<->#0d8442 dE 9.4 deutan)
           normal-vision floor PASS (18.6) · contrast vs surface PASS (all >= 3:1)
+          (both grounds — re-run 2026-08-05 for the Paper & Ink surfaces)
 
      Stacking order is fixed by §Design (activity -> issue -> decision -> github),
      and the validator checks ADJACENT pairs, so that order is what was tested.
@@ -222,10 +223,11 @@
      adjacent pair collapses under CVD.
 
        node seed/validate_palette.js "#b06f00,#c8306f,#6a4fd0,#d34a13" \
-            --mode light --surface "#fffaf0"
+            --mode light --surface "#ffffff"
        -> lightness band PASS · chroma floor PASS
           CVD separation PASS (worst adjacent #c8306f<->#b06f00 dE 11.1 deutan)
-          normal-vision floor PASS (19.3) · contrast vs surface PASS (all >= 3:1) */
+          normal-vision floor PASS (19.3) · contrast vs surface PASS (all >= 3:1)
+          (re-run 2026-08-05: white cards are where these render in Paper & Ink) */
   --usage-cache-read: #b06f00;
   --usage-cache-write: #c8306f;
   --usage-input: #6a4fd0;
@@ -239,9 +241,10 @@
      share of max), so step 1 is the palest here and the deepest on dark.
 
        node seed/validate_palette.js "#a695e6,#8a76d8,#6d5ac4,#50409e,#332869" \
-            --mode light --surface "#fffaf0" --ordinal
-       -> monotone L PASS · adjacent dL PASS · light-end contrast 2.50:1 PASS
-          single hue PASS (spread 6 degrees) */
+            --mode light --surface "#ffffff" --ordinal
+       -> monotone L PASS · adjacent dL PASS · light-end contrast 2.60:1 PASS
+          single hue PASS (spread 6 degrees)
+          (re-run 2026-08-05 vs the white cards of Paper & Ink) */
   --usage-rank-1: #a695e6;
   --usage-rank-2: #8a76d8;
   --usage-rank-3: #6d5ac4;
@@ -253,8 +256,11 @@
   --shadow: 0 0 0 1px #201e1d;
 
   /* Chrome-scoped tokens, light values (see the dark block for the design
-     note). The top bar and stat tiles are DARK objects on the paper page;
-     the mark/stripe colors on them are therefore the dark-tuned set. */
+     note). The top bar and stat tiles are DARK objects on the paper page,
+     so the colors that sit ON them are dark-tuned. --mark-* covers both
+     the brand mark's foot and the header's status dots — --mark-issue is
+     the src-dot's failure red (the mark itself carries no issue segment),
+     hotter than the light --issue so it reads on ink. */
   --brand: #ec3013;
   --topbar-bg: #262322;
   --topbar-surface: #33302e;

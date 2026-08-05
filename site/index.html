@@ -32,9 +32,11 @@
      <picture> below then ignores in favour of the 122 KB WebP. -->
 <link rel="preload" as="image" type="image/webp"
       href="assets/img/timegoes-usage.webp" fetchpriority="high">
-<meta name="color-scheme" content="dark light">
-<meta name="theme-color" content="#171312" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f3f2f2" media="(prefers-color-scheme: light)">
+<meta name="color-scheme" content="light dark">
+<!-- One theme-color, not two media-keyed ones: the page's theme comes from
+     localStorage, not from the OS preference, so the scripts below keep this
+     meta in step with the attribute. -->
+<meta name="theme-color" content="#f3f2f2">
 <!-- Theme, applied before the first paint — the same trick, and the same
      storage key, as the dashboard. Reading the preference after the stylesheet
      has painted means every load of the dark theme starts with a frame of the
@@ -47,6 +49,8 @@
   try {
     if (localStorage.getItem('logreporter.theme') === 'dark') {
       document.documentElement.setAttribute('data-theme', 'dark');
+      var lrMeta = document.querySelector('meta[name="theme-color"]');
+      if (lrMeta) lrMeta.setAttribute('content', '#171312');
     }
   } catch (e) { /* storage blocked — fall through to the paper default */ }
 </script>
@@ -904,6 +908,8 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
       btn.textContent = dark ? '☀' : '☾';
       btn.setAttribute('aria-pressed', String(dark));
       btn.title = 'Switch to ' + (dark ? 'light' : 'dark') + ' mode';
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', dark ? '#171312' : '#f3f2f2');
     }
 
     btn.addEventListener('click', function () {

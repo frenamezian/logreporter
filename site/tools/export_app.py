@@ -34,7 +34,9 @@ APP = BUILD / "app"
 
 # Everything the dashboard loads. Kept explicit so a stray file in the repo — a
 # parser, a task doc, a live database — cannot wander into the published site.
-PATHS = ["index.html", "style.css", "favicon.svg", "script", "components", "docs"]
+# "fonts" carries the vendored Archivo the light theme's chrome titles use
+# (Task 0010) — without it the published demo silently falls back to system-ui.
+PATHS = ["index.html", "style.css", "favicon.svg", "fonts", "script", "components", "docs"]
 
 MARKER = "window.LR_HOME"
 INJECT = """  <!-- ===== Added by site/tools/export_app.py. Publication-only. ===== -->

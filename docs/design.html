@@ -1,23 +1,24 @@
-<p>System sans, 8px radii, and the accent used as a line, a tint or a glow — never as a flood. Every colour, size and space comes from the tokens at the top of <code>style.css</code>.</p>
+<p>Two voices, one vocabulary. Dark is system sans, 8px radii, and the accent used as a line, a tint or a glow — never as a flood. Light is <strong>Paper &amp; Ink</strong> (Task 0010): ink text on a paper ground, hard corners everywhere, Archivo on the chrome titles, and two kinds of deliberately dark objects — the top bar and the stat tiles — so the page has more than one visual temperature. Every colour, size and space still comes from the tokens at the top of <code>style.css</code>.</p>
 
 <h3>Two themes, one vocabulary</h3>
-<p>The <strong>☀ / ☾ button</strong> in the header switches between a near-neutral dark ground and a warm high-summer light one. The choice is remembered in <code>localStorage</code> and applied before the first paint, so a reload never flashes the other theme.</p>
+<p>The <strong>☀ / ☾ button</strong> in the header switches between a near-neutral dark ground and the paper-and-ink light one. The choice is remembered in <code>localStorage</code> and applied before the first paint, so a reload never flashes the other theme.</p>
 <p>Both themes define the <em>same</em> token names — only the values differ. That is the rule the stylesheet is built on: <strong>no colour literal may appear outside the two token blocks</strong>. A hex or an <code>rgba()</code> in a rule body is a value that can only be right in one theme, and it will be silently wrong in the other.</p>
 <pre>token         dark        light      used for
---bg          #0f1115     #fffaf2    the page
+--bg          #0f1115     #f3f2f2    the page
 --surface     #161821     #ffffff    cards, panels, code blocks
---surface-2   #1b1d2b     #fdeedb    inputs, buttons, table headers
---text        #e6e6e6     #33261c
---text-dim    #9aa0b2     #785c45
---border      #2a2d3a     #f0dcc2
+--surface-2   #1b1d2b     #eae8e7    inputs, buttons, table headers
+--text        #e6e6e6     #201e1d
+--text-dim    #9aa0b2     #6f6a67
+--border      #2a2d3a     #c9c5c3
 --accent      #5b8def     #0a72c4
 --accent-2    #8eb6ff     #05537f    the accent used as TEXT — so it goes
                                      brighter on dark, darker on light
---radius  8px   --font  system-ui …   --mono  ui-monospace …</pre>
+--radius  8px dark · 0 light   --font  system-ui …   --mono  ui-monospace …</pre>
 <p>The theme also carries the washes (<code>--wash-1/2/3</code>), hairlines, scrollbar, hatch, overlay and focus mark. Each exists because it was once a literal that only worked on a dark ground: a hover state is built by <em>adding light</em> on dark and by <em>adding dark</em> on light, so the two cannot share a value.</p>
+<p>Since Task 0010 the vocabulary also carries a <em>chrome-scoped</em> set — <code>--topbar-*</code>, <code>--tile-*</code>, <code>--mark-*</code>, <code>--stripe-*</code> and <code>--brand</code>. In dark, every one of them equals the token it shadows, so dark renders as it always did; in light they are what lets the top bar and the stat tiles stay dark objects on the paper page. The 5px category stripe under the header is drawn from <code>--stripe-*</code> in both themes.</p>
 
 <h3>The five categories</h3>
-<p>Five categories carry a fixed colour across every bar, dot, block and legend, and they never mean anything else. The <em>meaning</em> is fixed; the <em>value</em> is per-theme, because a hue chosen to sit on a near-black ground is not the hue that reads on sand:</p>
+<p>Five categories carry a fixed colour across every bar, dot, block and legend, and they never mean anything else. The <em>meaning</em> is fixed; the <em>value</em> is per-theme, because a hue chosen to sit on a near-black ground is not the hue that reads on paper:</p>
 <div class="help-legend">
 <span><span class="help-swatch" style="background:var(--activity)"></span>Activity <code>#4caf50</code> / <code>#0d8442</code></span>
 <span><span class="help-swatch" style="background:var(--issue)"></span>Issue <code>#f44336</code> / <code>#e02d1b</code></span>
@@ -32,21 +33,21 @@
 <h3>The mark is built from the same parts</h3>
 <div class="brand-figure">
   <svg class="brand-figure-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-    <clipPath id="doc-ell-foot"><rect x="5" y="22.4" width="24" height="5.6" rx="2.8"/></clipPath>
+    <clipPath id="doc-ell-foot"><rect x="5" y="22.4" width="24" height="5.6"/></clipPath>
     <g clip-path="url(#doc-ell-foot)">
-      <rect x="5" y="22.4" width="7" height="5.6" fill="var(--accent)"/>
+      <rect x="5" y="22.4" width="7" height="5.6" fill="var(--brand)"/>
       <rect x="12" y="22.4" width="6.5" height="5.6" fill="var(--activity)"/>
       <rect x="18.5" y="22.4" width="4.5" height="5.6" fill="var(--decision)"/>
       <rect x="23" y="22.4" width="3.5" height="5.6" fill="var(--github)"/>
       <rect x="26.5" y="22.4" width="2.5" height="5.6" fill="var(--hatch-strong)"/>
     </g>
-    <rect x="5" y="4" width="5.6" height="24" rx="2.8" fill="var(--accent)"/>
+    <rect x="5" y="4" width="5.6" height="24" fill="var(--brand)"/>
   </svg>
-  <p>The letter L, with its foot built as a stacked category bar in the stacking order above. The letterform carries the name and the foot carries what the product does. It invents no colour and no radius of its own.</p>
+  <p>The letter L, with its foot built as a stacked category bar in the stacking order above. The letterform carries the name and the foot carries what the product does. Its corners are square, like every other corner in the brand.</p>
 </div>
-<p><strong>Issue red is held back from the mark.</strong> Red means an issue everywhere else in this app, so a logo carrying it would read as a permanent alarm. The foot therefore runs activity → decision → GitHub → idle, skipping the one category it would be dishonest to show.</p>
-<p>The mark is <em>inlined</em> in <code>log-header.js</code> rather than linked, and that is the whole reason it can exist as one file: its fills are <code>var(--accent)</code>, <code>var(--activity)</code>, <code>var(--decision)</code> and <code>var(--github)</code>, so it re-colours itself on the ☀ / ☾ toggle like everything else. An <code>&lt;img&gt;</code> gets its own document, cannot see those tokens, and would have needed two files and a swap on every toggle. The idle segment uses <code>--hatch-strong</code> rather than <code>--hatch</code>, for the reason that token exists: at 28px a real diagonal hatch is noise and <code>--hatch</code> is invisible.</p>
-<p><code>favicon.svg</code> is the one deliberate exception to the no-literals rule. A tab icon is fetched as its own document and can never reach <code>style.css</code>, so it carries two hexes and a <code>prefers-color-scheme</code> query to pick between them. It is also the reduced drawing — solid foot, no segments, strokes thickened from 5.6 to 7 — because below 24px the category splits merge into one muddy band. The silhouette is what survives at tab size, not the split.</p>
+<p><strong>The stem is the brand red</strong> (<code>--brand</code>, <code>#ec3013</code> — the landing page's accent), in both themes. That superseded this mark's original "no red" rule in Task 0010, and the reservation that mattered survives it: red as an <em>interaction</em> or <em>data</em> colour still means an issue everywhere in the app; the mark sits on the chrome bar, where it reads as identity, and it is the only place the brand red appears. The foot still runs activity → decision → GitHub → idle, skipping the issue segment a logo would be dishonest to carry.</p>
+<p>The mark is <em>inlined</em> in <code>log-header.js</code> rather than linked, and that is the whole reason it can exist as one file: its fills are <code>var(--brand)</code>, <code>var(--activity)</code>, <code>var(--decision)</code> and <code>var(--github)</code>, so it re-colours itself on the ☀ / ☾ toggle like everything else. An <code>&lt;img&gt;</code> gets its own document, cannot see those tokens, and would have needed two files and a swap on every toggle. The idle segment uses <code>--hatch-strong</code> rather than <code>--hatch</code>, for the reason that token exists: at 28px a real diagonal hatch is noise and <code>--hatch</code> is invisible.</p>
+<p><code>favicon.svg</code> is the one deliberate exception to the no-literals rule. A tab icon is fetched as its own document and can never reach <code>style.css</code>, so it carries the brand red as a literal — one hex, legible on light and dark tab strips alike. It is also the reduced drawing — solid foot, no segments, strokes thickened from 5.6 to 7 — because below 24px the category splits merge into one muddy band. The silhouette is what survives at tab size, not the split.</p>
 
 <h3>Layout rules the pages share</h3>
 <ul>

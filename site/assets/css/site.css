@@ -16,8 +16,9 @@
      index.html are what keep the stored key's meaning unchanged.
 
    No literal colour outside the two token blocks below, except where a
-   value is one theme's by definition (the poster band and the hero log
-   panel, which the brief pins per-theme). */
+   value is one theme's by definition: the poster band and the hero log
+   panel (which the brief pins per-theme), and the white-on-red fills
+   (#fff on the accent), which are white in both themes by design. */
 
 /* Archivo, vendored: one variable file covers weights 500-800 (latin). */
 @font-face {
@@ -30,6 +31,8 @@
 }
 
 :root {
+  color-scheme: light;
+
   --bg: #f3f2f2;          /* paper ground */
   --ink: #201e1d;          /* near-black text */
   --accent: #ec3013;       /* the red — the only saturated color */
@@ -173,6 +176,11 @@ h3 { font-size: 19px; font-weight: 700; }
   border-bottom: 2px solid var(--rule);
 }
 .nav-inner { display: flex; align-items: center; gap: 24px; height: 58px; }
+/* Six links plus the toggle don't fit a phone in one 58px row — let the bar
+   grow and the links wrap instead of spilling over the hero. */
+@media (max-width: 700px) {
+  .nav-inner { height: auto; min-height: 58px; flex-wrap: wrap; padding: 10px 0; gap: 10px 20px; }
+}
 .nav-brand {
   display: flex; align-items: center; gap: 10px;
   font-weight: 700; color: var(--ink); text-decoration: none;
@@ -254,8 +262,9 @@ h3 { font-size: 19px; font-weight: 700; }
 .logrow .t-issue { color: var(--log-issue); }
 .logrow .t-github { color: var(--log-github); }
 .logrow .t-dim { color: var(--log-dim); }
+/* Pinned, not var(--code-fg): the panel stays dark in BOTH themes, and in
+   dark mode --code-fg flips to ink for the paper code panels. */
 .logrow .m { color: #eceae9; }
-:root:not([data-theme="dark"]) .logrow .m { color: var(--code-fg); }
 .logrow .m-dim { color: var(--log-dim); }
 .logcaret {
   display: inline-block; width: 8px; height: 15px; margin: 4px 14px 0;
@@ -263,7 +272,9 @@ h3 { font-size: 19px; font-weight: 700; }
 }
 @keyframes logblink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .logrow { opacity: 1; transform: none; transition: none; }
+  /* The script also early-returns before arming .js — this rule is the CSS
+     side of the same guard, specific enough to beat the .js rules alone. */
+  .logpanel.js .logrow, .logpanel.js .logrow.shown { opacity: 1; transform: none; transition: none; }
   .logcaret { animation: none; }
 }
 
@@ -548,7 +559,6 @@ pre.code .p { color: var(--code-red); }
 .sponsor-card { display: block; max-width: 1000px; border: 2px solid var(--rule); overflow: hidden; }
 .sponsor-card img { width: 100%; filter: var(--shot-filter); }
 .sponsor-card:hover img { filter: none; }
-.sponsor-note { color: var(--muted); font-size: 14px; margin-top: 16px; }
 
 /* ---------- footer ---------- */
 footer { border-top: 2px solid var(--rule); padding: 32px 0 48px; color: var(--muted); font-size: 13.5px; }

@@ -3,13 +3,18 @@
        segments merge into one muddy band, so the favicon keeps the silhouette
        and drops the split; the strokes are thickened from 5.6 to 7 for the
        same reason. Colours are literals rather than tokens because a favicon
-       is fetched as its own document and cannot see style.css — the media
-       query below is what keeps it legible on both tab strips, and it is the
-       one place in the project where a colour literal is unavoidable. -->
+       is fetched as its own document and cannot see style.css — it is the
+       one place in the project where a colour literal is unavoidable. The
+       brand red (Task 0010, Paper & Ink) reads on both tab strips, so the
+       old per-scheme media query is gone. Corners are square, like every
+       other corner in the brand.
+
+       This file is the SOURCE: site/build.py --images copies it verbatim to
+       site/assets/img/favicon.svg, and export_app.py ships it with the demo
+       — edit it here, never in the generated copy. -->
   <style>
-    .ell { fill: #0a72c4; }
-    @media (prefers-color-scheme: dark) { .ell { fill: #5b8def; } }
+    .ell { fill: #ec3013; }
   </style>
-  <rect class="ell" x="5.5" y="4" width="7" height="24" rx="3.5"/>
-  <rect class="ell" x="5.5" y="21" width="21" height="7" rx="3.5"/>
+  <rect class="ell" x="5.5" y="4" width="7" height="24"/>
+  <rect class="ell" x="5.5" y="21" width="21" height="7"/>
 </svg>

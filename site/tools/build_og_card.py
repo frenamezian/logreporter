@@ -112,7 +112,7 @@ def mark(img, x, y, size):
 
     Redrawn here rather than rasterised from log-header.js, because that SVG
     fills itself from CSS variables this script cannot reach. The proportions
-    are the SVG's, scaled: a 32-unit box, a 5.6-unit stroke, a 2.8 radius.
+    are the SVG's, scaled: a 32-unit box, a 5.6-unit stroke, square corners.
     """
     u = size / 32
     layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
