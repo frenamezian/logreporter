@@ -242,20 +242,33 @@ This section is filled in by Stage D (Close) of `exec_task.md` — kept short by
 <!--MARKER INSERT DESIGN DEVIATION BELOW -->
 ## Design Deviation v1
 
-(One line: "No design deviation" — or what changed vs. this task/the brief and why. This repo has no `chapters/` spec; deviations here mean deviations from the reference brief or the scope contract.)
+Four recorded deviations from this task's own tables, each with cause:
+1. **Light `--text-dim` is `#67625f`, not the table's `#6f6a67`** — the table's value measured 4.37:1 on the new `--surface-2`, under AA for the small text that renders there (Stage B round 2). Same class of retune the task explicitly authorized for `--accent` (which became `#0a69b5`, and `--accent-hover` `#08568f`).
+2. **Usage and rank ramps validated vs `#ffffff`, not "the stat-tile surface"** — as built, no usage/rank color renders on a tile (`.metric-card` rebinds only text tokens); white cards are where the ramps render. Verified true by both Stage B and Stage C.
+3. **Radius zeroing is one light-scoped blanket rule**, not per-value tokenization — provably cannot affect dark; squares the dots by design (matches the approved mockup).
+4. **Owner-approved scope extensions during execution:** `docs/design.html` synchronized (was contradicting the restyle in-app), and the brand mark's corners squared in both themes (third sanctioned dark exception).
 
 <!--MARKER INSERT COMPLETION REPORT BELOW -->
 ## ✅ Completion Report v1
 
-**Completed:** [YYYY-MM-DD HH:MM] · **Branch/commit:** [ref] · **Deviation:** [None / described above]
+**Completed:** 2026-08-06 · **Branch/commit:** `restyle/task-0010-paper-ink` @ `4690b64` (impl `0567bde`, review fixes `358471f`/`9b57719`/`bc9159f`, checks `4690b64`) · **Deviation:** four, described above
 
-**Summary (3-6 lines):**
+**Summary:** Landing fully restyled to Paper & Ink per the reference brief (copy verbatim, paper now the default theme, animated hero log panel, vendored Archivo, zero external requests preserved); app light theme rebuilt as Paper & Ink with dark render-identical by construction except the three sanctioned exceptions (category stripe, red mark stem, squared mark corners). Stage B ran the full 3 rounds — round 3 blocked on two single-line findings **fixed inline with no cold read** (`docs/design.html` token-table hexes; `--accent-hover` AA), taken to Stage C as its first explicit target and both independently confirmed there. Stage C: PASS, 11 mutation-verified checks in `tasks/checks/` (run via `python tasks/checks/run_all.py`).
 
-**Palette validator outputs:** (three command lines + verdicts)
+**Palette validator outputs (2026-08-05/06):** log types `#0d8442,#e02d1b,#3a5fe0,#0099b0` light vs `#f3f2f2` → ALL PASS; vs `#ffffff` → ALL PASS; usage `#b06f00,#c8306f,#6a4fd0,#d34a13` light vs `#ffffff` → ALL PASS; rank ramp vs `#ffffff --ordinal` → ALL PASS (light-end 2.60:1). Dark-tuned set vs the ink bar `#262322` FAILS CVD/lightness checks it also fails on its own home surface (pre-existing property; colors only the decorative mark foot there, never data).
 
-**Acceptance criteria:** ✅/❌ against the list above.
+**Acceptance criteria:** ✅ all, with the two reinterpretations recorded under Design Deviation (ramps-vs-white; red appears on the mark's stem *and* its heel block, which together form the L's corner).
 
-**Issues encountered:** one line each, or "None."
+**Issues encountered:**
+- Round-1 review caught the favicon edited in its generated copy and `fonts/` missing from the demo export — both real ship-breakers.
+- Rounds 2–3 repeatedly caught prose/comments drifting from values (including one genuine AA miss behind an overstated comment); `check_design_doc_tokens.py` + `check_wcag_claims.py` now close that class mechanically.
+- Owner escalations resolved during execution: update `docs/design.html` (yes), square the mark corners (yes).
+
+**Carried forward for the owner (not defects of this task):**
+- Publish is the owner's call: `python site/publish.py --push` after reviewing `site/_build/`.
+- Pre-existing white-on-translucent-accent washes (`style.css` §497/§824-area) measure < 2:1 in light mode under high summer too — out of scope, needs its own small task.
+- First-time visitors: landing defaults paper, demo defaults dark (stored choices carry over; only the no-stored-value case mismatches).
+- 375px nav wraps to three lines — meets the criterion, reads cramped; owner's eye requested.
 
 ### Next Steps
 - Owner reviews branch → decides on `python site/publish.py --push`
@@ -263,4 +276,5 @@ This section is filled in by Stage D (Close) of `exec_task.md` — kept short by
 
 # Version History
 <!--MARKER INSERT VERSION HISTORY BELOW -->
+v1.1 (2026-08-06) - Task executed and closed: Build → Review (3 rounds, round-3 inline exit) → Test (PASS, 11 checks) → Close. Two owner escalations resolved mid-run (design.html sync; mark corners).
 v1.0 (2026-08-05) - Task authored (Claude Code session with owner; direction approved on mockup)
