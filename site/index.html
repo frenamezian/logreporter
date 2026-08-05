@@ -17,6 +17,10 @@
 
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/css/site.css">
+<!-- Archivo is vendored — the page still makes zero external requests. The
+     preload keeps the headline from flashing in a fallback face. -->
+<link rel="preload" as="font" type="font/woff2" crossorigin
+      href="assets/fonts/archivo-latin-var.woff2">
 <!-- The hero screenshot is the largest thing above the fold and therefore the
      LCP element. Preloading it starts the fetch during head parsing rather than
      after the <img> is discovered, which on a cold visit is most of the delay.
@@ -29,20 +33,22 @@
 <link rel="preload" as="image" type="image/webp"
       href="assets/img/timegoes-usage.webp" fetchpriority="high">
 <meta name="color-scheme" content="dark light">
-<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#fffaf2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171312" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3f2f2" media="(prefers-color-scheme: light)">
 <!-- Theme, applied before the first paint — the same trick, and the same
      storage key, as the dashboard. Reading the preference after the stylesheet
-     has painted means every load of the light theme starts with a frame of the
-     dark one. Dark is the default and carries no attribute, so only an explicit
-     "light" writes anything. Sharing the key means the theme a visitor picks
-     here is the theme the demo opens in. -->
+     has painted means every load of the dark theme starts with a frame of the
+     paper one. PAPER is the default and carries no attribute — inverted from
+     the pre-redesign page, where dark was the default — so only an explicit
+     "dark" writes anything here. The stored key keeps its app-side meaning
+     ('light'/'dark'), so the theme a visitor picks here is still the theme
+     the demo opens in. -->
 <script>
   try {
-    if (localStorage.getItem('logreporter.theme') === 'light') {
-      document.documentElement.setAttribute('data-theme', 'light');
+    if (localStorage.getItem('logreporter.theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
     }
-  } catch (e) { /* storage blocked — fall through to the dark default */ }
+  } catch (e) { /* storage blocked — fall through to the paper default */ }
 </script>
 
 <!-- Open Graph. Every URL here must be absolute: a card is unfurled by a server
@@ -219,7 +225,22 @@
 <header class="nav">
   <div class="wrap nav-inner">
     <a class="nav-brand" href="./">
-      <img src="assets/img/favicon.svg" alt="" width="22" height="22">
+      <!-- The shared brand mark: the app's L-with-category-foot glyph, in the
+           landing's red-family dialect (see the reference brief's header). -->
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <clipPath id="lr-nav-foot"><rect x="5" y="22.4" width="24" height="5.6"/></clipPath>
+        <pattern id="lr-nav-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
+          <rect width="2" height="4" fill="var(--cat-mid)"/>
+        </pattern>
+        <g clip-path="url(#lr-nav-foot)">
+          <rect x="5" y="22.4" width="7" height="5.6" fill="var(--accent)"/>
+          <rect x="12" y="22.4" width="6.5" height="5.6" fill="var(--cat-pair)"/>
+          <rect x="18.5" y="22.4" width="4.5" height="5.6" fill="var(--cat-neutral)"/>
+          <rect x="23" y="22.4" width="3.5" height="5.6" fill="var(--cat-mid)"/>
+          <rect x="26.5" y="22.4" width="2.5" height="5.6" fill="url(#lr-nav-hatch)"/>
+        </g>
+        <rect x="5" y="4" width="5.6" height="24" fill="var(--accent)"/>
+      </svg>
       LogReporter
     </a>
     <nav class="nav-links" aria-label="Primary">
@@ -231,7 +252,7 @@
       <!-- The glyph shows the theme you would GET, not the one you are in —
            same rule as the dashboard's toggle. -->
       <button class="theme-toggle" id="theme-toggle" type="button"
-              aria-pressed="false" title="Switch to light mode">☀</button>
+              aria-pressed="false" title="Switch to dark mode">☾</button>
     </nav>
   </div>
 </header>
@@ -240,25 +261,45 @@
 
 <!-- ───────────────────────────── hero ───────────────────────────── -->
 <section class="hero" id="overview" aria-labelledby="overview-h">
-  <div class="wrap">
-    <h1 id="overview-h">See what your subagents actually did<br>— and what it cost</h1>
-    <p class="tagline">Most tools watch your agents work. This one just asks them.</p>
-    <p class="lede">
-      A local dashboard over a single SQLite file. Your agents append one row per
-      meaningful step as they work — decisions, blockers, git operations — and the
-      dashboard turns that into a subagent tree, an honest time breakdown, and
-      per-agent token cost.
-    </p>
-    <div class="cta-row">
-      <a class="btn btn-primary" href="app/index.html">▶&nbsp; Try the live demo</a>
-      <a class="btn" href="#how">Get started</a>
-      <a class="btn" href="https://github.com/frenamezian/logreporter">★&nbsp; View on GitHub</a>
+  <div class="wrap hero-grid">
+    <div>
+      <div class="stripe" aria-hidden="true">
+        <span class="s-activity"></span><span class="s-pair"></span><span class="s-neutral"></span><span class="s-mid"></span><span class="s-idle"></span>
+      </div>
+      <h1 id="overview-h">See what your subagents <span class="hi">actually did</span><br>— and what it cost</h1>
+      <p class="tagline">Most tools watch your agents work. This one just asks them.</p>
+      <p class="lede">
+        A local dashboard over a single SQLite file. Your agents append one row per
+        meaningful step as they work — decisions, blockers, git operations — and the
+        dashboard turns that into a subagent tree, an honest time breakdown, and
+        per-agent token cost.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="app/index.html">▶&nbsp; Try the live demo</a>
+        <a class="btn" href="#how">Get started</a>
+        <a class="btn btn-ghost" href="https://github.com/frenamezian/logreporter">★&nbsp; View on GitHub</a>
+      </div>
+      <p class="meta-line">
+        One Python script, one SQLite file, one static page. No <code>pip install</code>,
+        no npm, no Docker, no account — <strong>partly on purpose, partly because it is all
+        I know how to build</strong>.
+      </p>
     </div>
-    <p class="meta-line">
-      One Python script, one SQLite file, one static page. No <code>pip install</code>,
-      no npm, no Docker, no account — <strong>partly on purpose, partly because it is all
-      I know how to build</strong>.
-    </p>
+
+    <!-- The live log panel: the page's one animated element. The rows are
+         real markup, visible without JS and under prefers-reduced-motion;
+         the script at the bottom of the page replays them as a ticker. -->
+    <div class="logpanel" id="logpanel" aria-hidden="true">
+      <div class="logpanel-title"><span class="sq"></span>ACTIVITY_LOGS.DB — LIVE</div>
+      <div class="logrow"><span class="t t-dim">start</span><span class="m">Task accepted: Add rate limiting</span></div>
+      <div class="logrow"><span class="t t-activity">activity</span><span class="m">Implemented POST /v1/ingest — batches up to 500 rows</span></div>
+      <div class="logrow"><span class="t t-decision">decision</span><span class="m">Token bucket over sliding window: bucket is O(1) at our QPS</span></div>
+      <div class="logrow"><span class="t t-issue">issue</span><span class="m">Retry 2/5 — SQLITE_BUSY, writer held the lock</span></div>
+      <div class="logrow"><span class="t t-github">github</span><span class="m">#push feat/rate-limit — 3 commits</span></div>
+      <div class="logrow"><span class="t t-dim">idle</span><span class="m m-dim">18m with no agent logging</span></div>
+      <div class="logrow"><span class="t t-dim">end</span><span class="m">completed · 14.44M tokens · $10.68</span></div>
+      <span class="logcaret"></span>
+    </div>
   </div>
 </section>
 
@@ -305,17 +346,22 @@
 
 <!-- ─────────────────────── the difference ───────────────────────── -->
 <section id="why" aria-labelledby="why-h">
+  <!-- The poster band: the page's one big red flood. -->
+  <div class="poster">
+    <div class="wrap">
+      <p class="eyebrow">What makes it different</p>
+      <h2 id="why-h">There are 3 common ways to watch an agent,<br>
+        but here is <span class="hi">a 4th odd one</span></h2>
+      <p class="lede">
+        Most observability tools watch from the outside — an SDK, a proxy, an OpenTelemetry
+        collector — and they are very good at it. What none of them can see is the option
+        your agent considered and threw away, because that never leaves the model. So this
+        one just asks the agent to write it down. A different approach, not a better one —
+        and honestly, the strong setup is probably both.
+      </p>
+    </div>
+  </div>
   <div class="wrap">
-    <p class="eyebrow">What makes it different</p>
-    <h2 id="why-h">There are 3 common ways to watch an agent,<br>
-      but here is <span class="hi">a 4th odd one</span></h2>
-    <p class="lede" style="margin-bottom:32px">
-      Most observability tools watch from the outside — an SDK, a proxy, an OpenTelemetry
-      collector — and they are very good at it. What none of them can see is the option
-      your agent considered and threw away, because that never leaves the model. So this
-      one just asks the agent to write it down. A different approach, not a better one —
-      and honestly, the strong setup is probably both.
-    </p>
 
     <div class="compare">
       <div class="them">
@@ -428,7 +474,7 @@
     </p>
 
     <div class="punchline">
-      <div class="punchline-icon" aria-hidden="true">🔍</div>
+      <div class="punchline-icon" aria-hidden="true"></div>
       <div>
         <h3>We checked, in the least rigorous way available</h3>
         <p>
@@ -513,6 +559,7 @@
       </div>
     </div>
 
+    <div class="how-pair">
     <aside class="notice" aria-labelledby="assume-h">
       <div class="notice-icon" aria-hidden="true">!</div>
       <div>
@@ -548,6 +595,7 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
   --agent-path lead_architect/handler_dev \
   --log-title <span class="p">"Token bucket over sliding window"</span></pre>
     </div>
+    </div>
 
     <p class="meta-line" style="margin-top:18px">
       The one thing it does fetch: your browser loads the <code>sql.js</code> SQLite engine
@@ -572,52 +620,28 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
     <p class="lede">Every card opens the live demo on that page.</p>
     <div class="pages" style="margin-top:32px">
       <a class="page-card" href="app/index.html#hierarchy">
-        <picture>
-          <source type="image/webp" srcset="assets/img/hierarchy-thumb.webp">
-          <img src="assets/img/hierarchy-thumb.png" loading="lazy" decoding="async"
-               alt="The Hierarchy page" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Hierarchy</h3><p>What work exists, and how does it nest?</p></div>
+        <span class="mark mark-activity" aria-hidden="true"></span>
+        <div class="body"><h3>Hierarchy</h3><p>What work exists, and how does it nest?</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#chronology">
-        <picture>
-          <source type="image/webp" srcset="assets/img/chronology-thumb.webp">
-          <img src="assets/img/chronology-thumb.png" loading="lazy" decoding="async"
-               alt="The Chronology page" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Chronology</h3><p>What happened, in order — including the silences.</p></div>
+        <span class="mark mark-pair" aria-hidden="true"></span>
+        <div class="body"><h3>Chronology</h3><p>What happened, in order — including the silences.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#timegoes">
-        <picture>
-          <source type="image/webp" srcset="assets/img/timegoes-thumb.webp">
-          <img src="assets/img/timegoes-thumb.png" loading="lazy" decoding="async"
-               alt="The Where time goes page" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Where time goes</h3><p>Which agent, which category, and how much was nobody working.</p></div>
+        <span class="mark mark-neutral" aria-hidden="true"></span>
+        <div class="body"><h3>Where time goes</h3><p>Which agent, which category, and how much was nobody working.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#metrics">
-        <picture>
-          <source type="image/webp" srcset="assets/img/metrics-usage-thumb.webp">
-          <img src="assets/img/metrics-usage-thumb.png" loading="lazy" decoding="async"
-               alt="The Metrics page with token usage" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Metrics</h3><p>Counts, distributions, token cost, and the issues still open.</p></div>
+        <span class="mark mark-midred" aria-hidden="true"></span>
+        <div class="body"><h3>Metrics</h3><p>Counts, distributions, token cost, and the issues still open.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#models">
-        <picture>
-          <source type="image/webp" srcset="assets/img/models-thumb.webp">
-          <img src="assets/img/models-thumb.png" loading="lazy" decoding="async"
-               alt="The Models and pricing page" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Models</h3><p>Every model and price tier the cost figures are drawn from.</p></div>
+        <span class="mark mark-mid" aria-hidden="true"></span>
+        <div class="body"><h3>Models</h3><p>Every model and price tier the cost figures are drawn from.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#maintenance">
-        <picture>
-          <source type="image/webp" srcset="assets/img/maintenance-thumb.webp">
-          <img src="assets/img/maintenance-thumb.png" loading="lazy" decoding="async"
-               alt="The Maintenance page" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Maintenance</h3><p>What is stored; delete or export part of it.</p></div>
+        <span class="mark mark-idle" aria-hidden="true"></span>
+        <div class="body"><h3>Maintenance</h3><p>What is stored; delete or export part of it.</p><span class="open">Open in demo →</span></div>
       </a>
     </div>
     <p class="meta-line" style="margin-top:22px">
@@ -649,9 +673,13 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
           request; LogReporter reads it, attributes it to the task that was running,
           and prices it from a 102-model registry.
         </p>
-        <p style="color:var(--text-dim)">
-          Cache reads are about <b style="color:var(--text)">73% of tokens but 11% of
-          cost</b>. Cache writes are 26% of tokens and <b style="color:var(--text)">79%
+        <div class="stat-pair">
+          <div><div class="v">73% → 11%</div><div class="k">Cache reads: share of tokens vs share of cost</div></div>
+          <div><div class="v">26% → 79%</div><div class="k">Cache writes: share of tokens vs share of cost</div></div>
+        </div>
+        <p class="dim">
+          Cache reads are about <b>73% of tokens but 11% of
+          cost</b>. Cache writes are 26% of tokens and <b>79%
           of cost</b>. A single blended number hides that completely — so tokens and
           cost are never plotted on one axis. You toggle between them over the same
           layout, and the disagreement is the finding.
@@ -669,7 +697,7 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
         Claude Code is parsed natively, because only a native parser can see
         Anthropic's 5-minute and 1-hour cache-write split. For Codex, Gemini, Kimi and
         20-plus other agents, LogReporter falls back to
-        <b style="color:var(--text)">ccusage</b> by <b style="color:var(--text)">@ryoppippi</b>
+        <b>ccusage</b> by <b>@ryoppippi</b>
         — which already solved the part nobody should have to solve twice, across far
         more tools than we could keep up with. If you only need a token counter, use
         ccusage on its own; it's excellent.
@@ -693,32 +721,32 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
     <h2 class="visually-hidden" id="features-h">What it gives you</h2>
     <div class="features">
       <div class="feature">
-        <div class="ico" aria-hidden="true">🌲</div><h3>Subagent lineage</h3>
+        <h3>Subagent lineage</h3>
         <p>An agent path builds the tree, the waterfall indentation, and the
            parent-minus-children own-time correction.</p>
       </div>
       <div class="feature">
-        <div class="ico" aria-hidden="true">⏱️</div><h3>Honest time</h3>
+        <h3>Honest time</h3>
         <p>Wall clock, agent time, own time and idle. Silence between rows is
            reported, not quietly dropped.</p>
       </div>
       <div class="feature">
-        <div class="ico" aria-hidden="true">💰</div><h3>Cost per agent</h3>
+        <h3>Cost per agent</h3>
         <p>Token counters and modelled cost attributed down to the individual
            subagent run.</p>
       </div>
       <div class="feature">
-        <div class="ico" aria-hidden="true">📁</div><h3>Multi-repo, one file</h3>
+        <h3>Multi-repo, one file</h3>
         <p>Repo and branch derive from git wherever the agent stands. One prompt,
            one database, any number of repositories.</p>
       </div>
       <div class="feature">
-        <div class="ico" aria-hidden="true">🔒</div><h3>Local, and light</h3>
+        <h3>Local, and light</h3>
         <p>A static page, a Python standard-library server on 127.0.0.1, and one SQLite
            file. No packages to install, no account, no telemetry, no upload.</p>
       </div>
       <div class="feature">
-        <div class="ico" aria-hidden="true">🧩</div><h3>Pluggable parsers</h3>
+        <h3>Pluggable parsers</h3>
         <p>Supporting a new agent means adding one file — no central registry to
            edit, so contributions never collide.</p>
       </div>
@@ -830,8 +858,23 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
 
 <footer>
   <div class="wrap foot-row">
-    <div>LogReporter · MIT · sponsored by
-      <a href="https://www.lespirant.com" rel="noopener sponsored">LESPIRANT</a></div>
+    <div class="foot-brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <clipPath id="lr-foot-foot"><rect x="5" y="22.4" width="24" height="5.6"/></clipPath>
+        <pattern id="lr-foot-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
+          <rect width="2" height="4" fill="var(--cat-mid)"/>
+        </pattern>
+        <g clip-path="url(#lr-foot-foot)">
+          <rect x="5" y="22.4" width="7" height="5.6" fill="var(--accent)"/>
+          <rect x="12" y="22.4" width="6.5" height="5.6" fill="var(--cat-pair)"/>
+          <rect x="18.5" y="22.4" width="4.5" height="5.6" fill="var(--cat-neutral)"/>
+          <rect x="23" y="22.4" width="3.5" height="5.6" fill="var(--cat-mid)"/>
+          <rect x="26.5" y="22.4" width="2.5" height="5.6" fill="url(#lr-foot-hatch)"/>
+        </g>
+        <rect x="5" y="4" width="5.6" height="24" fill="var(--accent)"/>
+      </svg>
+      <span>LogReporter · MIT · sponsored by
+      <a href="https://www.lespirant.com" rel="noopener sponsored">LESPIRANT</a></span></div>
     <!-- Disclaimer points at this page's own section rather than the README's
          anchor: the text is identical, and an internal link keeps the crawl on
          the site instead of handing the one page that qualifies the numbers to
@@ -853,22 +896,54 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
     var root = document.documentElement;
     var btn = document.getElementById('theme-toggle');
 
+    // Paper is the attribute-less default; "dark" is the override. The
+    // stored key keeps the app's vocabulary ('light'/'dark') so the demo
+    // still opens in whichever theme was picked here.
     function paint() {
-      var light = root.getAttribute('data-theme') === 'light';
-      btn.textContent = light ? '☾' : '☀';
-      btn.setAttribute('aria-pressed', String(light));
-      btn.title = 'Switch to ' + (light ? 'dark' : 'light') + ' mode';
+      var dark = root.getAttribute('data-theme') === 'dark';
+      btn.textContent = dark ? '☀' : '☾';
+      btn.setAttribute('aria-pressed', String(dark));
+      btn.title = 'Switch to ' + (dark ? 'light' : 'dark') + ' mode';
     }
 
     btn.addEventListener('click', function () {
-      var light = root.getAttribute('data-theme') !== 'light';
-      if (light) root.setAttribute('data-theme', 'light');
+      var dark = root.getAttribute('data-theme') !== 'dark';
+      if (dark) root.setAttribute('data-theme', 'dark');
       else root.removeAttribute('data-theme');
-      try { localStorage.setItem(KEY, light ? 'light' : 'dark'); } catch (e) { /* storage blocked */ }
+      try { localStorage.setItem(KEY, dark ? 'dark' : 'light'); } catch (e) { /* storage blocked */ }
       paint();
     });
 
     paint();
+  })();
+
+  // The hero log panel ticker — the page's one animated element. The rows
+  // are real markup and visible without JS; with JS they replay as a loop.
+  // Under prefers-reduced-motion everything stays static and the caret
+  // does not blink (the CSS side handles the caret).
+  (function () {
+    var panel = document.getElementById('logpanel');
+    if (!panel) return;
+    var rows = panel.querySelectorAll('.logrow');
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return; // rows are visible by default; nothing moves
+    }
+    panel.classList.add('js');
+    var i = 0;
+    function tick() {
+      if (i >= rows.length) {
+        setTimeout(function () {
+          for (var j = 0; j < rows.length; j++) rows[j].classList.remove('shown');
+          i = 0;
+          setTimeout(tick, 600);
+        }, 3200);
+        return;
+      }
+      rows[i].classList.add('shown');
+      i += 1;
+      setTimeout(tick, 1800);
+    }
+    setTimeout(tick, 500);
   })();
 </script>
 

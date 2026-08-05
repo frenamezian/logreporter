@@ -18,7 +18,8 @@ the one image on the site whose whole job is to be rendered by someone else's
 server. It is flat colour and text, so PNG is also the right format on merit —
 about 40 KB, well under every platform's limit.
 
-Colours and proportions are the dark theme's tokens, copied from
+Colours and proportions are the Paper & Ink tokens (the light theme, which is
+the default and the brand's face since Task 0010), copied from
 assets/css/site.css. This script is the one place on the site that cannot read
 them, for the same reason favicon.svg carries two hexes: it has no stylesheet.
 """
@@ -34,26 +35,22 @@ OUT = SITE / "assets" / "img" / "og-card.png"
 W, H = 1200, 630
 PAD = 84
 
-# --- dark theme tokens, from assets/css/site.css -----------------------------
-BG = (15, 17, 21)          # --bg
-TEXT = (236, 237, 240)     # --text, lifted slightly: it sits on a card, not a page
-DIM = (154, 160, 178)      # --text-dim
-ACCENT = (91, 141, 239)    # --accent
-ACCENT_2 = (142, 182, 255) # --accent-2
-BORDER = (42, 45, 58)      # --border
+# --- Paper & Ink tokens, from assets/css/site.css (Task 0010) ----------------
+# The card is paper with ink type and the red as the only saturated color —
+# the landing's light theme, which is now the default and the brand's face.
+BG = (243, 242, 242)       # --bg (paper)
+TEXT = (32, 30, 29)        # --ink
+DIM = (111, 106, 103)      # --muted
+ACCENT = (236, 48, 19)     # --accent (the red)
+ACCENT_DEEP = (179, 36, 16)  # --accent-deep: red readable as text on paper
+BORDER = (32, 30, 29)      # rules are ink
 
-# The five categories, in the stacking order used on every bar in the product:
-# activity -> issue -> decision -> GitHub -> idle. Issue red is deliberately
-# absent from the MARK (a logo carrying it would read as a permanent alarm), but
-# the full bar across the foot of the card is a chart, not the logo, so it keeps
-# the honest order and all five.
-ACTIVITY, ISSUE, DECISION, GITHUB = (76, 175, 80), (244, 67, 54), (33, 150, 243), (79, 195, 247)
-IDLE = (72, 78, 96)
-# Idle inside the 96px mark needs to be lighter than idle inside the 1030px bar,
-# for the reason --hatch-strong exists in the stylesheet: at mark scale the real
-# idle value is so close to --bg that the segment reads as a smudge on the end
-# of the foot rather than as a fifth category.
-IDLE_MARK = (108, 115, 138)
+# The five categories in the landing's red-family dialect (the brief's §2),
+# in the product's stacking order: activity -> issue/decision pair ->
+# neutral -> GitHub/mid -> idle. Idle is hatched, never solid — absence must
+# not read as another kind of work.
+ACTIVITY, ISSUE, DECISION, GITHUB = (236, 48, 19), (122, 26, 12), (58, 55, 53), (138, 133, 130)
+IDLE_HATCH = (138, 133, 130)   # the hatch line color; the ground shows through
 
 # Font stack, in preference order. DejaVu ships with Pillow and is the floor, so
 # the card always builds — on a machine with none of the others it simply looks
@@ -79,20 +76,34 @@ def font(kind: str, size: int) -> ImageFont.FreeTypeFont:
     )
 
 
-def rounded_bar(d, x, y, w, h, segments, radius):
-    """The category bar: segments in a rounded pill, drawn by clipping."""
+def hatch_seg(w, h, line, spacing=8, width=3):
+    """A w-by-h tile of 45-degree hatch lines — the idle texture. Drawn on
+    its own layer so the diagonals can overshoot and be clipped by the tile
+    edge instead of erasing neighbouring segments."""
+    seg = Image.new("RGBA", (max(w, 1), max(h, 1)), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(seg)
+    x = -h
+    while x < w + h:
+        sd.line([(x, h), (x + h, 0)], fill=line, width=width)
+        x += spacing
+    return seg
+
+
+def flat_bar(d, x, y, w, h, segments):
+    """The category bar: hard-edged segments; "HATCH" draws the idle texture."""
     strip = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     sd = ImageDraw.Draw(strip)
     cursor = 0
     for frac, colour in segments:
         seg_w = round(w * frac)
-        sd.rectangle([cursor, 0, cursor + seg_w, h], fill=colour)
+        if colour == "HATCH":
+            seg = hatch_seg(seg_w, h, IDLE_HATCH)
+            strip.paste(seg, (cursor, 0), seg)
+        else:
+            sd.rectangle([cursor, 0, cursor + seg_w, h], fill=colour)
         cursor += seg_w
-    sd.rectangle([cursor, 0, w, h], fill=segments[-1][1])
-
-    mask = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, w - 1, h - 1], radius=radius, fill=255)
-    strip.putalpha(mask)
+    if segments[-1][1] != "HATCH":
+        sd.rectangle([cursor, 0, w, h], fill=segments[-1][1])
     d._image.paste(strip, (x, y), strip)
 
 
@@ -110,27 +121,26 @@ def mark(img, x, y, size):
     stem_w, foot_h = 5.6 * u, 5.6 * u
     left, top = 5 * u, 4 * u
     foot_top, foot_right = 22.4 * u, 29 * u
-    r = 2.8 * u
 
-    # The foot: activity -> decision -> GitHub -> idle, skipping issue red.
+    # The foot, red-family: brand red -> pair -> neutral -> mid -> hatched idle.
     foot_w = foot_right - left
-    segs = [(0.29, ACCENT), (0.27, ACTIVITY), (0.19, DECISION), (0.15, GITHUB), (0.10, IDLE_MARK)]
+    segs = [(0.29, ACCENT), (0.27, ISSUE), (0.19, DECISION), (0.15, GITHUB), (0.10, "HATCH")]
     strip = Image.new("RGBA", (round(foot_w), round(foot_h)), (0, 0, 0, 0))
     sd = ImageDraw.Draw(strip)
     cur = 0
     for frac, colour in segs:
         w = round(foot_w * frac)
-        sd.rectangle([cur, 0, cur + w, foot_h], fill=colour)
+        if colour == "HATCH":
+            seg = hatch_seg(w, round(foot_h), IDLE_HATCH, spacing=5, width=2)
+            strip.paste(seg, (cur, 0), seg)
+        else:
+            sd.rectangle([cur, 0, cur + w, foot_h], fill=colour)
         cur += w
-    sd.rectangle([cur, 0, foot_w, foot_h], fill=segs[-1][1])
-    m = Image.new("L", strip.size, 0)
-    ImageDraw.Draw(m).rounded_rectangle([0, 0, strip.width - 1, strip.height - 1],
-                                        radius=r, fill=255)
-    strip.putalpha(m)
     layer.paste(strip, (round(left), round(foot_top)), strip)
 
-    # The stem, drawn over the foot's left end so the corner reads as one shape.
-    d.rounded_rectangle([left, top, left + stem_w, foot_top + foot_h], radius=r, fill=ACCENT)
+    # The stem, drawn over the foot's left end so the corner reads as one
+    # shape. Square, like every other corner in Paper & Ink.
+    d.rectangle([left, top, left + stem_w, foot_top + foot_h], fill=ACCENT)
 
     img.paste(layer, (x, y), layer)
 
@@ -151,9 +161,8 @@ def build() -> Path:
     bar_y = H - 56 - bar_h
 
     # --- the category bar, across the foot ---
-    rounded_bar(d, PAD, bar_y, W - PAD * 2, bar_h,
-                [(0.34, ACTIVITY), (0.11, ISSUE), (0.24, DECISION), (0.17, GITHUB), (0.14, IDLE)],
-                radius=bar_h // 2)
+    flat_bar(d, PAD, bar_y, W - PAD * 2, bar_h,
+             [(0.34, ACTIVITY), (0.11, ISSUE), (0.24, DECISION), (0.17, GITHUB), (0.14, "HATCH")])
 
     # --- the qualifier line ---
     d.text((PAD, bar_y - 62), "Local  ·  one SQLite file  ·  no account  ·  MIT",
@@ -161,9 +170,9 @@ def build() -> Path:
 
     # --- the tagline ---
     d.text((PAD, bar_y - 190), "Most tools watch your agents work.",
-           font=font("regular", 34), fill=ACCENT_2)
+           font=font("regular", 34), fill=ACCENT_DEEP)
     d.text((PAD, bar_y - 144), "This one just asks them.",
-           font=font("regular", 34), fill=ACCENT_2)
+           font=font("regular", 34), fill=ACCENT_DEEP)
 
     # --- the promise ---
     d.text((PAD, bar_y - 358), "See what your subagents", font=font("bold", 62), fill=TEXT)

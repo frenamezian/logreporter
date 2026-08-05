@@ -21,6 +21,8 @@ and they live with the rest of the source now.
 index.html              the landing page
 404.html                served for any miss under /logreporter/
 assets/css/site.css     its only stylesheet — no build step, no framework
+assets/fonts/           Archivo, vendored (one variable woff2, latin) — the
+                        page loads it from here, never from Google
 assets/img/             screenshots (.png + .webp), the sponsor image, the
                         favicon, and og-card.png. GENERATED — see below
 app/index.html          a placeholder; build.py replaces it with the real demo
@@ -52,9 +54,11 @@ export, so the placeholder is never published.
 ## Reading it locally
 
 Double-click `index.html`. That is the whole procedure — the landing page makes
-**zero network calls**: HTML, one stylesheet, `<img>` and two inline scripts that
-only touch `localStorage`, each in a `try`. No fonts, no CDN, no analytics, no
-`fetch`. It renders identically from `file://` and from Pages.
+**zero external network calls**: HTML, one stylesheet, a vendored font file,
+`<img>`, and inline scripts (the theme toggle touching `localStorage` in a
+`try`, and the hero log ticker, which touches nothing). No Google Fonts, no
+CDN, no analytics, no `fetch`. It renders identically from `file://` and from
+Pages.
 
 One exception, deliberate: **`404.html` will look unstyled from a clone.** Its
 paths are root-absolute (`/logreporter/assets/…`) because a 404 is served for a
@@ -190,9 +194,10 @@ Two rules that are easy to break:
 
 `og-card.png` is drawn by `tools/build_og_card.py`, not screenshotted. A card
 renders at about 524px wide, where the 1800px hero turns to grey mush and names
-the product nowhere. Its colours are the dark theme's tokens, copied — like
-`favicon.svg`, it is a document that cannot reach `site.css`, so it is one of the
-two deliberate exceptions to the no-colour-literals rule.
+the product nowhere. Its colours are the Paper & Ink tokens (the light theme,
+the default since Task 0010), copied — like `favicon.svg`, it is a document
+that cannot reach `site.css`, so it is one of the two deliberate exceptions to
+the no-colour-literals rule.
 
 The sponsor image has no WebP yet: its source
 (`docs/lespirant/post_lcut_problem_solutionn_1650x1141px.png`) is not tracked, so

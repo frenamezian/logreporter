@@ -8,18 +8,25 @@ const { esc } = window.LRC;
 // than linked because an <img> gets its own document and cannot see the theme
 // tokens, so a linked mark would need two files and a swap on every toggle.
 // Decorative — the title beside it already reads "LogReporter" — hence
-// aria-hidden, and no issue red: red means an issue everywhere else in the app.
+// aria-hidden.
+//
+// The stem is --brand (the landing's red), in both themes — an owner
+// decision from Task 0010 that superseded this mark's original "no issue
+// red" rule. The reservation still holds where it matters: red as an
+// interaction or DATA color means an issue everywhere else in the app; the
+// mark sits on the chrome bar, where it reads as identity, and it is the
+// only place the brand red appears inside the app.
 const BRAND_MARK = `
   <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
     <clipPath id="lr-ell-foot"><rect x="5" y="22.4" width="24" height="5.6" rx="2.8"/></clipPath>
     <g clip-path="url(#lr-ell-foot)">
-      <rect x="5" y="22.4" width="7" height="5.6" fill="var(--accent)"/>
+      <rect x="5" y="22.4" width="7" height="5.6" fill="var(--brand)"/>
       <rect x="12" y="22.4" width="6.5" height="5.6" fill="var(--activity)"/>
       <rect x="18.5" y="22.4" width="4.5" height="5.6" fill="var(--decision)"/>
       <rect x="23" y="22.4" width="3.5" height="5.6" fill="var(--github)"/>
       <rect x="26.5" y="22.4" width="2.5" height="5.6" fill="var(--hatch-strong)"/>
     </g>
-    <rect x="5" y="4" width="5.6" height="24" rx="2.8" fill="var(--accent)"/>
+    <rect x="5" y="4" width="5.6" height="24" rx="2.8" fill="var(--brand)"/>
   </svg>`;
 
 // Page key -> human-readable nav tab label (§2.4)

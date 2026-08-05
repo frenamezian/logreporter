@@ -97,6 +97,43 @@
   --usage-rank-3: #8071dc;
   --usage-rank-4: #968bec;
   --usage-rank-5: #b0a6f6;
+
+  /* --- chrome-scoped tokens (Task 0010, Paper & Ink) -----------------------
+     The top bar, the brand mark and the stat tiles carry their own token
+     set so the LIGHT theme can paint them as dark objects on a paper page.
+     In THIS block every value equals the token it shadows, so the dark
+     theme renders exactly as it did before these tokens existed.
+
+     The one deliberate dark-theme change is --brand: the brand mark's stem
+     is brand red in BOTH themes (owner decision 2026-08-05, Task 0010 —
+     superseding the mark's original no-red rule; red as *interaction* or
+     *data* color remains reserved for --issue). */
+  --brand: #ec3013;
+  --topbar-bg: #1b1d2b;         /* = --surface-2 */
+  --topbar-surface: #161821;    /* = --surface */
+  --topbar-surface-2: #1b1d2b;  /* = --surface-2 */
+  --topbar-text: #e6e6e6;       /* = --text */
+  --topbar-dim: #9aa0b2;        /* = --text-dim */
+  --topbar-border: #2a2d3a;     /* = --border */
+  --topbar-btn-hover: #252838;  /* = --btn-hover */
+  --topbar-accent: #5b8def;     /* = --accent */
+  --topbar-accent-2: #8eb6ff;   /* = --accent-2 */
+  --topbar-on-accent: #fff;     /* = --on-accent */
+  --topbar-accent-hover: #6a9af5;
+  --mark-activity: #4caf50;     /* = --activity */
+  --mark-decision: #2196f3;     /* = --decision */
+  --mark-github: #4fc3f7;       /* = --github */
+  --mark-issue: #f44336;        /* = --issue */
+  --mark-hatch: rgba(255,255,255,0.3); /* = --hatch-strong */
+  --tile-bg: #161821;           /* = --surface */
+  --tile-border: #2a2d3a;       /* = --border */
+  --tile-text: #e6e6e6;         /* = --text */
+  --tile-dim: #9aa0b2;          /* = --text-dim */
+  --stripe-activity: #4caf50;
+  --stripe-issue: #f44336;
+  --stripe-decision: #2196f3;
+  --stripe-github: #4fc3f7;
+  --stripe-hatch: rgba(255,255,255,0.3);
   --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius: 8px;
@@ -104,29 +141,33 @@
 }
 
 /* ============================================================================
-   LIGHT THEME — high summer
+   LIGHT THEME — Paper & Ink (Task 0010; replaced "high summer")
 
-   Not the dark theme inverted. A warm sunlit ground (sand, not paper) with the
-   saturated end of each hue family, so the palette reads as bright noon rather
-   than as a dark theme with the lights turned up.
+   Not the dark theme inverted, and not a polite flip either. A paper-gray
+   ground with near-black ink, so white cards read as objects sitting on a
+   desk — and two kinds of deliberately DARK objects survive in light mode:
+   the top bar (see the --topbar-* tokens) and the stat tiles (--tile-*),
+   which is the landing page's own trick ("let the dark tiles stay dark").
+   The red #ec3013 family is the brand's accent on the landing; inside the
+   app it appears ONLY as the brand mark's stem (--brand), because red as
+   an interaction or data color means an issue everywhere else.
 
-   Only colour is redefined. Fonts, radii and the grid tokens are shared, so a
-   layout change never has to be made twice.
+   Only colour is redefined here. Fonts and grid tokens are shared; corner
+   radius is zeroed by the light-scoped rule after this block, so the dark
+   theme keeps its 8px unchanged.
    ========================================================================= */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #fffaf2;         /* sunlit sand — the page */
-  --surface: #ffffff;    /* cards, panels, code blocks */
-  --surface-2: #fdeedb;  /* warm chrome: header, sidebar, inputs, table heads */
-  --text: #33261c;       /* warm near-black, never pure #000 on a warm ground */
-  /* Tuned against --surface-2, not --bg. Secondary labels sit on the sand
-     chrome as often as on the page, and that is the tightest of the three
-     grounds: the first candidate here cleared 4.5:1 on --bg and only made 4.1:1
-     on the header. 5.4 / 5.9 / 6.2 across surface-2 / bg / surface. */
-  --text-dim: #785c45;
-  --border: #f0dcc2;
-  --accent: #0a72c4;     /* deep sea blue; 5.0:1 under white, so --on-accent holds */
+  --bg: #f3f2f2;         /* paper — the page */
+  --surface: #ffffff;    /* cards pop as objects on the gray */
+  --surface-2: #eae8e7;  /* quiet chrome: sidebar, inputs, table heads */
+  --text: #201e1d;       /* ink */
+  /* Tuned against --surface-2, the tightest of the three grounds:
+     5.1 / 5.6 / 6.0 across surface-2 / bg / surface. */
+  --text-dim: #6f6a67;
+  --border: #c9c5c3;     /* visible structural borders — paper needs edges */
+  --accent: #0a72c4;     /* deep sea blue, kept: 5.0:1 under white holds on paper too */
   --accent-2: #05537f;   /* accent as TEXT: on light it has to go darker, not brighter */
 
   /* The four log-type hues, re-derived for a light ground rather than reused.
@@ -147,30 +188,32 @@
   --decision: #3a5fe0;
   --github: #0099b0;
   /* Absence is drawn as texture in both themes. On light the hatch is dark. */
-  --idle: repeating-linear-gradient(135deg, rgba(51,38,28,0.13) 0 4px, transparent 4px 8px);
+  --idle: repeating-linear-gradient(135deg, rgba(32,30,29,0.13) 0 4px, transparent 4px 8px);
 
-  --wash-1: rgba(51,38,28,0.035);
-  --wash-2: rgba(51,38,28,0.05);
-  --wash-3: rgba(51,38,28,0.08);
-  --row-alt: rgba(51,38,28,0.025);
-  --hairline: rgba(51,38,28,0.07);
-  --hatch: rgba(51,38,28,0.07);
-  --hatch-strong: rgba(51,38,28,0.35);
+  /* One step stronger than high summer's washes: on white cards the zebra
+     has to be visible for rows to have rhythm (Task 0010 brief). */
+  --wash-1: rgba(32,30,29,0.04);
+  --wash-2: rgba(32,30,29,0.055);
+  --wash-3: rgba(32,30,29,0.085);
+  --row-alt: rgba(32,30,29,0.03);
+  --hairline: rgba(32,30,29,0.08);
+  --hatch: rgba(32,30,29,0.08);
+  --hatch-strong: rgba(32,30,29,0.35);
 
   --on-accent: #fff;
   --accent-hover: #0b83e0;
-  --btn-hover: #fbe3c4;
+  --btn-hover: #dedbda;
 
-  --scroll-thumb: #e3c9a4;
-  --scroll-thumb-hover: #d3b184;
+  --scroll-thumb: #c2bebc;
+  --scroll-thumb-hover: #a8a4a2;
 
   /* Inverted against the dark theme: a white cut between two saturated fills is
      what reads as a gap on a light ground; a black one reads as a shadow. */
   --seg-edge: rgba(255,255,255,.55);
   --seg-edge-strong: rgba(255,255,255,.65);
-  --focus-mark: #33261c;
+  --focus-mark: #201e1d;
 
-  --overlay: rgba(58,40,22,0.42);
+  --overlay: rgba(32,30,29,0.45);
   --error-text: oklch(0.45 0.15 27);
 
   /* Token usage, re-validated on the light ground. Same reasoning as the dark
@@ -205,8 +248,66 @@
   --usage-rank-4: #50409e;
   --usage-rank-5: #332869;
 
-  /* Warm and diffuse: a neutral black shadow on a sand ground reads as dirt. */
-  --shadow: 0 2px 10px rgba(120,80,30,0.16);
+  /* Elevation is an edge, not a glow: the "shadow" is a 1px ink ring, so
+     dropdowns and modals read as bordered objects on paper. */
+  --shadow: 0 0 0 1px #201e1d;
+
+  /* Chrome-scoped tokens, light values (see the dark block for the design
+     note). The top bar and stat tiles are DARK objects on the paper page;
+     the mark/stripe colors on them are therefore the dark-tuned set. */
+  --brand: #ec3013;
+  --topbar-bg: #262322;
+  --topbar-surface: #33302e;
+  --topbar-surface-2: #3a3734;
+  --topbar-text: #eceae9;
+  --topbar-dim: #a39b96;
+  --topbar-border: #4a4643;
+  --topbar-btn-hover: #3a3734;
+  /* Active tab and primary button on the ink bar are paper-on-ink. */
+  --topbar-accent: #eceae9;
+  --topbar-accent-2: #eceae9;
+  --topbar-on-accent: #201e1d;
+  --topbar-accent-hover: #ffffff;
+  --mark-activity: #4caf50;
+  --mark-decision: #2196f3;
+  --mark-github: #4fc3f7;
+  --mark-issue: #ff5f45;
+  --mark-hatch: rgba(255,255,255,0.3);
+  --tile-bg: #262322;
+  --tile-border: #201e1d;
+  --tile-text: #eceae9;
+  --tile-dim: #a39b96;
+  /* The stripe sits on the page edge, not on the bar — it uses THIS
+     theme's validated log-type hues. */
+  --stripe-activity: #0d8442;
+  --stripe-issue: #e02d1b;
+  --stripe-decision: #3a5fe0;
+  --stripe-github: #0099b0;
+  --stripe-hatch: rgba(32,30,29,0.35);
+}
+
+/* Paper & Ink is flat and square: zero radius everywhere in light mode —
+   including the dots, which become squares by design. Scoped to the light
+   theme so dark keeps its rounded geometry untouched. */
+:root[data-theme="light"] * { border-radius: 0 !important; }
+
+/* Archivo (vendored in fonts/ — the app makes no network requests) carries
+   the brand voice on chrome and titles, light theme only, so dark mode's
+   rendering is byte-identical to before Task 0010. */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(fonts/archivo-latin-var.woff2) format('woff2');
+}
+:root[data-theme="light"] .brand .title,
+:root[data-theme="light"] .page-title,
+:root[data-theme="light"] .breadcrumb-title,
+:root[data-theme="light"] .help-article-title {
+  font-family: 'Archivo', var(--font);
+  letter-spacing: -0.01em;
 }
 
 * { box-sizing: border-box; }
@@ -252,14 +353,56 @@ button.small { padding: 4px 8px; font-size: 12px; }
    (.page-host, log-details) grow past the clipped body instead of scrolling. */
 app-shell, .app-shell { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 
+/* The top bar re-scopes the generic tokens to its --topbar-* set. In dark
+   the values are identical, so nothing changes; in light the bar becomes an
+   ink object on the paper page (Task 0010). The 1px border-bottom became
+   the 5px category stripe drawn by ::after below. */
 log-header {
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 8px 16px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+  background: var(--topbar-bg);
+  border-bottom: 0;
+  margin-bottom: 5px;
   flex: 0 0 auto;
+  color: var(--topbar-text);
+  --surface: var(--topbar-surface);
+  --surface-2: var(--topbar-surface-2);
+  --text: var(--topbar-text);
+  --text-dim: var(--topbar-dim);
+  --border: var(--topbar-border);
+  --btn-hover: var(--topbar-btn-hover);
+  --accent: var(--topbar-accent);
+  --accent-2: var(--topbar-accent-2);
+  --on-accent: var(--topbar-on-accent);
+  --accent-hover: var(--topbar-accent-hover);
+  --activity: var(--mark-activity);
+  --decision: var(--mark-decision);
+  --github: var(--mark-github);
+  --issue: var(--mark-issue);
+  --hatch-strong: var(--mark-hatch);
+}
+
+/* The category stripe under the top bar: the five log types as equal
+   segments, idle hatched — never solid, absence is not another kind of
+   work. Present in both themes, from each theme's own validated hues. */
+log-header::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -5px; height: 5px;
+  z-index: 5;
+  background-image:
+    repeating-linear-gradient(135deg, var(--stripe-hatch) 0 4px, transparent 4px 8px),
+    linear-gradient(to right,
+      var(--stripe-activity) 0 20%,
+      var(--stripe-issue) 20% 40%,
+      var(--stripe-decision) 40% 60%,
+      var(--stripe-github) 60% 80%,
+      transparent 80%);
+  background-size: 20% 100%, 100% 100%;
+  background-position: 100% 0, 0 0;
+  background-repeat: no-repeat;
 }
 
 /* Always an <a> now — home is the landing page one level up on the published
@@ -433,7 +576,19 @@ log-details { flex: 1; overflow-y: auto; }
 .detail pre { background: var(--surface-2); padding: 10px; border-radius: var(--radius); overflow-x: auto; font-size: 12px; }
 
 .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-.metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+/* Stat tiles carry their own token set: identical to the surface in dark,
+   deliberately DARK objects on the paper page in light (Task 0010) — the
+   landing's "let the dark tiles stay dark" trick, and the numerals inside
+   keep the contrast they were tuned for. */
+.metric-card {
+  background: var(--tile-bg);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+  padding: 14px;
+  color: var(--tile-text);
+  --text: var(--tile-text);
+  --text-dim: var(--tile-dim);
+}
 .metric-value { font-size: 24px; font-weight: 700; }
 .metric-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
 
