@@ -198,12 +198,82 @@ figure { margin: 0; }
   background: var(--bg); border-left: 2px solid var(--decision);
   padding: 8px 12px; border-radius: 0 6px 6px 0; margin-top: 6px; color: var(--text);
 }
+/* A second-level heading inside a section that already has its <h2>. The eyebrow
+   is spoken for by the section, so this is the only cue that a new argument has
+   started — hence the top margin, which is doing the work a rule would. */
+.sub-h { margin: 44px 0 8px; font-size: 21px; }
+.sub-lede { color: var(--text-dim); font-size: 15px; margin: 0 0 18px; max-width: 62ch; }
+
+/* ---------- the landscape table ---------- */
+/* Five columns of prose will not fit a phone and must not squash: the table keeps
+   a min-width and scrolls inside .scroll-x instead. Everything here is sized for
+   reading across a row, not for density — this is a paragraph in table form. */
+/* The frame lives on the scroller, not the table: a border on the table itself
+   would scroll away with it and leave the section's one wide block edgeless. */
+.matrix-wrap { border: 1px solid var(--border); border-radius: var(--radius); }
+.matrix { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 14px; }
+.matrix th, .matrix td {
+  text-align: left; vertical-align: top; padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.matrix thead th {
+  color: var(--text); font-weight: 600; font-size: 13px;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  background: var(--surface); border-bottom-color: var(--text-dim);
+}
+.matrix tbody th { color: var(--text); font-weight: 600; white-space: nowrap; }
+.matrix td { color: var(--text-dim); }
+.matrix tbody tr:last-child th, .matrix tbody tr:last-child td { border-bottom: 0; }
+/* This project's own row. Lifted a shade and marked at the edge so it can be found
+   without reading, but deliberately not coloured — the table is a map, and a row
+   painted in the accent would make it a scoreboard. */
+.matrix tr.self { background: var(--surface-2); }
+.matrix tr.self th[scope="row"] { box-shadow: inset 2px 0 0 var(--accent); }
+.matrix td code { color: var(--text); }
+/* The repository link under each name: present, but never competing with the name
+   itself for the eye. */
+.matrix .repo { display: block; font-size: 12px; font-weight: 400; color: var(--text-dim); }
+.matrix .repo:hover { color: var(--accent-2); }
+.matrix-note {
+  color: var(--text-dim); font-size: 13.5px; margin: 14px 0 0; max-width: 78ch;
+}
+/* The scroller is focusable so a keyboard can reach it; give that focus a visible
+   ring, since the region contains links and losing the outline loses the reader. */
+.scroll-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 .tradeoff {
-  margin-top: 24px; padding: 16px 20px; border-radius: var(--radius);
+  margin-top: 44px; padding: 20px 24px; border-radius: var(--radius);
   background: var(--surface); border: 1px solid var(--border);
   color: var(--text-dim); font-size: 15px;
 }
 .tradeoff b { color: var(--text); }
+.tradeoff h3 { color: var(--text); margin-bottom: 12px; }
+.tradeoff p { margin: 0 0 14px; }
+.tradeoff p:last-child { margin-bottom: 0; }
+
+/* The two log excerpts, side by side once there is room. They are the argument —
+   the paragraphs around them only explain what the reader has already seen. */
+.samples { display: grid; gap: 16px; margin: 0 0 16px; }
+@media (min-width: 820px) { .samples { grid-template-columns: 1fr 1fr; } }
+.sample-label {
+  margin: 0 0 6px; font-size: 13px; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+/* The thin sample is the one that says nothing useful, so it is drawn in the colour
+   the rest of the page uses for absence — the same grey as idle time. Colouring it
+   with --issue would call it a failure; it is not, it is just empty. */
+.quote.thin { border-left-color: var(--text-dim); color: var(--text-dim); }
+
+/* The recommendation to run something else alongside this. Green, because in this
+   palette that is the colour of a thing going right, and this is the only block on
+   the page whose advice is to go install a different tool. */
+.hybrid {
+  margin-top: 20px; padding: 20px 24px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--activity);
+}
+.hybrid h3 { margin-bottom: 8px; font-size: 17px; }
+.hybrid p { margin: 0; color: var(--text-dim); font-size: 15px; }
 
 /* A constraint the reader needs before acting, not a warning that something is
    broken — so it is accent blue rather than amber, and surface-2 rather than
@@ -318,6 +388,20 @@ pre.code .p { color: var(--activity); }
 .fit li { margin-bottom: 8px; font-size: 15px; }
 .fit .good h3 { color: var(--activity); }
 .fit .bad h3 { color: var(--text-dim); }
+
+/* ---------- why this exists ---------- */
+/* Sits directly above the disclaimer and is styled to be its opposite number: same
+   card, same width, warm accent instead of the disclaimer's grey. The two together
+   are the honest close — where the project came from, then what it can do to your
+   data — and they should read as a pair rather than as one long warning. */
+.origin {
+  margin-top: 28px; padding: 24px 28px; border-radius: var(--radius);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+}
+.origin h3 { margin-bottom: 10px; font-size: 17px; }
+.origin p { margin: 0 0 12px; color: var(--text-dim); font-size: 15px; }
+.origin p:last-child { margin-bottom: 0; }
 
 /* ---------- disclaimer ---------- */
 /* Deliberately quiet. It has to be readable and findable, not alarming — the

@@ -160,9 +160,9 @@ def build() -> Path:
            font=font("regular", 27), fill=DIM)
 
     # --- the tagline ---
-    d.text((PAD, bar_y - 190), "Hooks tell you what happened.",
+    d.text((PAD, bar_y - 190), "Most tools watch your agents work.",
            font=font("regular", 34), fill=ACCENT_2)
-    d.text((PAD, bar_y - 144), "LogReporter tells you why.",
+    d.text((PAD, bar_y - 144), "This one just asks them.",
            font=font("regular", 34), fill=ACCENT_2)
 
     # --- the promise ---

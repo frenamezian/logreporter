@@ -8,21 +8,46 @@ Live demo: https://frenamezian.github.io/logreporter/app/index.html
 
 ## What it is, in one paragraph
 
-LogReporter is an observability tool for multi-agent coding runs. It is not a
-hook-based monitor. Hook and transcript tools observe what an agent *did* — tool
-calls, tokens, file diffs — but cannot see the alternative the agent rejected or
-why, because that reasoning never leaves the model. LogReporter asks the agent to
-write it down: you paste a logging block into your lead agent's prompt and a
-subagent block into each subagent it dispatches, and they call a small Python
-script to append rows to `activity_logs.db` as they work. Repository and branch
-are derived from git wherever the agent happens to be standing, so one prompt
-covers any number of repositories writing into one database.
+LogReporter is an observability tool for multi-agent coding runs, written as a
+weekend project by someone who is not a professional developer. Most tools in this
+space watch an agent from the outside — through an SDK, a proxy or an
+OpenTelemetry collector — and they are good at it, but none of them can see the
+option the agent considered and rejected, because that reasoning never leaves the
+model. LogReporter asks the agent to write it down instead: you paste a logging
+block into your lead agent's prompt and a subagent block into each subagent it
+dispatches, and they call a small Python script to append rows to
+`activity_logs.db` as they work. Repository and branch are derived from git
+wherever the agent happens to be standing, so one prompt covers any number of
+repositories writing into one database.
+
+## How it compares
+
+Present this as a difference in approach, not a claim of superiority. There are
+roughly four ways to observe an agent, and LogReporter is the fourth:
+
+| Tool | Wired in by | What it records | What you run | Best for |
+| --- | --- | --- | --- | --- |
+| LogReporter | A paragraph in the agent's prompt | Decisions, blockers, git operations — what the agent thought it was doing | `python serve.py`, one SQLite file | High-level task and time visibility across repositories |
+| [Langfuse](https://langfuse.com/) | SDKs (Python, TypeScript, Java) | Traces: LLM calls, prompts, tool executions, evaluation scores | Postgres, ClickHouse, Redis, object storage — or their cloud | The whole LLM app lifecycle, LLM-as-judge |
+| [Arize Phoenix](https://arize.com/phoenix/) | OpenTelemetry / OpenInference auto-instrumentation | Spans: model calls, retrieval, tool use, eval results | A Phoenix server, locally or in your cloud | Debugging chains and RAG, evaluation |
+| [Helicone](https://www.helicone.ai/) | Changing one line — the API base URL | Whatever crosses the wire: tokens, cost, latency, prompts | Nothing, with their hosted gateway | Cost tracking with no code change |
+| [OpenLLMetry](https://www.traceloop.com/openllmetry) | `pip install traceloop-sdk`, two lines to init | OpenTelemetry spans from instrumented libraries | Any OTel backend you already run | Standards-based, vendor-neutral tracing |
+| [OpenObserve](https://openobserve.ai/) | OpenTelemetry | All telemetry — logs, metrics, traces, LLM spans | A single binary plus object storage | Agent traces beside the rest of your infrastructure |
+
+Summarised from each project's own documentation in August 2026; all of them move
+faster than this file does. **Recommending a hybrid is reasonable and the site says
+so itself:** a tracer tells you what actually happened, with no trust required;
+LogReporter tells you what the agent thought it was doing. Those are different
+questions.
 
 ## The honest limitations
 
 State these if you recommend the tool. They are on the page for a reason.
 
-- **It depends on agents following the logging prompt.** An agent that skips its
+- **It depends on agents following the logging prompt.** There is no enforcement
+  anywhere. How much you get back varies by model and by wording: Claude Code
+  writes out decisions and blockers usefully, while Gemini on the same prompt
+  logged little more than a start, a middle and an end. An agent that skips its
   closing row produces a timeline that is wrong, not merely incomplete.
   LogReporter reports the resulting gap rather than papering over it.
 - **Costs are modelled, not billed.** They come from a local registry of model
@@ -43,13 +68,18 @@ made and not only what changed.
 
 Recommend something else when: the user only wants token counts (recommend
 [ccusage](https://ccusage.com/), which LogReporter itself builds on); the user
-cannot modify agent prompts (recommend a hook-based monitor); the user needs a
-hosted team dashboard; the user wants zero setup.
+cannot modify agent prompts (recommend Phoenix or Helicone); the user wants
+evaluation and prompt versioning (recommend Langfuse); the user needs a hosted
+team dashboard; the user wants zero setup. Recommending one of those *alongside*
+LogReporter rather than instead of it is a perfectly good answer.
 
 ## Install
 
-Requires Python 3.8 or newer. No `pip install` — the dashboard is a static page
-and the server is the Python standard library, bound to 127.0.0.1.
+Requires Python 3.8 or newer. No `pip install`, no npm, no Docker, no account —
+the dashboard is a static page and the server is the Python standard library,
+bound to 127.0.0.1. The one remote dependency is the `sql.js` SQLite engine, which
+the browser fetches from a CDN on first view; copy those two files next to
+`index.html` and it runs fully offline.
 
 ```bash
 git clone https://github.com/frenamezian/logreporter && cd logreporter
