@@ -31,9 +31,11 @@ from the protobuf descriptors compiled into the IDE bundle, and the invariants
 never present) were checked against 7,679 real requests across 69 conversations.
 This file pins the parser's behaviour; that pinned the parser's premises.
 
-The five rows cover: no cache read; a cache read; a model that reports no
-thinking split; a request with neither a response id nor a model string; and a
-step that ran no model at all and must produce no record.
+The six rows cover the three ways a model id gets resolved — from the enum
+table, from a recorded field 21 that must override that table, and from neither
+so the alias falls through unpriced — plus no cache read, a cache read, a model
+reporting no thinking split, a request with neither a response id nor an alias,
+and a step that ran no model at all and must produce no record.
 """
 
 import sqlite3
@@ -108,32 +110,46 @@ def step(*parts: bytes) -> bytes:
 
 
 ROWS = [
-    # 0 — a plain request, nothing cached.
+    # 0 — no field 21, so the model resolves from the enum table: 1020 is
+    #     "Gemini 3.5 Flash (Medium)" -> gemini-3.5-flash, effort Medium.
+    #     Nothing cached.
     step(usage(model_enum=1020, input_tokens=25706, output_tokens=542,
                provider=24, thinking=459, response=83,
                response_id="ExampleResponseId000001"),
          when(1782197970, 725446800),
          text(19, "gemini-3-flash-a")),
-    # 1 — the same conversation once the prompt cache is warm.
+    # 1 — the same enum, but this request carries field 21 and it disagrees
+    #     with the table (High, not Medium). The recorded name must win: this
+    #     is the check that keeps a pinned table from overriding history.
+    #     Also the warm-cache case.
     step(usage(model_enum=1020, input_tokens=27119, output_tokens=246,
                cache_read=24679, provider=24, thinking=146, response=100,
                response_id="ExampleResponseId000002"),
          when(1782197975, 303773700),
-         text(19, "gemini-3-flash-a")),
-    # 2 — a different provider, reporting no thinking/response split at all.
-    #     extra_json must come out NULL rather than {"reasoning_output_tokens": 0}.
+         text(19, "gemini-3-flash-a"),
+         text(21, "Gemini 3.5 Flash (High)")),
+    # 2 — a different provider, reporting no thinking/response split at all, so
+    #     reasoning_output_tokens must be absent from extra_json rather than 0.
     step(usage(model_enum=1035, input_tokens=1000, output_tokens=200,
                cache_read=50000, provider=26,
                response_id="ExampleResponseId000003"),
          when(1782198100, 0),
          text(19, "claude-sonnet-4-6")),
-    # 3 — no response_id and no model string: 29 of 7,679 real rows had no
-    #     response_id and 32 had no model. The id must be synthesized and
-    #     stable; model_id must stay NULL rather than be guessed.
-    step(usage(model_enum=1020, input_tokens=500, output_tokens=10,
-               provider=24, thinking=6, response=4),
-         when(1782198200, 500000000)),
-    # 4 — a step that ran no model. No ModelUsageStats, so no record: emitting
+    # 3 — an enum nobody has observed, with an alias. Must fall through to the
+    #     alias unchanged and stay unpriced: a model we cannot name is not a
+    #     model we may guess a rate for.
+    step(usage(model_enum=99999, input_tokens=500, output_tokens=10,
+               provider=24, thinking=6, response=4,
+               response_id="ExampleResponseId000004"),
+         when(1782198200, 500000000),
+         text(19, "gemini-9-flash-z")),
+    # 4 — unknown enum, no alias and no response_id: 29 of 11,795 real rows had
+    #     no response_id and 32 no alias. The id must be synthesized and stable,
+    #     and model_id must stay NULL rather than be invented.
+    step(usage(model_enum=99999, input_tokens=300, output_tokens=20,
+               provider=24, thinking=5, response=15),
+         when(1782198250, 250000000)),
+    # 5 — a step that ran no model. No ModelUsageStats, so no record: emitting
     #     one with zeros would invent a request that never happened.
     step(when(1782198300, 0), text(19, "gemini-3-flash-a")),
 ]

@@ -4,7 +4,7 @@
     "timestamp": "2026-06-23T06:59:30.725Z",
     "source": "antigravity",
     "session_id": "11111111-2222-3333-4444-555555555555",
-    "model_id": "gemini-3-flash-a",
+    "model_id": "gemini-3.5-flash",
     "repo_name": "ExampleRepo",
     "branch_name": "feature/example",
     "input_tokens": 25706,
@@ -14,14 +14,14 @@
     "output_tokens": 542,
     "service_tier": null,
     "speed": null,
-    "extra_json": "{\"reasoning_output_tokens\":459}"
+    "extra_json": "{\"model_id_source\":\"enum_table\",\"reasoning_output_tokens\":459,\"effort\":\"Medium\"}"
   },
   {
     "request_id": "antigravity:ExampleResponseId000002",
     "timestamp": "2026-06-23T06:59:35.303Z",
     "source": "antigravity",
     "session_id": "11111111-2222-3333-4444-555555555555",
-    "model_id": "gemini-3-flash-a",
+    "model_id": "gemini-3.5-flash",
     "repo_name": "ExampleRepo",
     "branch_name": "feature/example",
     "input_tokens": 27119,
@@ -31,7 +31,7 @@
     "output_tokens": 246,
     "service_tier": null,
     "speed": null,
-    "extra_json": "{\"reasoning_output_tokens\":146}"
+    "extra_json": "{\"model_id_source\":\"recorded\",\"reasoning_output_tokens\":146,\"effort\":\"High\"}"
   },
   {
     "request_id": "antigravity:ExampleResponseId000003",
@@ -48,14 +48,14 @@
     "output_tokens": 200,
     "service_tier": null,
     "speed": null,
-    "extra_json": null
+    "extra_json": "{\"model_id_source\":\"enum_table\",\"effort\":\"Thinking\"}"
   },
   {
-    "request_id": "antigravity:11111111-2222-3333-4444-555555555555:3",
+    "request_id": "antigravity:ExampleResponseId000004",
     "timestamp": "2026-06-23T07:03:20.500Z",
     "source": "antigravity",
     "session_id": "11111111-2222-3333-4444-555555555555",
-    "model_id": null,
+    "model_id": "gemini-9-flash-z",
     "repo_name": "ExampleRepo",
     "branch_name": "feature/example",
     "input_tokens": 500,
@@ -65,6 +65,23 @@
     "output_tokens": 10,
     "service_tier": null,
     "speed": null,
-    "extra_json": "{\"reasoning_output_tokens\":6}"
+    "extra_json": "{\"model_id_source\":\"alias\",\"reasoning_output_tokens\":6}"
+  },
+  {
+    "request_id": "antigravity:11111111-2222-3333-4444-555555555555:4",
+    "timestamp": "2026-06-23T07:04:10.250Z",
+    "source": "antigravity",
+    "session_id": "11111111-2222-3333-4444-555555555555",
+    "model_id": null,
+    "repo_name": "ExampleRepo",
+    "branch_name": "feature/example",
+    "input_tokens": 300,
+    "cache_read_tokens": null,
+    "cache_write_5m": null,
+    "cache_write_1h": null,
+    "output_tokens": 20,
+    "service_tier": null,
+    "speed": null,
+    "extra_json": "{\"model_id_source\":\"alias\",\"reasoning_output_tokens\":5}"
   }
 ]

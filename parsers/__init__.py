@@ -44,6 +44,9 @@ EXTRA_ALLOWED = {
     "cli_version",              # str   - the agent's own version
     "effort",                   # str   - reasoning effort setting
     "cache_write_ttl",          # str   - "implied_5m" when the TTL was assumed
+    "model_id_source",          # str   - how model_id was arrived at, when the
+                                #         agent did not record a usable one:
+                                #         "recorded" | "enum_table" | "alias"
     "spawn_depth",              # int   - subagent nesting depth
     "reasoning_output_tokens",  # int   - where an agent reports it separately
     "grain",                    # str   - "session"/"daily" for aggregate sources

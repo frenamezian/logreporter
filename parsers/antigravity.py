@@ -38,26 +38,42 @@ than a guess from value shapes:
 both installs, so there is no per-request price to read and cost stays the
 dashboard's job.
 
-Why `model_id` is field 19 and not something better
-----------------------------------------------------
+How `model_id` is resolved, and why not from field 19
+------------------------------------------------------
 Field 19 is an alias and is not one-to-one with anything: `gemini-3-flash-a`
 appears against model enums 1020 *and* 1132, and enum 1020 appears as
 `gemini-3-flash-a`, `gemini-3-flash-b` and `gemini-default`. The `-a`/`-b`
 pairs run concurrently on the same enum, so they read as experiment arms.
+Reporting it verbatim left 11,079 of 11,795 requests unpriced, because
+cost-model.js looks a model id up by exact match and no alias is a registry id.
 
-The identity is the enum in field 1.4.1, and the IDE resolves it through a
-catalog in its own storage (`antigravityUnifiedStateSync.userStatus`, field 33
-`cascade_model_config_data`). That catalog cannot be used here: it is a
-server-provided snapshot and the enums are **renumbered over time**. Enum 1133
-meant "Gemini 3.5 Flash (High)" in the older install's catalog, is absent from
-the current one, and 1084 holds that label there now; 1132 carried the same
-label in July and is in neither catalog. Resolving today's catalog against
-2026-05 rows would label them confidently and wrongly.
+The identity is the enum in field 1.4.1. Three steps, in order:
 
-Field 1.21 is the honest fix — the same name, recorded per request, at the time
-of the request — but it is present on only 42% of them, so adopting it means
-deciding what the other 58% should say. Until then this reports field 19 as it
-was written, which is at worst unhelpful and never false.
+  1. **field 21**, `model_display_name`, when the request carries one. This is
+     the name Antigravity itself resolved, written at the time of the request,
+     so it cannot be retrospectively wrong. 42% of requests, and effectively
+     all recent ones.
+  2. **`_ENUM_NAMES`**, for the older requests written before field 21 existed.
+  3. otherwise the field 19 alias, unchanged and unpriced.
+
+What is deliberately *not* done is read the IDE's live catalog
+(`antigravityUnifiedStateSync.userStatus`, field 33 `cascade_model_config_data`)
+at parse time. It is a server-provided snapshot and the enums are **renumbered
+over time**: enum 1133 meant "Gemini 3.5 Flash (High)" in the older install's
+catalog, is absent from the current one where 1084 now holds that label, and
+1132 carried the same label in July while appearing in neither. Mapping today's
+catalog onto 2026-05 rows would label them confidently and wrongly.
+
+`_ENUM_NAMES` avoids that because it is the opposite thing: observed history,
+pinned, and consulted *only* for a request that carries no name of its own.
+Those requests are finished and frozen, so nothing can change underneath them —
+and if an enum is ever reused, the new requests will carry field 21, which wins
+at step 1. An enum nobody has observed falls through to step 3 and stays
+unpriced, which is the right direction to fail in: never a guessed rate.
+
+`extra_json.model_id_source` records which of the three steps answered, so a
+derived name can be shown as derived rather than passed off as recorded — the
+same contract `cache_write_ttl: "implied_5m"` has in the ccusage adapter.
 
 Checked against every request on the machine this was written on — 7,679 of
 them across 69 conversations:
@@ -116,7 +132,20 @@ HOMEPAGE = "https://antigravity.google"
 # ccusage's exclude_agents() — but priority is the rule that makes it certain.
 PRIORITY = 100
 
-PARSE_VERSION = 1
+# 2: model_id became a registry id rather than the raw field-19 alias.
+#
+# A bump invalidates this parser's stored cursors, but that is NOT what updates
+# rows already in the database, and it is worth being clear about why. The
+# reader skips a file whose size and mtime are unchanged without ever looking at
+# the cursor, and rows are written INSERT OR IGNORE on request_id, so a re-read
+# of an already-imported request changes nothing. Both are deliberate: they are
+# what make a wrong cursor cost time instead of correctness.
+#
+# Changing what this parser *emits* for requests it has already imported
+# therefore needs the escape hatch — `python usage_reader.py --rebuild`, which
+# drops the cache and every watermark and reads the corpus again. That is safe
+# precisely because token_usage.db is a cache and nothing else.
+PARSE_VERSION = 2
 
 UNAVAILABLE_HINT = ("Antigravity's conversation store was not found under "
                     "~/.gemini/*/conversations. Open a conversation in "
@@ -124,6 +153,43 @@ UNAVAILABLE_HINT = ("Antigravity's conversation store was not found under "
 
 # `--app_data_dir` values seen in the wild, newest first.
 _APP_DIRS = ("antigravity-ide", "antigravity")
+
+# Model enum -> the display name Antigravity recorded for it, for requests
+# written before field 21 existed. Every entry was read back out of this
+# machine's own corpus: each of these enums appears on requests that *do* carry
+# field 21, and the name there was identical every time — except 1133 and 1026,
+# which never carry one and are taken from the older install's catalog, where
+# 1133 is listed as "Gemini 3.5 Flash (High)".
+#
+# Observed 2026-05-28 .. 2026-08-04 across 11,795 requests. This is history, not
+# a copy of the live catalog: see the module docstring for why that distinction
+# is the whole point. Field 21 always wins over this table.
+_ENUM_NAMES = {
+    1020: "Gemini 3.5 Flash (Medium)",
+    1026: "Claude Opus 4.6 (Thinking)",
+    1035: "Claude Sonnet 4.6 (Thinking)",
+    1072: "Gemini 3.6 Flash (Medium)",
+    1132: "Gemini 3.5 Flash (High)",
+    1133: "Gemini 3.5 Flash (High)",
+    1187: "Gemini 3.5 Flash (Low)",
+}
+
+# Antigravity's display name minus its effort suffix -> the id that
+# script/llm_registry.py prices on. It has to be exact: cost-model.js's
+# lookupModel() is a map lookup and does no normalising of its own.
+#
+# Antigravity's other catalogued models are absent on purpose. "Gemini 3.1 Pro"
+# is the interesting one: the registry has `gemini-3.1-pro-preview` and nothing
+# else 3.1-Pro-shaped, and pricing a GA model at preview rates because the names
+# nearly match is exactly the guess this parser refuses to make elsewhere. It
+# has never been observed here; if it appears it goes unpriced and shows up in
+# cost-model's unknownModels, which is a visible prompt to add it deliberately.
+_REGISTRY_IDS = {
+    "Gemini 3.5 Flash": "gemini-3.5-flash",
+    "Gemini 3.6 Flash": "gemini-3.6-flash",
+    "Claude Sonnet 4.6": "claude-sonnet-4-6",
+    "Claude Opus 4.6": "claude-opus-4-6",
+}
 
 PARSE_STATS: dict[str, int] = {}
 
@@ -353,6 +419,40 @@ def _timestamp(step):
     return f"{dt:%Y-%m-%dT%H:%M:%S}.{ms:03d}Z"
 
 
+def _split_effort(name):
+    """"Gemini 3.5 Flash (Medium)" -> ("Gemini 3.5 Flash", "Medium").
+
+    The suffix is a reasoning-effort setting, not a different model: the same
+    tokens at the same price. It is split off so the name matches a registry id
+    and kept in extra_json, where it informs without ever moving the cost.
+    """
+    if name.endswith(")") and "(" in name:
+        base, _, effort = name.rpartition("(")
+        return base.strip(), (effort[:-1].strip() or None)
+    return name.strip(), None
+
+
+def _model(step, usage):
+    """(model_id, effort, source) — see "How model_id is resolved" above."""
+    name, source = _text(step, 21, limit=128), "recorded"
+    if not name:
+        enum = _one(usage, 1)
+        if isinstance(enum, int) and not isinstance(enum, bool):
+            name, source = _ENUM_NAMES.get(enum), "enum_table"
+
+    if name:
+        base, effort = _split_effort(name)
+        registry_id = _REGISTRY_IDS.get(base)
+        if registry_id:
+            return registry_id, effort, source
+        # A name we have never mapped to a price list. Counting it separately
+        # from "no name at all" is what makes a newly-offered model visible
+        # here rather than silently joining the unpriced pile.
+        _bump("unmapped_display_names")
+
+    return _text(step, 19), None, "alias"
+
+
 def _record(blob, idx, session, repo, branch):
     """One UsageRecord, or None if this step was not an LLM request."""
     try:
@@ -389,17 +489,21 @@ def _record(blob, idx, session, repo, branch):
         request_id = f"{AGENT_ID}:{session}:{idx}"
 
     thinking = _count(usage, 9)
-    extra = {"reasoning_output_tokens": thinking} if thinking is not None else None
+    model_id, effort, model_source = _model(step, usage)
+    _bump(f"model_from_{model_source}")
+
+    extra = {"model_id_source": model_source}
+    if thinking is not None:
+        extra["reasoning_output_tokens"] = thinking
+    if effort:
+        extra["effort"] = effort
 
     return UsageRecord(
         request_id=request_id,
         timestamp=ts,
         source=AGENT_ID,
         session_id=session,
-        # The string the agent recorded ("gemini-3-flash-a"), not a prettied
-        # one. It is an internal alias rather than a billing model name, and
-        # inventing the mapping here would be a guess that silently rots.
-        model_id=_text(step, 19),
+        model_id=model_id,
         repo_name=repo,
         branch_name=branch,
         input_tokens=_count(usage, 2),
@@ -411,7 +515,7 @@ def _record(blob, idx, session, repo, branch):
         output_tokens=_count(usage, 3),
         service_tier=None,
         speed=None,
-        extra_json=json.dumps(extra, separators=(",", ":")) if extra else None,
+        extra_json=json.dumps(extra, separators=(",", ":")),
     )
 
 
