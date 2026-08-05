@@ -122,7 +122,7 @@ cache_creation.ephemeral_1h_input_tokens  → cache_write_1h</pre>
 
 <p>The name is then split: &ldquo;Gemini 3.5 Flash (Medium)&rdquo; becomes the registry id <code>gemini-3.5-flash</code> plus <code>extra_json.effort</code> of <code>Medium</code>. The suffix is a reasoning-effort setting, not a different model — the same tokens at the same price — so it informs the reader without ever moving the cost. The match has to be exact, because <code>lookupModel()</code> is a map lookup that does no normalising of its own.</p>
 
-<p>Seven observed enums collapse to four registry ids this way, which took Antigravity from 716 of 11,795 requests priced to all of them. <code>model_id_source</code> is what lets the interface show a derived name as derived rather than passing it off as recorded — the same contract <code>cache_write_ttl: "implied_5m"</code> has in the ccusage adapter.</p>
+<p>Seven observed enums collapse to four registry ids this way, which took Antigravity from 716 of 11,795 requests priced to all of them. <code>model_id_source</code> is what lets the interface show a derived name as derived rather than passing it off as recorded — the same contract <code>cache_write_ttl: "implied_5m"</code> has in the ccusage adapter. The request table on the Metrics page marks those rows <span class="usage-derived">&dagger;</span>, with the reason in the mark&rsquo;s tooltip and a count in the footnotes; <code>log-usage.js</code> is the only component that reads <code>extra_json</code>, and it memoises the parse onto the row because otherwise it would be tens of thousands of <code>JSON.parse</code> calls per render.</p>
 
 <h3>Changing what a parser emits for rows already imported</h3>
 

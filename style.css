@@ -1121,6 +1121,12 @@ log-footer {
    own work, because "lead_architect $34.84" on its own reads as its own spend. */
 .usage-head .usage-split { color: var(--usage-cache-read); cursor: help; }
 .usage-head .usage-split strong { color: var(--text); font-weight: 600; }
+/* A model id the parser worked out rather than read from the request. Quiet on
+   purpose: it qualifies the id next to it, and is not a warning about the row —
+   the tokens are measured either way. Loud enough to notice while scanning a
+   column, faint enough not to compete with the numbers. */
+.usage-derived { color: var(--text-dim); cursor: help; font-size: 10px; vertical-align: super; margin-left: 2px; }
+.usage-foot .usage-derived { vertical-align: baseline; font-size: inherit; margin-left: 0; }
 
 /* The measure toggle. Tokens and cost are never drawn on one axis; this is
    what replaces that. Ordering, colour and layout hold across the switch so
