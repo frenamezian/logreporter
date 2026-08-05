@@ -204,9 +204,9 @@ whole run. Log every meaningful step to LogReporter as you work.
 
 Required: `--log-type`, `--log-title`, `--agent`. **Do not pass `--repo` or
 `--branch`** — they are derived from git in your working directory, which is
-what makes one prompt work in every repository. The call is asynchronous: it
-validates, spawns a background writer and returns immediately, so logging never
-slows you down.
+what makes one prompt work in every repository. The call is synchronous: it
+validates, writes the row, prints its id and returns — so if it returned
+successfully, the row is in the database.
 
 ### Bracket every task
 
@@ -343,9 +343,13 @@ Override either with `--repo` / `--branch` when you need to — for example to l
 
 ### Synchronous vs asynchronous
 
-Asynchronous is the default: the parent validates the arguments, spawns a detached child to do the `INSERT`, and exits immediately. Agents are never blocked on SQLite.
+Synchronous is the default: the `INSERT` completes before the call returns, the new row id is printed, and a failure exits non-zero and says why. A row you were told was written is a row that exists.
 
-Pass `--sync` when you actually need the row id printed — usually only for smoke tests. Background failures are appended to `log_activity_errors.log` next to the database; check it occasionally, since an async call cannot report them.
+It was asynchronous until an agent lost five rows to it. Its terminal ran the shell inside a job object that killed every descendant when the subshell closed, so each detached writer died before SQLite committed — and each call had already exited 0. The documented safety net, `log_activity_errors.log`, was never written: a killed process cannot report its own death, which is precisely why the most likely failure was also the quietest one.
+
+Re-logging afterwards does not undo it. The rows come back with the time they were re-written, so the task's span collapses to a few seconds — and a span is what token usage is attributed to and what durations and idle time are derived from. In that incident 129 of 132 requests ended up attributable to nothing, permanently, because the real event times were never recorded anywhere.
+
+`--async` restores the old behaviour for a caller that wants it, and on Windows it now asks to break away from the parent's job object before falling back to a plain detached spawn. `--sync` is still accepted and does nothing, so existing agent prompts keep working.
 
 ### Other knobs
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Append one activity-log row to activity_logs.db — asynchronously.
+"""Append one activity-log row to activity_logs.db.
 
 Agents (lead architect + subagents) call this to record their work so the
 LogReporter dashboard can be tested on real agent activity. Implements the
@@ -7,13 +7,43 @@ contract from the prototype's "Agent logging prompts" developer-guide topic:
   - exact column order the dashboard expects
   - WAL mode + busy_timeout so concurrent agents and dashboard polling coexist
   - UTC timestamp 'YYYY-MM-DD HH:MM:SS' auto-filled if omitted
-  - ASYNCHRONOUS by default: the parent validates args and exits immediately;
-    a detached child process performs the INSERT in the background so the
-    caller is never blocked on SQLite. Use --sync to wait for the row id.
+  - SYNCHRONOUS by default: the INSERT completes before this exits, and the new
+    row id is printed. --async restores the old fire-and-forget behaviour.
   - --repo and --branch auto-derive from git in the CALLER's working directory
     when omitted, so an agent in any repo logs under the right node without
     being told which repo it is in. One git call, not two — see
     detect_repo_and_branch() for the worktree rule and the cost reasoning.
+
+Why the default is synchronous
+------------------------------
+It was asynchronous, and that default lost rows silently.
+
+The failure, observed 2026-08-04: an agent logged five steps as it worked, each
+call spawning a detached child to do the INSERT. Its terminal ran the shell
+inside a Windows job object, so every child was killed with the subshell before
+SQLite committed. Each call had already exited 0. The agent noticed only because
+it later queried the table and found it empty, then re-logged all five rows in
+one command — landing them in an 8-second window hours after the work.
+
+The cost was not the missing rows, which were re-created, but their timestamps:
+the task's span became 8 seconds wide, and 129 of the 132 token-usage requests
+belonging to it fell outside that span and are attributable to nothing. Spans
+are also what durations and idle time are derived from, so that task cannot be
+reported on at all. None of it is recoverable — the real event times were never
+written anywhere.
+
+What makes this the wrong default rather than bad luck is the silence. The
+docstring below used to promise that background failures are appended to
+log_activity_errors.log. That promise cannot be kept for the most likely failure
+there is: a killed process does not get to write its own epitaph, and no error
+file was ever created. An agent following the documentation had every reason to
+believe its rows had landed.
+
+So the safe path is the one you get by default. Async remains available for a
+caller that has measured the cost and wants it back — and it is hardened (see
+spawn_detached_child) — but it is now opt-in, because the failure it risks is
+invisible and permanent while the cost it avoids is a few milliseconds on a WAL
+database.
 
 This script lives beside activity_logs.db on purpose: it is the database's
 access layer, it versions with the schema it writes, and agents in every repo
@@ -28,16 +58,22 @@ Usage (one line; --repo and --branch omitted so git fills them in):
   # Mint a trace_id (orchestrator only — use the dedicated tool):
   python C:/Users/you/dev/logreporter/mint_trace.py
 
-Exit codes (default async mode):
-  0 — args valid, write dispatched to background (row id NOT printed).
-  2 — argument/usage error (nothing written).
-Exit codes (--sync):
+Exit codes (default, synchronous):
   0 — row inserted, new row id printed on stdout.
   1 — database error (nothing written).
   2 — argument/usage error.
+Exit codes (--async):
+  0 — args valid, write dispatched to background (row id NOT printed).
+  2 — argument/usage error (nothing written).
 
-Background write errors are appended to log_activity_errors.log next to the
-database. The lead architect should check that file occasionally.
+--sync is still accepted and does nothing: it is what every existing agent
+prompt passes to get the behaviour that is now the default, and breaking those
+would be a strange way to make logging more reliable.
+
+Under --async, write errors are appended to log_activity_errors.log next to the
+database — but only errors the child survives to report. If the child is killed
+outright, nothing is written and nothing is logged, which is the whole reason
+async is no longer the default.
 
 Trace_id is NEVER minted here. The orchestrator generates one per task with
 mint_trace.py and passes it to every log_activity.py call and every subagent.
@@ -308,31 +344,54 @@ def spawn_detached_child(args):
     child_args = [sys.executable, __file__, "--_child"] + sys.argv[1:] + [
         "--repo", args.repo or "", "--branch", args.branch or "",
     ]
-    creationflags = 0
+    # DETACHED_PROCESS | CREATE_NO_WINDOW: no console, survives parent exit.
+    # CREATE_BREAKAWAY_FROM_JOB: also survives the parent's *job object*, which
+    # detaching alone does not. A terminal that runs its shell in a job with
+    # KILL_ON_JOB_CLOSE — several agent harnesses do — kills every descendant
+    # when the subshell ends, however detached, and that is exactly how five
+    # rows were lost on 2026-08-04. Breakaway is refused (WinError 5) by a job
+    # that does not permit it, so it is attempted first and dropped if denied:
+    # a child inside the job is still better than no child.
+    attempts = [0]
     if os.name == "nt":
-        # DETACHED_PROCESS | CREATE_NO_WINDOW: no console, survives parent exit.
-        creationflags = 0x00000008 | 0x08000000
-    try:
-        subprocess.Popen(
-            child_args,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            close_fds=True,
-            creationflags=creationflags,
-        )
-    except OSError as e:
-        # If we can't spawn, fall back to a synchronous write so the row isn't lost.
+        attempts = [0x00000008 | 0x08000000 | 0x01000000,
+                    0x00000008 | 0x08000000]
+
+    last = None
+    for flags in attempts:
         try:
-            do_insert(args)
-        except Exception as write_err:
-            log_error(f"fallback sync write failed after spawn error ({e}): {write_err}")
+            subprocess.Popen(
+                child_args,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                creationflags=flags,
+            )
+            return
+        except OSError as e:
+            last = e
+
+    # Could not spawn at all: write it here rather than lose the row. This is
+    # the one failure the async path can still report, because we are alive.
+    try:
+        do_insert(args)
+    except Exception as write_err:
+        log_error(f"fallback sync write failed after spawn error ({last}): {write_err}")
 
 
 def main():
-    p = argparse.ArgumentParser(description="Append a row to activity_logs.db (async by default)")
+    p = argparse.ArgumentParser(description="Append a row to activity_logs.db")
+    p.add_argument("--async", dest="async_", action="store_true",
+                   help="fire-and-forget: spawn a detached child to do the INSERT and "
+                        "exit immediately without the row id. Faster, and can lose the "
+                        "row silently if the child is killed — see the module docstring")
+    # Accepted and ignored. Every agent prompt in circulation passes --sync to
+    # ask for exactly what now happens anyway; rejecting it would break them all
+    # in the name of reliability. Explicit --sync also wins over --async, so a
+    # caller passing both gets the safe one.
     p.add_argument("--sync", action="store_true",
-                   help="wait for the INSERT and print the new row id (default: fire-and-forget)")
+                   help="no-op: the INSERT is synchronous by default. Overrides --async")
     p.add_argument("--timestamp", help="UTC 'YYYY-MM-DD HH:MM:SS'; auto-filled if omitted")
     p.add_argument("--repo", "--repo-name", dest="repo",
                    help="defaults to the main repo's name, derived from git in the caller's cwd")
@@ -401,16 +460,17 @@ def main():
             log_error(f"child insert failed: {e}")
         return
 
-    if args.sync:
-        # Synchronous path: print the row id, exit 1 on DB error.
-        try:
-            print(do_insert(args))
-        except Exception as e:
-            sys.exit(f"database error: {e}")
+    if args.async_ and not args.sync:
+        # Opt-in fire-and-forget: spawn the detached child and exit immediately.
+        spawn_detached_child(args)
         return
 
-    # Default async path: validate (done), spawn detached child, exit immediately.
-    spawn_detached_child(args)
+    # Default: do the INSERT here, print the row id, exit 1 on database error.
+    # The caller waits the milliseconds this takes and learns whether it worked.
+    try:
+        print(do_insert(args))
+    except Exception as e:
+        sys.exit(f"database error: {e}")
 
 
 if __name__ == "__main__":

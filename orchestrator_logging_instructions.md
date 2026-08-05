@@ -18,7 +18,7 @@ python mint_trace.py --len 12     # longer id
 ```
 Capture the printed id and reuse it for every row of the task it belongs to — yours and your subagents'.
 
-### `log_activity.py` — append one row (asynchronous by default)
+### `log_activity.py` — append one row (synchronous)
 ```
 python log_activity.py \
   --log-type <type> \
@@ -40,9 +40,11 @@ python log_activity.py \
 ```
 Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defaults to `--agent`. `--log-level` defaults to `info`. `--user-id` defaults to `admin`.
 
-**Asynchronous by default:** the script validates the args, spawns a detached background process that performs the INSERT, and exits immediately (exit 0). It does NOT print the row id and does NOT block on SQLite — so logging never slows down your work. The background child opens the DB in WAL mode with a 10s busy timeout, so concurrent agents and dashboard polling coexist. If multiple agents write at once and a write still fails the busy timeout, the child retries up to 5 times with exponential backoff (0.25s → 0.5s → 1s → 2s → 4s), logging each retry to `log_activity_errors.log`. If the background write ultimately fails, the error is appended to that same file; check it occasionally.
+**Synchronous:** the script validates the args, performs the `INSERT`, prints the new row id and exits. It opens the database in WAL mode with a 10s busy timeout, so concurrent agents and dashboard polling coexist; if a write loses the busy timeout it retries up to 5 times with exponential backoff (0.25s → 0.5s → 1s → 2s → 4s). A write that ultimately fails exits non-zero and says why, so a row you were told was written is a row that exists.
 
-**`--sync`** (optional): wait for the INSERT to complete and print the new row id on stdout. Use this only when you actually need the row id (you usually don't — the `trace_id` is what matters, and that's an input).
+This used to be asynchronous, and the default changed because that lost rows silently. A detached child can be killed by the terminal before SQLite commits — several agent harnesses run their shell in a job object that takes every descendant with it — and a killed child cannot write an error anywhere. The call had already exited 0. Re-logging afterwards does not repair it either: the rows land in one batch at the wrong time, and a task whose span is a few seconds wide cannot be joined to the token usage that belongs to it, or reported on for duration or idle at all.
+
+**`--sync`** is still accepted and does nothing — it asks for what already happens. **`--async`** restores the old fire-and-forget behaviour; do not use it for work you need recorded.
 
 ## Bracket every task
 
@@ -147,7 +149,7 @@ $ python log_activity.py --log-type start --repo logreporter --branch main \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "Started header dropdown task" --log-level info \
     --status in_progress --log-description "trace 9f2c41a8 opened for this task"
-# (exits immediately; row written in the background)
+# prints the new row id; the row is already written
 
 # ... dispatch header_agent subagent, passing trace 9f2c41a8 as its trace_id
 #     and 9f2c41a8 as its parent_trace_id ...
@@ -156,13 +158,13 @@ $ python log_activity.py --log-type activity --repo logreporter --branch main \
     --task "Implement header dropdown" --agent lead_architect \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "Wired header_agent output into app-shell.js" --log-level info
-# (exits immediately)
+# prints the new row id
 
 $ python log_activity.py --log-type end --repo logreporter --branch main \
     --task "Implement header dropdown" --agent lead_architect \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "Finished header dropdown" --log-level info --status completed
-# (exits immediately)
+# prints the new row id
 ```
 
 ## Worked example (a github commit)
@@ -181,6 +183,6 @@ Generated with [Devin](https://devin.ai)
 
 Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>" \
     --tags "#commit" --commit-reference a1b2c3d4e5f6789012345678901234567890abcd
-# (exits immediately; row written in the background with commit_reference set)
+# prints the new row id; the row with commit_reference set is already written
 ```
 
