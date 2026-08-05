@@ -5,7 +5,21 @@
   <figcaption>The whole process. Stage 2 is the one people skip — nothing appears in the dashboard until agents call the writer by absolute path.</figcaption>
 </figure>
 
-<div class="help-callout"><strong>Check the shape fits before you wire it up.</strong> LogReporter models work as <strong>repository → branch → task → agent</strong>, with subagents nested under whoever dispatched them — that is the navigation tree, the drill-downs and the time views. It suits work that decomposes hierarchically, and represents cross-repository changes, peer agents, review loops and open-ended sessions awkwardly. <em>Getting started</em> explains what the choice buys and what carries the rest. Stage 2 below is where those four fields actually get set, and they are set by prose in your agents' prompts: nothing validates them, so a wrong value produces a confident wrong tree rather than an error.</div>
+<aside class="help-notice" aria-labelledby="install-assume-h">
+  <div class="help-notice-icon" aria-hidden="true">!</div>
+  <div>
+    <h4 id="install-assume-h">Before you wire this in</h4>
+    <p>LogReporter assumes your work is shaped like this, with subagents nested under whoever dispatched them:</p>
+    <p class="help-levels">
+      <span class="help-level">repository</span><span class="help-level-arrow" aria-hidden="true">&rarr;</span>
+      <span class="help-level">branch</span><span class="help-level-arrow" aria-hidden="true">&rarr;</span>
+      <span class="help-level">task</span><span class="help-level-arrow" aria-hidden="true">&rarr;</span>
+      <span class="help-level">agent</span>
+    </p>
+    <p>That is the navigation tree, the drill-downs and every time view. It suits work that decomposes hierarchically; cross-repository changes, peer agents, review loops and open-ended sessions all still log fine while the tree represents them awkwardly. <em>Getting started</em> has the full version and what carries the rest.</p>
+    <p><strong>Stage 2 below is where those four fields actually get set</strong>, and they are set by prose in your agents' prompts. Nothing validates them, so a wrong value produces a confident wrong tree rather than an error.</p>
+  </div>
+</aside>
 
 <h3>Requirements</h3>
 <table><thead><tr><th>What</th><th>Why</th></tr></thead><tbody>
