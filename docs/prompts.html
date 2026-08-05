@@ -44,8 +44,18 @@ ON EVERY ROW
 - timestamp    UTC, 'YYYY-MM-DD HH:MM:SS'
 - repo_name, branch_name, task_title  identical for every row of one
   task, character for character — they are the grouping keys
-- agent_name   your name
-- agent_path   your lineage, e.g. lead_architect/task_executor
+- agent_name   your name. One lowercase token, and it must equal the
+               last segment of agent_path — "Lead Architect" in one
+               field and lead_architect in the other is two agents
+- agent_path   your LINEAGE, not a file path: the chain of agents from
+               the root down to you, e.g. lead_architect/task_executor.
+               The dashboard splits this on / and renders every segment
+               as an agent, so
+                 projects/template_project/docs/tasks/task_0400.md
+               creates five agents called projects, template_project,
+               docs, tasks and task_0400.md — and hides the real one.
+               The file you are working on belongs in log_title or
+               log_description, never in a field
 - trace_id     shared by every agent on this task; pass it to any
                subagent you spawn and set its parent_trace_id
 - log_title    one line, specific: "Chose append-only over upsert",
@@ -55,9 +65,30 @@ ON EVERY ROW
 - priority     low | medium | high | critical
 - tags         comma-separated #tokens
 
-DO NOT log per token, per line or inside tight loops. One row per
-step a human would want to see. Silence between rows is reported as
-idle time, so log when you begin waiting on something slow.</pre>
+HOW MANY ROWS — there is a floor as well as a ceiling.
+Ceiling: do NOT log per token, per line or inside tight loops.
+Floor:   a task whose only rows are start and end records that
+         something happened and nothing about what. It draws one
+         empty bar. Aim for 3-8 rows between the brackets: what you
+         read, what you changed, each choice and the alternatives you
+         rejected, anything that failed, each git operation.
+If you finish with two rows you have under-logged — add what you did,
+backdated with --timestamp.
+
+Silence between rows is reported as idle time, so log when you begin
+waiting on something slow.
+
+BRACKETS ARE LOAD-BEARING. Before writing the end row, check the
+start row exists — look, do not remember:
+  python query_activity.py --trace &lt;id&gt; --fields timestamp,log_type,agent_name,log_title
+A task with only one bracket has a span of zero seconds: no duration,
+no idle, and no token usage attributable to it. The work is recorded
+and simultaneously invisible.
+
+IF YOU NOTICE A ROW IS MISSING, write it with --timestamp set to when
+the thing happened, never when you noticed. Rows re-logged with "now"
+are worse than absent — the span collapses, every derived figure goes
+with it, and nothing flags it.</pre>
 
 <h3>Trace identity — the lead architect only</h3>
 <pre>YOU OWN trace_id. Subagents never mint one.
@@ -74,17 +105,30 @@ MINT A NEW trace_id (mint_trace.py) WHEN:
   yours.
 
 REUSE THE CURRENT trace_id WHEN:
-- You spawn a subagent for this task. Pass your trace_id down; the
-  subagent writes it verbatim and sets parent_trace_id to your
-  trace_id. Never mint a trace per subagent — the trace timeline is
-  how a multi-agent run is read as one sequence.
+- You spawn a subagent TO WORK ON THIS TASK — it will log under your
+  task_title. Pass your trace_id down; the subagent writes it verbatim
+  and sets parent_trace_id to your trace_id. Never mint a trace per
+  subagent — a subagent is not a new task, and the trace timeline is
+  how a multi-agent run is read as one sequence. A subagent you are
+  giving a DIFFERENT task_title is a different task: mint it a trace,
+  per the third MINT rule above.
 - You resume the same task after an idle stretch, a retry of a step,
   or a handoff back from a subagent.
 - Anything you log about the same task_title, however far apart.
 
+THE RULE THE OTHERS FOLLOW FROM: a trace belongs to a TASK, not to an
+agent. One trace_id to one task_title, in both directions. So the
+question is never "is this a subagent?" — it is "is this the same
+task?"
+
 NEVER: reuse a trace across different task_titles, mint one per log
 row or per tool call, or leave trace_id empty — untraced rows still
-appear in the lists but drop out of trace navigation.
+appear in the lists but drop out of trace navigation. Three stages
+logged as three task_titles under one trace read as one run with no
+parent, and nothing can reconstruct which stage owned which. If the
+stages are one task, give them one task_title and tell them apart by
+log_title; if they are separate tasks, give each its own trace and
+parent them to yours.
 
 Log the mint itself: on the `start` row that opens a new trace, say
 so in log_description (e.g. "trace 9f2c41a8 opened for this task;

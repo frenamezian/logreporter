@@ -30,7 +30,20 @@ python log_activity.py \
   [--performance-metrics '{"execution_ms":12}'] \
   [--commit-reference <sha>]
 ```
-Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defaults to `--agent`. `--log-level` defaults to `info`. `--user-id` defaults to `admin`.
+Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defaults to `--agent`. `--log-level` defaults to `info`. `--user-id` defaults to `admin`. `--timestamp` is available and takes UTC `'YYYY-MM-DD HH:MM:SS'` — see [If you notice a row is missing](#if-you-notice-a-row-is-missing).
+
+### `--agent-path` is a lineage, NOT a file path
+
+It is the chain of agents from the root down to you, joined by `/`. Yours is `lead_architect/<name>` and nothing else.
+
+**The dashboard splits this field on `/` and renders every segment as an agent**, so whatever you put here becomes the navigation tree.
+
+```
+✅  --agent-path lead_architect/code_reviewer
+❌  --agent-path projects/template_project/docs/tasks/task_0400.md
+```
+
+That second one is a real example, and it created five agents called `projects`, `template_project`, `docs`, `tasks` and `task_0400.md` — while the agent that did the work appeared nowhere. **The file you are working on does not belong in any field.** If it matters, name it in `--log-title` or `--log-description`.
 
 **Synchronous:** the script validates the args, performs the `INSERT`, prints the new row id and exits. It opens the database in WAL mode with a 10s busy timeout, so concurrent agents and dashboard polling coexist; if a write loses the busy timeout it retries up to 5 times with exponential backoff (0.25s → 0.5s → 1s → 2s → 4s). A write that ultimately fails exits non-zero and says why, so a row you were told was written is a row that exists.
 
@@ -41,6 +54,13 @@ This used to be asynchronous, and the default changed because that lost rows sil
 ## You do NOT mint trace_id
 
 **Never call `mint_trace.py`.** That tool is for the lead architect only. Use the `--trace-id <trace_id>` value given to you by the lead, verbatim, and always set `--parent-trace-id <parent_trace_id>` to the lead's trace_id. The trace timeline is how a multi-agent run reads as one sequence — if you minted your own trace, your work would detach from the run.
+
+**A trace belongs to a task, not to an agent.** One `trace_id` ↔ one `task_title`, in both directions. The lead has already decided which case you are in and given you a matching pair, so your only job is to write both verbatim on every row:
+
+- Working on the lead's task → its `task_title` and its trace, `--parent-trace-id` the same value.
+- Given your own `task_title` → the lead minted you a separate trace, `--parent-trace-id` pointing at the lead's.
+
+If the `task_title` you were given and the `trace_id` you were given do not obviously belong together — you were handed one trace and told to log several different task titles under it — **stop and ask the lead**, because that combination cannot be recorded correctly. Three stages logged as three task titles under one trace read as one run with no parent, and nothing can reconstruct which stage owned which.
 
 ## Fill in these values (given to you by the lead)
 
@@ -59,8 +79,22 @@ This used to be asynchronous, and the default changed because that lost rows sil
 
 ## Bracket your portion of the task
 
-- **First action you take:** append a `start` row.
-- **Last action, always, even on failure:** append an `end` row with the final `--status` (`completed` or `failed`). Durations and idle time are derived from this pair — a missing `end` erases your work from every time view.
+- **First action you take:** append a `start` row, with `--status in_progress`.
+- **Last action, always, even on failure:** append an `end` row with the final `--status` (`completed` or `failed`).
+
+Every time view derives its numbers from that pair. A portion with only one of them has a span of zero seconds, which means no duration, no idle, and no token usage attributable to you — your work is recorded and simultaneously invisible.
+
+**Before you write the `end` row, check the `start` row exists.** Do not rely on remembering that you wrote it; look:
+
+```
+python query_activity.py --trace <trace_id> --fields timestamp,log_type,agent_name,log_title
+```
+
+If it is not there, write it *before* the `end` row and backdate it with `--timestamp` to when you actually began. Two rows a few seconds apart because you wrote them together is work that reads as five seconds long — the time is the point, not the row count.
+
+### If you notice a row is missing
+
+Write it with `--timestamp '<UTC YYYY-MM-DD HH:MM:SS>'` set to when the thing happened, never when you noticed. Rows re-logged with "now" are worse than absent: a few-second span silently swallows every derived figure and nothing flags it. A best-effort real time beats an exact wrong one.
 
 ## Choose `--log-type` by this rule (between start and end)
 
@@ -79,7 +113,7 @@ This used to be asynchronous, and the default changed because that lost rows sil
 ## On every row
 
 - `repo_name`, `branch_name`, `task_title` — identical for every row you write, character for character (they are the grouping keys).
-- `agent_name` = `<name>`; `agent_path` = `lead_architect/<name>`.
+- `agent_name` = `<name>`; `agent_path` = `lead_architect/<name>`. One lowercase token, and `agent_name` must equal the last segment of `agent_path`: `Code Reviewer` in one field and `code_reviewer` in the other is two agents as far as the tree is concerned.
 - `trace_id` = `<trace_id>` (the lead's, verbatim).
 - `parent_trace_id` = `<parent_trace_id>` (the lead's trace_id).
 - `log_title` — one specific line ("Chose append-only over upsert", not "Made a decision").
@@ -88,7 +122,23 @@ This used to be asynchronous, and the default changed because that lost rows sil
 - `priority` — `low | medium | high | critical`.
 - `tags` — comma-separated `#tokens`.
 
-Do NOT log per token, per line, or inside tight loops. One row per step a human would want to see. Silence between rows is reported as idle time, so log when you begin waiting on something slow.
+### How many rows
+
+There is a floor as well as a ceiling, and the floor is the one that gets missed.
+
+**Ceiling:** do NOT log per token, per line, or inside tight loops.
+
+**Floor: a portion whose only rows are `start` and `end` records that you ran and nothing about what you did.** It draws one empty bar. Aim for **3–8 rows between the brackets**, covering whatever of these applies:
+
+- what you read or inspected to orient yourself
+- what you changed, and where
+- each choice between alternatives, with the rejected ones and why (`decision`)
+- anything that failed, retried, or blocked you (`issue`)
+- each git operation (`github`)
+
+If you finish and have written two rows, you have under-logged — go back and add what you did, backdated with `--timestamp`. A code review that logs only "started" and "completed" is indistinguishable from one that never read anything.
+
+Silence between rows is reported as idle time, so log when you begin waiting on something slow.
 
 ## Worked example (a subagent's portion of a task)
 

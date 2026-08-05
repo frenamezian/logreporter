@@ -38,7 +38,21 @@ python log_activity.py \
   [--performance-metrics '{"execution_ms":12}'] \
   [--commit-reference <sha>]
 ```
-Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defaults to `--agent`. `--log-level` defaults to `info`. `--user-id` defaults to `admin`.
+Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defaults to `--agent`. `--log-level` defaults to `info`. `--user-id` defaults to `admin`. `--timestamp` is available and takes UTC `'YYYY-MM-DD HH:MM:SS'` — see [If you notice a row is missing](#if-you-notice-a-row-is-missing).
+
+### `--agent-path` is a lineage, NOT a file path
+
+The chain of agents from the root down to whoever is writing the row, joined by `/`. You are the root, so yours is just `lead_architect`. A subagent you dispatch is `lead_architect/<its name>`.
+
+**The dashboard splits this field on `/` and renders every segment as an agent**, so whatever you put here becomes the navigation tree.
+
+```
+✅  --agent-path lead_architect
+✅  --agent-path lead_architect/code_reviewer
+❌  --agent-path projects/template_project/docs/tasks/task_0400.md
+```
+
+That last one is a real example, and it created five agents called `projects`, `template_project`, `docs`, `tasks` and `task_0400.md` — while the agent that did the work appeared nowhere. **The file you are working on does not belong in any field.** If it matters, name it in `--log-title` or `--log-description`.
 
 **Synchronous:** the script validates the args, performs the `INSERT`, prints the new row id and exits. It opens the database in WAL mode with a 10s busy timeout, so concurrent agents and dashboard polling coexist; if a write loses the busy timeout it retries up to 5 times with exponential backoff (0.25s → 0.5s → 1s → 2s → 4s). A write that ultimately fails exits non-zero and says why, so a row you were told was written is a row that exists.
 
@@ -48,8 +62,22 @@ This used to be asynchronous, and the default changed because that lost rows sil
 
 ## Bracket every task
 
-- **First action on a task:** append a `start` row.
-- **Last action, always, even on failure:** append an `end` row with the final `--status` (`completed` or `failed`). Durations and idle time are derived from this pair — a missing `end` erases your work from every time view.
+- **First action on a task:** append a `start` row, with `--status in_progress`.
+- **Last action, always, even on failure:** append an `end` row with the final `--status` (`completed` or `failed`).
+
+Every time view derives its numbers from that pair. A task with only one of them has a span of zero seconds, which means no duration, no idle, and no token usage attributable to it — the work is recorded and simultaneously invisible.
+
+**Before you write the `end` row, check the `start` row exists.** Do not rely on remembering that you wrote it; look:
+
+```
+python query_activity.py --trace <id> --fields timestamp,log_type,agent_name,log_title
+```
+
+If it is not there, write it *before* the `end` row and backdate it with `--timestamp` to when the work actually began. Two rows a few seconds apart because you wrote them together is a task that reads as five seconds long — the time is the point, not the row count.
+
+### If you notice a row is missing
+
+Write it with `--timestamp '<UTC YYYY-MM-DD HH:MM:SS>'` set to when the thing happened, never when you noticed. Rows re-logged with "now" are worse than absent: an eight-second span silently swallows every derived figure and nothing flags it. A best-effort real time beats an exact wrong one.
 
 ## Tag your subagent type, once per run — this is what makes cost per agent work
 
@@ -98,7 +126,7 @@ exists, and a tag claiming otherwise would move real tokens onto the wrong row.
 ## On every row
 
 - `repo_name`, `branch_name`, `task_title` — identical for every row of one task, character for character (they are the grouping keys).
-- `agent_name` = `lead_architect`; `agent_path` = `lead_architect` (or your lineage if you have a parent — you don't, you're the root).
+- `agent_name` = `lead_architect`; `agent_path` = `lead_architect` (or your lineage if you have a parent — you don't, you're the root). One lowercase token, and it must equal the last segment of `agent_path`: `Lead Architect` in one field and `lead_architect` in the other is two agents as far as the tree is concerned.
 - `trace_id` — shared by every agent on this task.
 - `log_title` — one specific line ("Chose append-only over upsert", not "Made a decision").
 - `log_level` — `debug | info | warning | error`.
@@ -106,9 +134,32 @@ exists, and a tag claiming otherwise would move real tokens onto the wrong row.
 - `priority` — `low | medium | high | critical`.
 - `tags` — comma-separated `#tokens`.
 
-Do NOT log per token, per line, or inside tight loops. One row per step a human would want to see. Silence between rows is reported as idle time, so log when you begin waiting on something slow.
+### How many rows
+
+There is a floor as well as a ceiling, and the floor is the one that gets missed.
+
+**Ceiling:** do NOT log per token, per line, or inside tight loops.
+
+**Floor: a task whose only rows are `start` and `end` records that something happened and nothing about what.** It draws one empty bar. Aim for **3–8 rows between the brackets**, covering whatever of these applies:
+
+- what you read or inspected to orient yourself
+- what you changed, and where
+- each choice between alternatives, with the rejected ones and why (`decision`)
+- anything that failed, retried, or blocked you (`issue`)
+- each git operation (`github`)
+
+If you finish a task and have written two rows, you have under-logged — go back and add what you did, backdated with `--timestamp`.
+
+Silence between rows is reported as idle time, so log when you begin waiting on something slow.
 
 ## Trace_id ownership — YOU own it
+
+**The rule everything below follows from: a trace belongs to a task, not to an agent.** One `trace_id` ↔ one `task_title`, always, in both directions. So the question is never "is this a subagent?" — it is "is this the same task?"
+
+- Subagent working on **your** task → it uses **your** `task_title` **and** your `trace_id`, and sets `--parent-trace-id` to your trace.
+- Subagent given **its own** `task_title` → it gets **its own** trace, with `--parent-trace-id` set to yours. You mint it and pass it down; the subagent still never calls `mint_trace.py`.
+
+Those are the only two shapes. What must never happen is one trace carrying several `task_title`s — three stages logged as three task titles under one trace look like one run with no parent, and nothing can reconstruct which stage owned which. If the stages are one task, give them one `task_title` and tell them apart by `log_title`. If they are separate tasks, give each its own trace and parent them to yours.
 
 **MINT a new trace_id (`python mint_trace.py`) WHEN:**
 - You accept a new task — one trace per `task_title`, created on the `start` row and reused by every row of that task, yours and your subagents'.
@@ -116,7 +167,7 @@ Do NOT log per token, per line, or inside tight loops. One row per step a human 
 - Work splits into an independent task reported on its own — its own `task_title`, its own trace, `--parent-trace-id` set to yours.
 
 **REUSE the current trace_id WHEN:**
-- You spawn a subagent for this task. Pass your trace_id down; the subagent writes it verbatim and sets `--parent-trace-id` to your trace_id. **Never mint a trace per subagent** — the trace timeline is how a multi-agent run reads as one sequence.
+- You spawn a subagent **to work on this task** — that is, it will log under your `task_title`. Pass your trace_id down; the subagent writes it verbatim and sets `--parent-trace-id` to your trace_id. **Never mint a trace per subagent** — a subagent is not a new task, and the trace timeline is how a multi-agent run reads as one sequence. (A subagent you are giving a *different* `task_title` is a different task: mint it a trace, per the third MINT rule above.)
 - You resume the same task after an idle stretch, a retry of a step, or a handoff back from a subagent.
 - Anything you log about the same `task_title`, however far apart.
 

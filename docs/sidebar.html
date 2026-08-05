@@ -18,6 +18,8 @@
 
 <h3>Navigation</h3>
 <p>The tree is repository → branch → task → agent, and the agent level is nested from <code>agent_path</code>, so a subagent appears underneath the agent that spawned it. Repositories and branches show their wall-clock time; tasks and agents show a row count.</p>
+
+<p>If a task expands into something that looks like a directory listing — <code>projects</code> → <code>docs</code> → <code>tasks</code> → a filename — that is not a display fault. An agent has written a file path into <code>agent_path</code>, and the tree is faithfully showing every segment as an agent. The fix is in that agent's prompt, not here: <code>agent_path</code> is a lineage of agents, and the file being worked on belongs in <code>log_title</code> or <code>log_description</code>.</p>
 <table><thead><tr><th>Action</th><th>Result</th></tr></thead><tbody>
 <tr><td>Click a node</td><td>Drills the whole dashboard to it and opens it. The breadcrumb above the content follows, and the node is highlighted.</td></tr>
 <tr><td>Click the node you are already on</td><td>Collapses it again. Double-clicking does the same thing — the toggle rule exists so a slow double click behaves like a fast one.</td></tr>
