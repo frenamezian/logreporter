@@ -35,11 +35,18 @@ Usage:
   python usage_reader.py --dry-run       # parse and report, write nothing
   python usage_reader.py --only claude_code --limit 5 --verbose
   python usage_reader.py --rebuild --only antigravity   # re-read ONE source
+  python usage_reader.py --rebuild --dry-run            # what WOULD a rebuild give?
 
 `--rebuild` on its own deletes the database and starts over. Scoped with
 `--only`, it deletes just that parser's rows and watermarks and leaves every
 other source in place — which is what you want when a parser changes what it
 emits, since INSERT OR IGNORE will not update rows that already exist.
+
+Adding `--dry-run` makes it a preview: every source is read from the start, the
+result is reported, and nothing is deleted or written. That combination used to
+be the most destructive command here — it emptied the cache and then declined
+to refill it, while printing "nothing was written" — because the full re-read
+was obtained by deleting the watermarks rather than asked for outright.
 """
 
 import argparse
@@ -230,8 +237,14 @@ def _save_watermark(con, parser_id, path, cursor, stat):
 # --- the run ----------------------------------------------------------------
 
 def run(db_path=DB_PATH, only=None, limit=None, dry_run=False, verbose=False,
-        parsers_dir=None):
-    """Refresh the usage cache. Returns a report dict (the §8.6 source panel)."""
+        parsers_dir=None, full=False):
+    """Refresh the usage cache. Returns a report dict (the §8.6 source panel).
+
+    `full` re-reads every source from the start, ignoring watermarks and
+    cursors. It is a *read* mode and says nothing about deleting: the caller
+    decides separately whether to clear what is already stored. Keeping those
+    two apart is what makes a rebuild previewable — see main().
+    """
     t0 = time.time()
     result = parser_loader.load(parsers_dir)
     active = parser_loader.resolve(result)
@@ -276,7 +289,7 @@ def run(db_path=DB_PATH, only=None, limit=None, dry_run=False, verbose=False,
                 continue
             report["agents"].append(
                 _run_parser(con, p, claimed=active, limit=limit,
-                            dry_run=dry_run, verbose=verbose)
+                            dry_run=dry_run, verbose=verbose, full=full)
             )
         if not dry_run:
             con.commit()
@@ -309,7 +322,8 @@ def _write_report(report, db_path=DB_PATH):
         print(f"could not write {path}: {e}", file=sys.stderr)
 
 
-def _run_parser(con, p, claimed=(), limit=None, dry_run=False, verbose=False):
+def _run_parser(con, p, claimed=(), limit=None, dry_run=False, verbose=False,
+                full=False):
     mod = p.module
     stats = getattr(mod, "PARSE_STATS", None)
     if isinstance(stats, dict):
@@ -354,7 +368,12 @@ def _run_parser(con, p, claimed=(), limit=None, dry_run=False, verbose=False):
     if limit:
         sources = sources[:limit]
 
-    marks = _watermarks(con, p.agent_id)
+    # A full read is "pretend we have never seen any of these files", which is
+    # exactly an empty watermark set: _decide() answers "full", cursor None, for
+    # a path it has no mark for. Saying it this way rather than by deleting the
+    # watermark rows is what lets --rebuild --dry-run exist — the read is driven
+    # by an argument, not by a side effect of a write.
+    marks = {} if full else _watermarks(con, p.agent_id)
     pending = []
 
     if kind == "command" and not dry_run:
@@ -507,7 +526,9 @@ def print_totals(t):
 def main():
     ap = argparse.ArgumentParser(description="Read agent token usage into token_usage.db")
     ap.add_argument("--rebuild", action="store_true",
-                    help="discard the cache and every watermark, then re-read everything")
+                    help="discard the cache and every watermark, then re-read "
+                         "everything. Scoped by --only to one AGENT_ID; with "
+                         "--dry-run it previews the result and deletes nothing")
     ap.add_argument("--stats", action="store_true", help="print totals and exit")
     ap.add_argument("--dry-run", action="store_true", help="parse but write nothing")
     ap.add_argument("--only", help="restrict to one AGENT_ID")
@@ -530,11 +551,17 @@ def main():
             sys.exit(f"--only {args.only}: no parser declares that AGENT_ID. "
                      f"Known: {', '.join(sorted(known)) or '(none)'}")
 
-    if args.rebuild:
+    # --rebuild is two separable things, and conflating them is what made
+    # --rebuild --dry-run delete the cache while printing "nothing was written":
+    #
+    #   clear   drop what is already stored          — a write
+    #   full    read every source from the start     — a read
+    #
+    # It used to get the read by deleting the watermark rows, so the read could
+    # not happen without the write. Now `full` is passed to run() directly, and
+    # --dry-run simply skips the clear, exactly as it already skips the inserts.
+    if args.rebuild and not args.dry_run:
         if args.only:
-            # Scoped rebuild: drop just this parser's rows and watermarks. The
-            # unscoped path deletes the database file, which would take every
-            # other source with it.
             rows, marks = drop_source(args.db, args.only)
             print(f"dropped {rows:,} row(s) and {marks} watermark(s) for "
                   f"{args.only}; every other source left untouched")
@@ -543,9 +570,17 @@ def main():
             print(f"rebuilt empty {args.db}")
 
     report = run(args.db, only=args.only, limit=args.limit,
-                 dry_run=args.dry_run, verbose=args.verbose)
+                 dry_run=args.dry_run, verbose=args.verbose,
+                 full=args.rebuild)
     print_report(report)
-    if args.dry_run:
+    if args.dry_run and args.rebuild:
+        # Say what a real rebuild would produce, because the row count printed
+        # above is what is *currently* stored — a rebuild would replace it.
+        would = sum(a.get("records", 0) for a in report["agents"])
+        scope = args.only or "every source"
+        print(f"(dry run - nothing was written and nothing was deleted. "
+              f"A real --rebuild of {scope} would store {would:,} record(s))")
+    elif args.dry_run:
         print("(dry run - nothing was written)")
 
 
