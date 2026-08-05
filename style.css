@@ -163,11 +163,18 @@
   --surface: #ffffff;    /* cards pop as objects on the gray */
   --surface-2: #eae8e7;  /* quiet chrome: sidebar, inputs, table heads */
   --text: #201e1d;       /* ink */
-  /* Tuned against --surface-2, the tightest of the three grounds:
-     5.1 / 5.6 / 6.0 across surface-2 / bg / surface. */
-  --text-dim: #6f6a67;
+  /* Tuned against --surface-2, the tightest of the three grounds — WCAG
+     measured (2026-08-06): 4.93 / 5.39 / 6.02 across surface-2 / bg /
+     surface. The first candidate (#6f6a67) sat at 4.37 on surface-2,
+     under AA 4.5, and small text does render there (measure toggle,
+     rank tabs, type badges). */
+  --text-dim: #67625f;
   --border: #c9c5c3;     /* visible structural borders — paper needs edges */
-  --accent: #0a72c4;     /* deep sea blue, kept: 5.0:1 under white holds on paper too */
+  /* Darkened one step from high summer's #0a72c4, which measured 4.08:1
+     on the new --surface-2 — accent renders as 12px text there (the
+     breadcrumb crumbs). Measured (2026-08-06): 4.65 / 5.08 / 5.67 across
+     surface-2 / bg / surface, and white-on-accent rises to 5.67:1. */
+  --accent: #0a69b5;
   --accent-2: #05537f;   /* accent as TEXT: on light it has to go darker, not brighter */
 
   /* The four log-type hues, re-derived for a light ground rather than reused.
@@ -1341,7 +1348,8 @@ log-footer {
   display: flex; height: 26px; border-radius: 4px; overflow: hidden;
   background: var(--surface-2); margin: 4px 0 12px;
 }
-/* 2px surface-coloured gap between segments, and rounded outer ends only.
+/* 2px surface-coloured gap between segments, and rounded outer ends only
+   (in dark — the light theme's radius reset squares them, by design).
    min-width keeps a 0.2% segment visible: the four segments must appear in the
    same order with the same colours in both measures, so none of them may
    disappear just because this view makes it small. */

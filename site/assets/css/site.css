@@ -273,7 +273,8 @@ h3 { font-size: 19px; font-weight: 700; }
 @keyframes logblink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   /* The script also early-returns before arming .js — this rule is the CSS
-     side of the same guard, specific enough to beat the .js rules alone. */
+     side of the same guard. Equal specificity with the .js rules above: it
+     wins on source order, so keep this @media block BELOW them. */
   .logpanel.js .logrow, .logpanel.js .logrow.shown { opacity: 1; transform: none; transition: none; }
   .logcaret { animation: none; }
 }

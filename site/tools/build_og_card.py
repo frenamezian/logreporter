@@ -21,7 +21,7 @@ about 40 KB, well under every platform's limit.
 Colours and proportions are the Paper & Ink tokens (the light theme, which is
 the default and the brand's face since Task 0010), copied from
 assets/css/site.css. This script is the one place on the site that cannot read
-them, for the same reason favicon.svg carries two hexes: it has no stylesheet.
+them, for the same reason favicon.svg carries its one hex: it has no stylesheet.
 """
 
 from pathlib import Path

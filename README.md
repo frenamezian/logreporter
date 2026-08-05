@@ -508,6 +508,8 @@ parsers/                  one file per supported agent; auto-discovered
   CONTRIBUTING.md         how to add an agent — one new file, nothing else
   conformance.py          `python -m parsers.conformance` — required to pass
 components/               one custom element per page and panel
+fonts/                    Archivo, vendored (one variable woff2) — the light
+                          theme's chrome titles; no network fetch, ever
 docs/                     the in-app help fragments, plus screenshots
 docs/lespirant/           sponsor strip: ads.json + the banner images
 seed/                     sample database, bootstrap and authoring tools

@@ -259,7 +259,7 @@ This section is filled in by Stage D (Close) of `exec_task.md` — kept short by
 
 ### Next Steps
 - Owner reviews branch → decides on `python site/publish.py --push`
-- (Deferred follow-ups, not in this task: theme-continuity between landing and demo click-through; square corners in app dark mode.)
+- (Deferred follow-ups, not in this task: theme-continuity for first-time visitors between landing (paper default) and demo (dark default); the app-wide radius flattening in dark mode. The brand mark's corners are already square in both themes — delivered as the third sanctioned exception.)
 
 # Version History
 <!--MARKER INSERT VERSION HISTORY BELOW -->
