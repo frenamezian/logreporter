@@ -205,6 +205,41 @@ figure { margin: 0; }
 }
 .tradeoff b { color: var(--text); }
 
+/* A constraint the reader needs before acting, not a warning that something is
+   broken — so it is accent blue rather than amber, and surface-2 rather than
+   surface, which stops it reading as one more step card. In light theme
+   surface-2 is a warm cream, so the same rule gives a note-coloured card there
+   and a raised panel in dark, with no second declaration. */
+.notice {
+  display: grid; grid-template-columns: auto 1fr; gap: 20px;
+  margin: 44px 0; padding: 24px 26px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent); border-radius: var(--radius);
+}
+.notice-icon {
+  width: 42px; height: 42px; flex: none; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 26px; font-weight: 700; line-height: 42px; text-align: center;
+}
+.notice h3 { margin: 0 0 10px; font-size: 19px; }
+.notice p { margin: 0 0 12px; color: var(--text-dim); font-size: 15px; }
+.notice p:last-child { margin-bottom: 0; }
+.notice b { color: var(--text); }
+/* The icon above the text rather than beside it once the column is narrow —
+   a 42px gutter costs more than it earns at phone width. */
+@media (max-width: 700px) { .notice { grid-template-columns: 1fr; gap: 14px; } }
+
+/* The four levels, as chips. This is the most scannable thing in the card and
+   it was previously buried mid-sentence. Wraps rather than scrolls: the arrows
+   are separate items, so a break between levels stays legible. */
+.levels { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; }
+.level {
+  font-family: var(--mono); font-size: 13px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 10px;
+}
+.level-arrow { color: var(--text-dim); font-size: 13px; }
+
 /* ---------- steps ---------- */
 .steps { display: grid; gap: 18px; margin-bottom: 28px; }
 @media (min-width: 820px) { .steps { grid-template-columns: repeat(3, 1fr); } }

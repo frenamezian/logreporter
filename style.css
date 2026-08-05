@@ -942,6 +942,34 @@ log-help-nav .filter-search { flex: 0 0 auto; }
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   color: color-mix(in srgb, var(--text) 85%, transparent);
 }
+/* Louder than .help-callout, for a constraint the reader needs before acting
+   rather than an aside they can take or leave. Accent, not a warning colour:
+   nothing is broken, but proceeding without knowing it wastes their time. */
+.help-notice {
+  display: grid; grid-template-columns: auto 1fr; gap: 16px;
+  margin: 0 0 18px; padding: 16px 18px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent); border-radius: var(--radius);
+}
+.help-notice-icon {
+  width: 32px; height: 32px; flex: none; border-radius: 50%;
+  background: var(--accent); color: var(--on-accent);
+  font-size: 20px; font-weight: 700; line-height: 32px; text-align: center;
+}
+.help-notice h4 { margin: 0 0 8px; font-size: 14px; }
+.help-notice p { margin: 0 0 10px; font-size: 12.5px; }
+.help-notice p:last-child { margin-bottom: 0; }
+@media (max-width: 700px) { .help-notice { grid-template-columns: 1fr; gap: 10px; } }
+
+/* The four levels as chips — the most scannable line in the card. */
+.help-levels { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.help-level {
+  font-family: var(--mono); font-size: 12px; color: var(--text);
+  background: var(--wash-1); border: 1px solid var(--border);
+  border-radius: 5px; padding: 3px 8px;
+}
+.help-level-arrow { color: var(--text-dim); font-size: 12px; }
+
 .help-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 14px; font-size: 12.5px; }
 .help-legend > span { display: flex; align-items: center; gap: 6px; }
 .help-swatch { width: 10px; height: 10px; flex: none; border-radius: 2px; }

@@ -358,6 +358,27 @@
       </div>
     </div>
 
+    <aside class="notice" aria-labelledby="assume-h">
+      <div class="notice-icon" aria-hidden="true">!</div>
+      <div>
+        <h3 id="assume-h">Before you wire this in</h3>
+        <p>LogReporter assumes your work is shaped like this, with subagents nested under
+           whoever dispatched them:</p>
+        <p class="levels">
+          <span class="level">repository</span><span class="level-arrow" aria-hidden="true">→</span>
+          <span class="level">branch</span><span class="level-arrow" aria-hidden="true">→</span>
+          <span class="level">task</span><span class="level-arrow" aria-hidden="true">→</span>
+          <span class="level">agent</span>
+        </p>
+        <p>It earns its keep — <b>own time</b> needs a hierarchy to subtract a subagent's work
+           along, and <b>cost per agent</b> needs somewhere to place each request. But
+           cross-repository changes, peer agents, review loops and open-ended sessions all
+           still log fine while the tree represents them awkwardly.</p>
+        <p>The full version, and what <code>trace_id</code> and <code>tags</code> carry instead,
+           is in <b>Help → Getting started</b> inside the app.</p>
+      </div>
+    </aside>
+
     <div class="scroll-x">
 <pre class="code"><span class="c"># 1. clone and create the sample database</span>
 git clone https://github.com/frenamezian/logreporter &amp;&amp; cd logreporter
@@ -379,19 +400,6 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
       and the agent logging contract.
     </p>
 
-    <h3 style="margin-top:44px">What it assumes about your work</h3>
-    <p>Everything here is built on one shape: <strong>repository → branch → task → agent</strong>,
-       with subagents nested under whoever dispatched them. That is the navigation tree, the
-       drill-downs and the time views.</p>
-    <p>It is a modelling choice, not a law of software development, and it earns its keep:
-       <em>own time</em> works because there is a hierarchy to subtract a subagent's work along,
-       and <em>cost per agent</em> works because every request can be placed in it. Flatten the
-       model and both go with it.</p>
-    <p>So it suits work that decomposes hierarchically. Cross-repository changes, agents working
-       as peers rather than parent and child, review loops, and open-ended sessions with no
-       natural task boundary all still <em>log</em> fine — the tree just represents them
-       awkwardly. <code>trace_id</code> and free-form <code>tags</code> carry what the four
-       levels cannot. Worth knowing before you wire it into your agents rather than after.</p>
   </div>
 </section>
 
