@@ -34,6 +34,12 @@ Usage:
   python usage_reader.py --stats         # totals, no reading
   python usage_reader.py --dry-run       # parse and report, write nothing
   python usage_reader.py --only claude_code --limit 5 --verbose
+  python usage_reader.py --rebuild --only antigravity   # re-read ONE source
+
+`--rebuild` on its own deletes the database and starts over. Scoped with
+`--only`, it deletes just that parser's rows and watermarks and leaves every
+other source in place — which is what you want when a parser changes what it
+emits, since INSERT OR IGNORE will not update rows that already exist.
 """
 
 import argparse
@@ -152,6 +158,34 @@ def _row(rec: UsageRecord):
 
 
 # --- watermarks -------------------------------------------------------------
+
+def drop_source(db_path, agent_id):
+    """Delete one parser's rows and watermarks, leaving every other source alone.
+
+    What `--rebuild --only X` has to mean. The unscoped rebuild deletes the
+    database file, so combining the two used to destroy every other parser's
+    rows on the way to re-reading one — a caller asking to rebuild Antigravity
+    would lose 48,000 Claude Code rows and be told only that the rebuild
+    succeeded. Recoverable, because the file is a cache, but silently wrong
+    until somebody noticed the totals had halved.
+
+    The `source LIKE 'X:%'` half is for aggregate adapters: ccusage writes
+    `ccusage:codex`, `ccusage:gemini` and so on under the one AGENT_ID, and the
+    same pattern is what the run loop already uses to clear a command-kind
+    parser's namespace.
+    """
+    con = connect(db_path)
+    try:
+        n = con.execute(
+            "DELETE FROM token_usage WHERE source = ? OR source LIKE ?",
+            (agent_id, agent_id + ":%")).rowcount
+        w = con.execute(
+            "DELETE FROM watermark WHERE parser_id = ?", (agent_id,)).rowcount
+        con.commit()
+    finally:
+        con.close()
+    return n, w
+
 
 def _watermarks(con, parser_id):
     rows = con.execute(
@@ -486,9 +520,27 @@ def main():
         print_totals(totals(args.db))
         return
 
+    # A misspelled --only used to be a quiet no-op: nothing matched, nothing was
+    # read, and the run reported success. Combined with --rebuild it was worse
+    # than quiet. Checked here, before anything is deleted, because the parsers
+    # are only loaded inside run() — by which point a rebuild has happened.
+    if args.only:
+        known = {p.agent_id for p in parser_loader.load().parsers}
+        if args.only not in known:
+            sys.exit(f"--only {args.only}: no parser declares that AGENT_ID. "
+                     f"Known: {', '.join(sorted(known)) or '(none)'}")
+
     if args.rebuild:
-        schema.create(args.db, force=True)
-        print(f"rebuilt empty {args.db}")
+        if args.only:
+            # Scoped rebuild: drop just this parser's rows and watermarks. The
+            # unscoped path deletes the database file, which would take every
+            # other source with it.
+            rows, marks = drop_source(args.db, args.only)
+            print(f"dropped {rows:,} row(s) and {marks} watermark(s) for "
+                  f"{args.only}; every other source left untouched")
+        else:
+            schema.create(args.db, force=True)
+            print(f"rebuilt empty {args.db}")
 
     report = run(args.db, only=args.only, limit=args.limit,
                  dry_run=args.dry_run, verbose=args.verbose)
