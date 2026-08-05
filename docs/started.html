@@ -6,6 +6,25 @@
   <figcaption><strong>The whole app.</strong> Header and page tabs across the top, filters and the navigation tree on the left, the page in the middle, the entry detail panel on the right. Click any screenshot in this guide to open it full size.</figcaption>
 </figure>
 
+<h3>What LogReporter assumes about your work</h3>
+
+<p>Every view here is built on one shape: <strong>repository → branch → task → agent</strong>, with subagents nested under the agent that dispatched them. The navigation tree is literally those four levels, and the drill-downs, the filters and the time views all follow them.</p>
+
+<p>That is a modelling choice, not a law of software development, and it is worth knowing before you wire anything up. It is what makes two of the more useful numbers possible: <strong>own time</strong> exists because there is a hierarchy to subtract a subagent's work along, and <strong>cost per agent</strong> exists because each request can be traced to a place in that hierarchy. Flatten the model and both go with it.</p>
+
+<p>It fits work that decomposes hierarchically — a lead agent taking a task and dispatching subagents at it. Some real ways of working fit it less well:</p>
+
+<ul>
+  <li><strong>Cross-cutting changes.</strong> One logical task touching three repositories becomes three disconnected subtrees, because repository is the root.</li>
+  <li><strong>Peer agents.</strong> <code>agent_path</code> is a parent-child chain, so two agents collaborating as equals have no honest path — one ends up arbitrarily nested under the other.</li>
+  <li><strong>Loops.</strong> Review → fix → re-review, or red-green-refactor, is a cycle. The tree is acyclic and the timeline is linear, so a loop flattens into an undifferentiated run of rows.</li>
+  <li><strong>Continuous sessions.</strong> Interactive work that wanders has no natural task boundary, and an invented one is worse than none because it looks real.</li>
+</ul>
+
+<p>None of that stops you logging the work — every row still lands, and every page still counts it. It means the <em>tree</em> will represent it awkwardly. Two fields carry what the tree cannot: <code>trace_id</code> and <code>parent_trace_id</code> form a general graph rather than a hierarchy, and <code>tags</code> is free-form and searchable, so an orthogonal dimension costs nothing to add — <code>#component:auth</code>, <code>#loop:review-cycle</code>.</p>
+
+<p>The practical consequence is in <em>Installation</em>: these four fields come from your agents' prompts, nothing validates them, and a wrong value produces a confident wrong tree rather than an error.</p>
+
 <h3>Loading your log</h3>
 <p>When the page is served from the repository — <code>start_LogReporter.bat</code>, or <code>python serve.py</code> — it fetches the <code>activity_logs.db</code> sitting next to it on startup, so you are looking at real rows immediately. The data-source button in the header reads <code>activity_logs.db</code> and the dot beside it is lit.</p>
 <p>To read a database somewhere else:</p>

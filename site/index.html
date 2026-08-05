@@ -378,6 +378,20 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
       and click <strong>Help</strong> for the user guide, the data model, the time model,
       and the agent logging contract.
     </p>
+
+    <h3 style="margin-top:44px">What it assumes about your work</h3>
+    <p>Everything here is built on one shape: <strong>repository → branch → task → agent</strong>,
+       with subagents nested under whoever dispatched them. That is the navigation tree, the
+       drill-downs and the time views.</p>
+    <p>It is a modelling choice, not a law of software development, and it earns its keep:
+       <em>own time</em> works because there is a hierarchy to subtract a subagent's work along,
+       and <em>cost per agent</em> works because every request can be placed in it. Flatten the
+       model and both go with it.</p>
+    <p>So it suits work that decomposes hierarchically. Cross-repository changes, agents working
+       as peers rather than parent and child, review loops, and open-ended sessions with no
+       natural task boundary all still <em>log</em> fine — the tree just represents them
+       awkwardly. <code>trace_id</code> and free-form <code>tags</code> carry what the four
+       levels cannot. Worth knowing before you wire it into your agents rather than after.</p>
   </div>
 </section>
 
