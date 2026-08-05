@@ -275,6 +275,51 @@ figure { margin: 0; }
 .hybrid h3 { margin-bottom: 8px; font-size: 17px; }
 .hybrid p { margin: 0; color: var(--text-dim); font-size: 15px; }
 
+/* The joke, which is also the only prior-art claim on the page. Cyan rather than
+   the accent, so it reads as an aside next to the blue notice in "How it works"
+   and the green recommendation above it — three coloured cards on one page need
+   to be three different colours or none of them mean anything. */
+.punchline {
+  display: grid; grid-template-columns: auto 1fr; gap: 18px;
+  margin-top: 20px; padding: 20px 24px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--github);
+}
+.punchline-icon { font-size: 26px; line-height: 1.2; }
+.punchline h3 { margin: 0 0 8px; font-size: 17px; }
+.punchline p { margin: 0; color: var(--text-dim); font-size: 15px; }
+@media (max-width: 700px) { .punchline { grid-template-columns: 1fr; gap: 10px; } }
+
+/* ---------- the difference section, on its own ground ---------- */
+/* This is the one section that argues rather than describes, so it is lifted off
+   the page background instead of sitting on it. Everything inside then steps one
+   level to keep the separation it had before: cards that were --surface become
+   --bg, and the quotes inside them move the other way. Doing it with overrides
+   rather than by redefining --bg inside the section keeps each value traceable —
+   a local redefinition of --bg would silently change every rule that ever reads
+   it, including ones added later by someone who never saw this block. */
+#why {
+  background: var(--surface);
+  border-top: 2px solid var(--accent);
+}
+/* The lede runs the full column here rather than the 62ch used elsewhere: it is
+   the argument, not a caption, and the section is wide enough to carry it. */
+#why .lede { max-width: none; }
+.hi { color: var(--accent-2); }
+
+#why .compare .them { background: var(--bg); }
+#why .compare .them .quote { background: var(--surface-2); }
+#why .compare .us .quote { background: var(--bg); }
+
+#why .matrix-wrap { background: var(--bg); }
+#why .matrix thead th { background: var(--surface); }
+#why .matrix tr.self { background: var(--surface-2); }
+
+#why .tradeoff,
+#why .hybrid,
+#why .punchline { background: var(--bg); }
+#why .tradeoff .quote { background: var(--surface); }
+
 /* A constraint the reader needs before acting, not a warning that something is
    broken — so it is accent blue rather than amber, and surface-2 rather than
    surface, which stops it reading as one more step card. In light theme
