@@ -22,6 +22,38 @@ const SEGMENTS = [
   { key: 'output', cls: 'output', label: 'Output', field: 'output_tokens' }
 ];
 
+// --- derived model ids -------------------------------------------------------
+// A parser may have to work a model id out rather than read one. Antigravity
+// records the resolved name on only about 42% of its requests; for the rest its
+// parser maps the model enum through a table of names observed on requests that
+// did carry one. That is sound, and it is still not the same as the agent having
+// said so — so a cost built on it says which it was, the way the ccusage adapter
+// flags an assumed cache TTL as `implied_5m` rather than presenting it as read.
+//
+// Marked per row and explained once in a footnote, rather than the reverse: the
+// mark is only meaningful next to the id it qualifies, and repeating the reason
+// on every row of a 500-row table would drown it.
+const DERIVED_MODEL = {
+  enum_table: 'mapped from the model enum, using names this agent recorded on other requests',
+  alias: "the agent's own alias, which is not a model id any price list knows"
+};
+
+// extra_json arrives as a string on every row. Parsing it per render would be
+// tens of thousands of JSON.parse calls on every state change, so the result is
+// memoised onto the row the first time anything asks.
+function extraOf(r) {
+  if (r._extra === undefined) {
+    try { r._extra = r.extra_json ? JSON.parse(r.extra_json) : null; } catch (e) { r._extra = null; }
+  }
+  return r._extra;
+}
+
+function derivedModel(r) {
+  const x = extraOf(r);
+  const src = x && x.model_id_source;
+  return src && src !== 'recorded' ? (DERIVED_MODEL[src] || String(src)) : null;
+}
+
 const RANK_LEVELS = [
   { key: 'repo', label: 'Repository' },
   { key: 'branch', label: 'Branch' },
@@ -170,7 +202,7 @@ class LogUsage {
         </div>
         <h4 class="metrics-h">Every row behind the charts</h4>
         ${LogUsage._table(s, rows, attribution)}
-        ${LogUsage._footnotes(s, summary, attribution)}
+        ${LogUsage._footnotes(s, summary, attribution, rows)}
       </section>
     `;
   }
@@ -534,7 +566,9 @@ class LogUsage {
         <td>${esc(String(e.r.timestamp || '').replace('T', ' ').replace(/\..*$/, ''))}</td>
         <td>${e.task ? esc(e.task) : '<span class="na">unattributed</span>'}</td>
         <td>${esc(e.r.source || '')}</td>
-        <td>${e.r.model_id ? esc(e.r.model_id) : '<span class="na">—</span>'}</td>
+        <td>${e.r.model_id ? esc(e.r.model_id) : '<span class="na">—</span>'}${
+          derivedModel(e.r) ? `<span class="usage-derived" title="Not recorded by the agent on this request — ${
+            esc(derivedModel(e.r))}.">†</span>` : ''}</td>
         <td class="num">${num(e.r.input_tokens)}</td>
         <td class="num">${num(e.r.cache_read_tokens)}</td>
         <td class="num">${num(e.r.cache_write_5m)}</td>
@@ -557,9 +591,10 @@ class LogUsage {
   }
 
   // --- footnotes -----------------------------------------------------------
-  static _footnotes(s, sum, attribution) {
+  static _footnotes(s, sum, attribution, rows) {
     const unatt = attribution.unattributed.rows.length;
     const parts = [];
+    const derived = (rows || []).filter(derivedModel).length;
 
     // The one footnote §6 requires, and it goes on the page once.
     parts.push(`<strong>Cost is modelled, not billed.</strong> It is what these
@@ -578,6 +613,15 @@ class LogUsage {
         attribution.splitRows === 1 ? '' : 's'} fell inside more than one task span
         — concurrent agents on one branch — and ${attribution.splitRows === 1 ? 'was' : 'were'}
         split evenly rather than counted twice.`);
+    }
+    if (derived) {
+      parts.push(`<span class="usage-derived">†</span> ${derived.toLocaleString('en-US')}
+        of ${sum.rows.toLocaleString('en-US')} requests
+        (${(100 * derived / sum.rows).toFixed(0)}%) carry a model id the parser
+        worked out rather than read, because the agent did not record one on
+        that request. The tokens are measured either way; it is the
+        <em>name</em> — and so the price applied to it — that is inferred.
+        Hover the mark for how.`);
     }
     if (sum.unknownModels.length) {
       parts.push(`No price for ${sum.unknownModels.map((m) => `<code>${esc(m)}</code>`).join(', ')}.

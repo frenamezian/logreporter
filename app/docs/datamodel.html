@@ -14,7 +14,7 @@
 <tr><td>status</td><td>TEXT</td><td>pending · in_progress · failed · completed. Only read on <code>end</code> rows, where it becomes the task's state.</td></tr>
 <tr><td>priority</td><td>TEXT</td><td>low · medium · high · critical</td></tr>
 <tr><td>agent_name</td><td>TEXT</td><td>The agent that wrote the row; shown in the entry lists.</td></tr>
-<tr><td>agent_path</td><td>TEXT</td><td>Slash-delimited lineage, e.g. <code>lead_architect/task_executor</code>. Groups runs, drives indentation, and is what "own time" subtracts along.</td></tr>
+<tr><td>agent_path</td><td>TEXT</td><td>Slash-delimited lineage of <em>agents</em>, e.g. <code>lead_architect/task_executor</code> — never a file path. Groups runs, drives indentation, and is what "own time" subtracts along. Every <code>/</code>-separated segment becomes an agent, so a filesystem path written here invents one agent per directory.</td></tr>
 <tr><td>trace_id / parent_trace_id</td><td>TEXT</td><td>Shared by every row of one run of work; the parent links a spawned or retried run to its caller.</td></tr>
 <tr><td>user_id</td><td>TEXT</td><td>Who or what initiated the work.</td></tr>
 <tr><td>tags</td><td>TEXT</td><td>Comma-separated <code>#hash</code> tokens. On a <code>github</code> row one of them names the git action.</td></tr>

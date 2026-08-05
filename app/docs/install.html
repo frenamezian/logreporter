@@ -5,6 +5,8 @@
   <figcaption>The whole process. Stage 2 is the one people skip — nothing appears in the dashboard until agents call the writer by absolute path.</figcaption>
 </figure>
 
+<div class="help-callout"><strong>Check the shape fits before you wire it up.</strong> LogReporter models work as <strong>repository → branch → task → agent</strong>, with subagents nested under whoever dispatched them — that is the navigation tree, the drill-downs and the time views. It suits work that decomposes hierarchically, and represents cross-repository changes, peer agents, review loops and open-ended sessions awkwardly. <em>Getting started</em> explains what the choice buys and what carries the rest. Stage 2 below is where those four fields actually get set, and they are set by prose in your agents' prompts: nothing validates them, so a wrong value produces a confident wrong tree rather than an error.</div>
+
 <h3>Requirements</h3>
 <table><thead><tr><th>What</th><th>Why</th></tr></thead><tbody>
 <tr><td><strong>Python 3.8+</strong></td><td>Standard library only, nothing to <code>pip install</code>. It runs the server, the writer and the usage reader.</td></tr>
@@ -134,10 +136,13 @@ And <code>--agent-path</code> is what builds the agent tree, the waterfall's ind
 <table><thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead><tbody>
 <tr><td>Header says <strong>Demo data</strong></td><td>Not served over <code>http://</code>, or <code>activity_logs.db</code> is missing. Start it with <code>python serve.py</code> and check the file exists.</td></tr>
 <tr><td><code>activity_logs.db not found at …</code> from an agent</td><td>The database was never created. Run step 2.</td></tr>
-<tr><td>Agent says it logged, nothing appears</td><td>Async writes report failures to <code>log_activity_errors.log</code> next to the database. Re-run the same call with <code>--sync</code> to see the error directly.</td></tr>
+<tr><td>Agent says it logged, nothing appears</td><td>A default (synchronous) call that returned 0 has written its row, so check the agent is calling the absolute path you think it is, and is not passing <code>--async</code>. Under <code>--async</code> the write happens in a detached child that the terminal can kill before SQLite commits — the call still exits 0 and nothing reaches <code>log_activity_errors.log</code>, because a killed process cannot report itself. Drop <code>--async</code>.</td></tr>
 <tr><td>Rows land under the wrong repository</td><td>The agent's working directory is not what you think, or the prompt still passes <code>--repo</code>/<code>--branch</code>. Delete those flags, or <code>cd</code> first.</td></tr>
 <tr><td>One task appears twice</td><td>Two spellings of the same <code>task_title</code>. It is a grouping key, matched exactly.</td></tr>
 <tr><td>A task shows huge idle time</td><td>Something ran without logging, or an <code>end</code> row never arrived. Both are real findings, not display bugs.</td></tr>
+<tr><td>A task expands into what looks like a directory listing — <code>projects</code> → <code>docs</code> → a filename</td><td>An agent is writing a <em>file path</em> into <code>--agent-path</code>. The tree splits that field on <code>/</code> and shows every segment as an agent, so you get one phantom agent per directory and the real one disappears. <code>agent_path</code> is a lineage of agents (<code>lead_architect/code_reviewer</code>); the file being worked on belongs in <code>--log-title</code> or <code>--log-description</code>.</td></tr>
+<tr><td>Every task shows <code>0s</code>, and tokens are all unattributed</td><td>Unpaired brackets: a <code>start</code> without an <code>end</code>, or the reverse. A task with one bracket has a zero-second span, and token usage is attributed by falling inside a span. Also check the rows were not all written at the end of the run — re-logged rows carry the time they were written, which collapses the span just as effectively.</td></tr>
+<tr><td>One agent appears as two in the tree</td><td>Two spellings of one identity — <code>Lead Architect</code> in <code>--agent</code> and <code>lead_architect</code> in <code>--agent-path</code>. Use one lowercase token, matching the last segment of the path.</td></tr>
 <tr><td>Deleting does nothing, or says <strong>NOT saved</strong></td><td>The page is served by something other than <code>serve.py</code>, so the delete endpoint is missing.</td></tr>
 <tr><td>Nothing renders; the console shows a CDN error</td><td><code>sql.js</code> could not be fetched. See below.</td></tr>
 <tr><td>Port 8250 is busy</td><td><code>python serve.py 9000</code> — any port works.</td></tr>
