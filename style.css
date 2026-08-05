@@ -209,7 +209,11 @@
   --hatch-strong: rgba(32,30,29,0.35);
 
   --on-accent: #fff;
-  --accent-hover: #0b83e0;
+  /* Hover DARKENS on paper — the same inversion every other hover token in
+     this block makes. The old #0b83e0 kept dark mode's "hover = add light"
+     direction and put 11-14px white text on a 3.93:1 ground; white on
+     #08568f measures 7.67:1 (2026-08-06). */
+  --accent-hover: #08568f;
   --btn-hover: #dedbda;
 
   --scroll-thumb: #c2bebc;
