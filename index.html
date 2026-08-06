@@ -17,6 +17,10 @@
 
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/css/site.css">
+<!-- Archivo is vendored — the page still makes zero external requests. The
+     preload keeps the headline from flashing in a fallback face. -->
+<link rel="preload" as="font" type="font/woff2" crossorigin
+      href="assets/fonts/archivo-latin-var.woff2">
 <!-- The hero screenshot is the largest thing above the fold and therefore the
      LCP element. Preloading it starts the fetch during head parsing rather than
      after the <img> is discovered, which on a cold visit is most of the delay.
@@ -28,21 +32,27 @@
      <picture> below then ignores in favour of the 122 KB WebP. -->
 <link rel="preload" as="image" type="image/webp"
       href="assets/img/timegoes-usage.webp" fetchpriority="high">
-<meta name="color-scheme" content="dark light">
-<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#fffaf2" media="(prefers-color-scheme: light)">
+<meta name="color-scheme" content="light dark">
+<!-- One theme-color, not two media-keyed ones: the page's theme comes from
+     localStorage, not from the OS preference, so the scripts below keep this
+     meta in step with the attribute. -->
+<meta name="theme-color" content="#f3f2f2">
 <!-- Theme, applied before the first paint — the same trick, and the same
      storage key, as the dashboard. Reading the preference after the stylesheet
-     has painted means every load of the light theme starts with a frame of the
-     dark one. Dark is the default and carries no attribute, so only an explicit
-     "light" writes anything. Sharing the key means the theme a visitor picks
-     here is the theme the demo opens in. -->
+     has painted means every load of the dark theme starts with a frame of the
+     paper one. PAPER is the default and carries no attribute — inverted from
+     the pre-redesign page, where dark was the default — so only an explicit
+     "dark" writes anything here. The stored key keeps its app-side meaning
+     ('light'/'dark'), so the theme a visitor picks here is still the theme
+     the demo opens in. -->
 <script>
   try {
-    if (localStorage.getItem('logreporter.theme') === 'light') {
-      document.documentElement.setAttribute('data-theme', 'light');
+    if (localStorage.getItem('logreporter.theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      var lrMeta = document.querySelector('meta[name="theme-color"]');
+      if (lrMeta) lrMeta.setAttribute('content', '#171312');
     }
-  } catch (e) { /* storage blocked — fall through to the dark default */ }
+  } catch (e) { /* storage blocked — fall through to the paper default */ }
 </script>
 
 <!-- Open Graph. Every URL here must be absolute: a card is unfurled by a server
@@ -53,7 +63,7 @@
 <meta property="og:locale" content="en_US">
 <meta property="og:url" content="https://frenamezian.github.io/logreporter/">
 <meta property="og:title" content="LogReporter — see what your subagents did, and what it cost">
-<meta property="og:description" content="Hooks tell you what happened. LogReporter tells you why. Subagent lineage, honest time accounting, and per-agent token cost — all local.">
+<meta property="og:description" content="Most tools watch your agents work. This one just asks them. Subagent lineage, honest time accounting, and per-agent token cost — from one SQLite file, all local.">
 <!-- og-card.png, not the hero screenshot. A card renders at roughly 524px wide;
      the hero is 1800px of dense dashboard, and at that size every label and
      table row collapses into grey mush with nothing naming the product. The
@@ -65,12 +75,12 @@
 <meta property="og:image" content="https://frenamezian.github.io/logreporter/assets/img/og-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="LogReporter — see what your subagents actually did, and what it cost. Hooks tell you what happened; LogReporter tells you why. Local, one SQLite file, no account, MIT.">
+<meta property="og:image:alt" content="LogReporter — see what your subagents actually did, and what it cost. Most tools watch your agents work; this one just asks them. Local, one SQLite file, no account, MIT.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="LogReporter — see what your subagents did, and what it cost">
-<meta name="twitter:description" content="Hooks tell you what happened. LogReporter tells you why. Subagent lineage, honest time accounting, and per-agent token cost — all local.">
+<meta name="twitter:description" content="Most tools watch your agents work. This one just asks them. Subagent lineage, honest time accounting, and per-agent token cost — from one SQLite file, all local.">
 <meta name="twitter:image" content="https://frenamezian.github.io/logreporter/assets/img/og-card.png">
-<meta name="twitter:image:alt" content="LogReporter — see what your subagents actually did, and what it cost. Hooks tell you what happened; LogReporter tells you why. Local, one SQLite file, no account, MIT.">
+<meta name="twitter:image:alt" content="LogReporter — see what your subagents actually did, and what it cost. Most tools watch your agents work; this one just asks them. Local, one SQLite file, no account, MIT.">
 
 <!-- Structured data, as one @graph rather than three separate <script> blocks,
      so the nodes can reference each other by @id instead of repeating
@@ -146,10 +156,26 @@
         },
         {
           "@type": "Question",
-          "name": "How is it different from a hook-based agent monitor?",
+          "name": "How is it different from Langfuse, Arize Phoenix or Helicone?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Hook and transcript tools observe what an agent did: tool calls, tokens, file diffs. They cannot see the alternative it rejected, or why, because that never leaves the model. LogReporter asks the agent to write the reasoning down instead. The trade is that it depends on your agents following the logging prompt; an agent that skips its closing row shows up as a gap, which LogReporter reports rather than hides."
+            "text": "Those tools watch an agent from the outside — through an SDK, a proxy or an OpenTelemetry collector — and they are very good at it. What none of them can see is the option the agent considered and rejected, because that reasoning never leaves the model. LogReporter asks the agent to write it down instead. It is a different approach rather than a better one, and running a tracer alongside it is a sensible setup: the tracer tells you what actually happened, LogReporter tells you what the agent thought it was doing."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the catch?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "It only works if your agents actually follow the logging prompt, and there is no enforcement anywhere. How much you get back depends on the model and on how you word the block: Claude Code writes out decisions and blockers in useful detail, while Gemini on the same prompt logged little more than a start, a middle and an end. An agent that skips its closing row shows up as a gap in the timeline, which LogReporter reports rather than hides. The flip side of the same trade is that what you are configuring is English — if you want rejected alternatives logged too, you ask for them."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What do I have to install?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Nothing beyond Python 3.8 or newer. There is no pip install, no npm, no Docker, no collector and no account: the writer is a standard-library Python script, the dashboard is a static page, and the data is a single SQLite file. The one thing the browser fetches is the sql.js SQLite engine, from a CDN on first view; copy those two files next to index.html and the dashboard runs fully offline."
           }
         },
         {
@@ -203,10 +229,26 @@
 <header class="nav">
   <div class="wrap nav-inner">
     <a class="nav-brand" href="./">
-      <img src="assets/img/favicon.svg" alt="" width="22" height="22">
+      <!-- The shared brand mark: the app's L-with-category-foot glyph, in the
+           landing's red-family dialect (see the reference brief's header). -->
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <clipPath id="lr-nav-foot"><rect x="5" y="22.4" width="24" height="5.6"/></clipPath>
+        <pattern id="lr-nav-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
+          <rect width="2" height="4" fill="var(--cat-mid)"/>
+        </pattern>
+        <g clip-path="url(#lr-nav-foot)">
+          <rect x="5" y="22.4" width="7" height="5.6" fill="var(--accent)"/>
+          <rect x="12" y="22.4" width="6.5" height="5.6" fill="var(--cat-pair)"/>
+          <rect x="18.5" y="22.4" width="4.5" height="5.6" fill="var(--cat-neutral)"/>
+          <rect x="23" y="22.4" width="3.5" height="5.6" fill="var(--cat-mid)"/>
+          <rect x="26.5" y="22.4" width="2.5" height="5.6" fill="url(#lr-nav-hatch)"/>
+        </g>
+        <rect x="5" y="4" width="5.6" height="24" fill="var(--accent)"/>
+      </svg>
       LogReporter
     </a>
     <nav class="nav-links" aria-label="Primary">
+      <a href="#why">What's different</a>
       <a href="#how">How it works</a>
       <a href="#cost">Tokens &amp; cost</a>
       <a href="app/index.html">Live demo</a>
@@ -214,7 +256,7 @@
       <!-- The glyph shows the theme you would GET, not the one you are in —
            same rule as the dashboard's toggle. -->
       <button class="theme-toggle" id="theme-toggle" type="button"
-              aria-pressed="false" title="Switch to light mode">☀</button>
+              aria-pressed="false" title="Switch to dark mode">☾</button>
     </nav>
   </div>
 </header>
@@ -223,24 +265,45 @@
 
 <!-- ───────────────────────────── hero ───────────────────────────── -->
 <section class="hero" id="overview" aria-labelledby="overview-h">
-  <div class="wrap">
-    <h1 id="overview-h">See what your subagents actually did<br>— and what it cost</h1>
-    <p class="tagline">Hooks tell you what happened. LogReporter tells you why.</p>
-    <p class="lede">
-      A local dashboard over a single SQLite file. Your agents append one row per
-      meaningful step as they work — decisions, blockers, git operations — and the
-      dashboard turns that into a subagent tree, an honest time breakdown, and
-      per-agent token cost.
-    </p>
-    <div class="cta-row">
-      <a class="btn btn-primary" href="app/index.html">▶&nbsp; Try the live demo</a>
-      <a class="btn" href="#how">Get started</a>
-      <a class="btn" href="https://github.com/frenamezian/logreporter">★&nbsp; View on GitHub</a>
+  <div class="wrap hero-grid">
+    <div>
+      <div class="stripe" aria-hidden="true">
+        <span class="s-activity"></span><span class="s-pair"></span><span class="s-neutral"></span><span class="s-mid"></span><span class="s-idle"></span>
+      </div>
+      <h1 id="overview-h">See what your subagents <span class="hi">actually did</span><br>— and what it cost</h1>
+      <p class="tagline">Most tools watch your agents work. This one just asks them.</p>
+      <p class="lede">
+        A local dashboard over a single SQLite file. Your agents append one row per
+        meaningful step as they work — decisions, blockers, git operations — and the
+        dashboard turns that into a subagent tree, an honest time breakdown, and
+        per-agent token cost.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="app/index.html">▶&nbsp; Try the live demo</a>
+        <a class="btn" href="#how">Get started</a>
+        <a class="btn btn-ghost" href="https://github.com/frenamezian/logreporter">★&nbsp; View on GitHub</a>
+      </div>
+      <p class="meta-line">
+        One Python script, one SQLite file, one static page. No <code>pip install</code>,
+        no npm, no Docker, no account — <strong>partly on purpose, partly because it is all
+        I know how to build</strong>.
+      </p>
     </div>
-    <p class="meta-line">
-      <strong>Python 3.8+</strong> · no <code>pip install</code> · no account ·
-      the file never leaves your laptop
-    </p>
+
+    <!-- The live log panel: the page's one animated element. The rows are
+         real markup, visible without JS and under prefers-reduced-motion;
+         the script at the bottom of the page replays them as a ticker. -->
+    <div class="logpanel" id="logpanel" aria-hidden="true">
+      <div class="logpanel-title"><span class="sq"></span>ACTIVITY_LOGS.DB — LIVE</div>
+      <div class="logrow"><span class="t t-dim">start</span><span class="m">Task accepted: Add rate limiting</span></div>
+      <div class="logrow"><span class="t t-activity">activity</span><span class="m">Implemented POST /v1/ingest — batches up to 500 rows</span></div>
+      <div class="logrow"><span class="t t-decision">decision</span><span class="m">Token bucket over sliding window: bucket is O(1) at our QPS</span></div>
+      <div class="logrow"><span class="t t-issue">issue</span><span class="m">Retry 2/5 — SQLITE_BUSY, writer held the lock</span></div>
+      <div class="logrow"><span class="t t-github">github</span><span class="m">#push feat/rate-limit — 3 commits</span></div>
+      <div class="logrow"><span class="t t-dim">idle</span><span class="m m-dim">18m with no agent logging</span></div>
+      <div class="logrow"><span class="t t-dim">end</span><span class="m">completed · 14.44M tokens · $10.68</span></div>
+      <span class="logcaret"></span>
+    </div>
   </div>
 </section>
 
@@ -287,14 +350,22 @@
 
 <!-- ─────────────────────── the difference ───────────────────────── -->
 <section id="why" aria-labelledby="why-h">
+  <!-- The poster band: the page's one big red flood. -->
+  <div class="poster">
+    <div class="wrap">
+      <p class="eyebrow">What makes it different</p>
+      <h2 id="why-h">There are 3 common ways to watch an agent,<br>
+        but here is <span class="hi">a 4th odd one</span></h2>
+      <p class="lede">
+        Most observability tools watch from the outside — an SDK, a proxy, an OpenTelemetry
+        collector — and they are very good at it. What none of them can see is the option
+        your agent considered and threw away, because that never leaves the model. So this
+        one just asks the agent to write it down. A different approach, not a better one —
+        and honestly, the strong setup is probably both.
+      </p>
+    </div>
+  </div>
   <div class="wrap">
-    <p class="eyebrow">What makes it different</p>
-    <h2 id="why-h">Every other agent dashboard watches from the outside</h2>
-    <p class="lede" style="margin-bottom:32px">
-      Hook and transcript tools observe what an agent <em>did</em>. They cannot see the
-      alternative it rejected, or why — that never leaves the model. So LogReporter
-      asks the agent to write it down.
-    </p>
 
     <div class="compare">
       <div class="them">
@@ -322,12 +393,146 @@
       </div>
     </div>
 
-    <p class="tradeoff">
-      <b>The trade, stated plainly.</b> This depends on your agents following the logging
-      prompt. An agent that skips its closing row shows up as a gap in the timeline —
-      LogReporter reports that gap rather than papering over it. You get the “why” at the
-      cost of relying on the agent to report it.
+    <!-- The landscape table. Tools as rows and dimensions as columns, rather than a
+         grid of ticks: a tick grid where this project happens to win every row is a
+         scoreboard, and the point of the section is that these are different jobs.
+         The "Best for" column is the honest one — it is where every other tool gets
+         to be the right answer, and it is why the table can be published at all.
+
+         Five columns will not fit a phone, so the table keeps a min-width and scrolls
+         inside .scroll-x. tabindex makes that scroller reachable from the keyboard,
+         which a scrolling region containing no focusable elements otherwise is not. -->
+    <h3 class="sub-h" id="landscape-h">Where it sits</h3>
+    <p class="sub-lede">
+      Five tools I looked at while building this, and what each one is actually for.
     </p>
+    <div class="scroll-x matrix-wrap" tabindex="0" role="region" aria-labelledby="landscape-h">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th scope="col">Tool</th>
+            <th scope="col">Wired in by</th>
+            <th scope="col">What it records</th>
+            <th scope="col">What you run</th>
+            <th scope="col">Best for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="self">
+            <th scope="row">LogReporter</th>
+            <td>A paragraph in the agent's prompt</td>
+            <td>Decisions, blockers, git operations — what the agent thought it was doing</td>
+            <td><code>python serve.py</code>, and one SQLite file</td>
+            <td>High-level task and time visibility across repositories</td>
+          </tr>
+          <tr>
+            <th scope="row"><a href="https://langfuse.com/">Langfuse</a>
+              <a class="repo" href="https://github.com/langfuse/langfuse">GitHub</a></th>
+            <td>SDKs for Python, TypeScript and Java</td>
+            <td>Traces: LLM calls, prompts, tool executions, evaluation scores</td>
+            <td>Postgres, ClickHouse, Redis and object storage — or their cloud</td>
+            <td>The whole LLM app lifecycle: tracing, prompt versioning, LLM-as-judge</td>
+          </tr>
+          <tr>
+            <th scope="row"><a href="https://arize.com/phoenix/">Arize Phoenix</a>
+              <a class="repo" href="https://github.com/Arize-ai/phoenix">GitHub</a></th>
+            <td>OpenTelemetry and OpenInference auto-instrumentation</td>
+            <td>Spans: model calls, retrieval, tool use, evaluation results</td>
+            <td>A Phoenix server — locally, in Docker, or in your cloud</td>
+            <td>Debugging chains and RAG, and scoring output quality with evals</td>
+          </tr>
+          <tr>
+            <th scope="row"><a href="https://www.helicone.ai/">Helicone</a>
+              <a class="repo" href="https://github.com/Helicone/helicone">GitHub</a></th>
+            <td>Changing one line — your API base URL</td>
+            <td>Whatever crosses the wire: tokens, cost, latency, prompts, responses</td>
+            <td>Nothing at all, if you use their hosted gateway</td>
+            <td>Cost and latency across providers with no code change whatsoever</td>
+          </tr>
+          <tr>
+            <th scope="row"><a href="https://www.traceloop.com/openllmetry">OpenLLMetry</a>
+              <a class="repo" href="https://github.com/traceloop/openllmetry">GitHub</a></th>
+            <td><code>pip install traceloop-sdk</code> and two lines to initialise</td>
+            <td>OpenTelemetry spans from the libraries you already call</td>
+            <td>Any OpenTelemetry backend you already have</td>
+            <td>Standards-based tracing with no vendor lock-in</td>
+          </tr>
+          <tr>
+            <th scope="row"><a href="https://openobserve.ai/">OpenObserve</a>
+              <a class="repo" href="https://github.com/openobserve/openobserve">GitHub</a></th>
+            <td>OpenTelemetry</td>
+            <td>All of your telemetry — logs, metrics, traces — LLM spans included</td>
+            <td>A single binary, plus object storage</td>
+            <td>Agent traces sitting next to the rest of your infrastructure</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="matrix-note">
+      Summarised from each project's own documentation in August 2026 — all five move a
+      great deal faster than this page does, and all five do more than one row can say.
+      MLflow, PostHog and Agenta cover nearby ground and are worth a look too. If I have
+      described something wrongly,
+      <a href="https://github.com/frenamezian/logreporter/issues">tell me</a> — I would
+      rather fix it than leave it standing.
+    </p>
+
+    <div class="punchline">
+      <div class="punchline-icon" aria-hidden="true"></div>
+      <div>
+        <h3>We checked, in the least rigorous way available</h3>
+        <p>
+          We asked every frontier model we could get hold of — Fable, GPT-sol, Kimi, the
+          lot — to name somebody else doing it this way. They all came back with the same
+          answer: nobody. Which is either a gap in the market or a very strong hint, and
+          we have decided to believe gap. If you know of one, do tell us — genuinely.
+        </p>
+      </div>
+    </div>
+
+    <!-- The caveat and the recommendation are two blocks rather than one paragraph
+         because they are doing opposite jobs: the first admits the approach can return
+         very little, the second says what to do about it. The order matters — the
+         catch has to be read before the advice, or the advice reads like a hedge. -->
+    <div class="tradeoff">
+      <h3>The catch, which is also the whole idea</h3>
+      <p>
+        This only works if your agents actually do it. There is no enforcement anywhere —
+        just a paragraph in a prompt, and an agent that may or may not take it seriously.
+      </p>
+      <div class="samples">
+        <div>
+          <p class="sample-label">Claude Code, which takes notes properly</p>
+          <div class="quote">decision — Token bucket over sliding window:
+            sliding needs per-key history; bucket is O(1) at our QPS</div>
+        </div>
+        <div>
+          <p class="sample-label">Gemini, same prompt, when I tried it</p>
+          <div class="quote thin">activity — Started<br>activity — Working on the task<br>activity — Done</div>
+        </div>
+      </div>
+      <p>
+        Both of those timelines are technically correct. Only one of them is worth
+        reading. How much you get back depends on the model, on how you word the logging
+        block, and on how long the session has been running — and when an agent skips its
+        closing row, the dashboard shows a gap rather than quietly inventing one.
+      </p>
+      <p>
+        The flip side of the same trade: the thing you are configuring is <em>English</em>.
+        If you want the rejected alternatives in there too, you ask for them. No SDK
+        release required.
+      </p>
+    </div>
+
+    <div class="hybrid">
+      <h3>Run both, honestly</h3>
+      <p>
+        A tracer tells you what actually happened — every call, every token, no trust
+        required. This tells you what the agent thought it was doing, and where it got
+        stuck. Those are different questions and they do not compete. If you already have
+        Langfuse or Phoenix running, keep them running.
+      </p>
+    </div>
   </div>
 </section>
 
@@ -358,6 +563,7 @@
       </div>
     </div>
 
+    <div class="how-pair">
     <aside class="notice" aria-labelledby="assume-h">
       <div class="notice-icon" aria-hidden="true">!</div>
       <div>
@@ -393,8 +599,15 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
   --agent-path lead_architect/handler_dev \
   --log-title <span class="p">"Token bucket over sliding window"</span></pre>
     </div>
+    </div>
 
     <p class="meta-line" style="margin-top:18px">
+      The one thing it does fetch: your browser loads the <code>sql.js</code> SQLite engine
+      from a CDN on first view. Copy those two files next to <code>index.html</code> and it
+      runs fully offline — that is the only remote dependency in the project.
+    </p>
+
+    <p class="meta-line" style="margin-top:10px">
       A full guide ships inside the app — <a href="app/index.html">open the live demo</a>
       and click <strong>Help</strong> for the user guide, the data model, the time model,
       and the agent logging contract.
@@ -411,52 +624,28 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
     <p class="lede">Every card opens the live demo on that page.</p>
     <div class="pages" style="margin-top:32px">
       <a class="page-card" href="app/index.html#hierarchy">
-        <picture>
-          <source type="image/webp" srcset="assets/img/hierarchy-thumb.webp">
-          <img src="assets/img/hierarchy-thumb.png" loading="lazy" decoding="async"
-               alt="The Hierarchy page" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Hierarchy</h3><p>What work exists, and how does it nest?</p></div>
+        <span class="mark mark-activity" aria-hidden="true"></span>
+        <div class="body"><h3>Hierarchy</h3><p>What work exists, and how does it nest?</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#chronology">
-        <picture>
-          <source type="image/webp" srcset="assets/img/chronology-thumb.webp">
-          <img src="assets/img/chronology-thumb.png" loading="lazy" decoding="async"
-               alt="The Chronology page" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Chronology</h3><p>What happened, in order — including the silences.</p></div>
+        <span class="mark mark-pair" aria-hidden="true"></span>
+        <div class="body"><h3>Chronology</h3><p>What happened, in order — including the silences.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#timegoes">
-        <picture>
-          <source type="image/webp" srcset="assets/img/timegoes-thumb.webp">
-          <img src="assets/img/timegoes-thumb.png" loading="lazy" decoding="async"
-               alt="The Where time goes page" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Where time goes</h3><p>Which agent, which category, and how much was nobody working.</p></div>
+        <span class="mark mark-neutral" aria-hidden="true"></span>
+        <div class="body"><h3>Where time goes</h3><p>Which agent, which category, and how much was nobody working.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#metrics">
-        <picture>
-          <source type="image/webp" srcset="assets/img/metrics-usage-thumb.webp">
-          <img src="assets/img/metrics-usage-thumb.png" loading="lazy" decoding="async"
-               alt="The Metrics page with token usage" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Metrics</h3><p>Counts, distributions, token cost, and the issues still open.</p></div>
+        <span class="mark mark-midred" aria-hidden="true"></span>
+        <div class="body"><h3>Metrics</h3><p>Counts, distributions, token cost, and the issues still open.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#models">
-        <picture>
-          <source type="image/webp" srcset="assets/img/models-thumb.webp">
-          <img src="assets/img/models-thumb.png" loading="lazy" decoding="async"
-               alt="The Models and pricing page" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Models</h3><p>Every model and price tier the cost figures are drawn from.</p></div>
+        <span class="mark mark-mid" aria-hidden="true"></span>
+        <div class="body"><h3>Models</h3><p>Every model and price tier the cost figures are drawn from.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#maintenance">
-        <picture>
-          <source type="image/webp" srcset="assets/img/maintenance-thumb.webp">
-          <img src="assets/img/maintenance-thumb.png" loading="lazy" decoding="async"
-               alt="The Maintenance page" width="560" height="315">
-        </picture>
-        <div class="body"><h3>Maintenance</h3><p>What is stored; delete or export part of it.</p></div>
+        <span class="mark mark-idle" aria-hidden="true"></span>
+        <div class="body"><h3>Maintenance</h3><p>What is stored; delete or export part of it.</p><span class="open">Open in demo →</span></div>
       </a>
     </div>
     <p class="meta-line" style="margin-top:22px">
@@ -488,9 +677,13 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
           request; LogReporter reads it, attributes it to the task that was running,
           and prices it from a 102-model registry.
         </p>
-        <p style="color:var(--text-dim)">
-          Cache reads are about <b style="color:var(--text)">73% of tokens but 11% of
-          cost</b>. Cache writes are 26% of tokens and <b style="color:var(--text)">79%
+        <div class="stat-pair">
+          <div><div class="v">73% → 11%</div><div class="k">Cache reads: share of tokens vs share of cost</div></div>
+          <div><div class="v">26% → 79%</div><div class="k">Cache writes: share of tokens vs share of cost</div></div>
+        </div>
+        <p class="dim">
+          Cache reads are about <b>73% of tokens but 11% of
+          cost</b>. Cache writes are 26% of tokens and <b>79%
           of cost</b>. A single blended number hides that completely — so tokens and
           cost are never plotted on one axis. You toggle between them over the same
           layout, and the disagreement is the finding.
@@ -508,7 +701,7 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
         Claude Code is parsed natively, because only a native parser can see
         Anthropic's 5-minute and 1-hour cache-write split. For Codex, Gemini, Kimi and
         20-plus other agents, LogReporter falls back to
-        <b style="color:var(--text)">ccusage</b> by <b style="color:var(--text)">@ryoppippi</b>
+        <b>ccusage</b> by <b>@ryoppippi</b>
         — which already solved the part nobody should have to solve twice, across far
         more tools than we could keep up with. If you only need a token counter, use
         ccusage on its own; it's excellent.
@@ -532,32 +725,32 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
     <h2 class="visually-hidden" id="features-h">What it gives you</h2>
     <div class="features">
       <div class="feature">
-        <div class="ico" aria-hidden="true">🌲</div><h3>Subagent lineage</h3>
+        <h3>Subagent lineage</h3>
         <p>An agent path builds the tree, the waterfall indentation, and the
            parent-minus-children own-time correction.</p>
       </div>
       <div class="feature">
-        <div class="ico" aria-hidden="true">⏱️</div><h3>Honest time</h3>
+        <h3>Honest time</h3>
         <p>Wall clock, agent time, own time and idle. Silence between rows is
            reported, not quietly dropped.</p>
       </div>
       <div class="feature">
-        <div class="ico" aria-hidden="true">💰</div><h3>Cost per agent</h3>
+        <h3>Cost per agent</h3>
         <p>Token counters and modelled cost attributed down to the individual
            subagent run.</p>
       </div>
       <div class="feature">
-        <div class="ico" aria-hidden="true">📁</div><h3>Multi-repo, one file</h3>
+        <h3>Multi-repo, one file</h3>
         <p>Repo and branch derive from git wherever the agent stands. One prompt,
            one database, any number of repositories.</p>
       </div>
       <div class="feature">
-        <div class="ico" aria-hidden="true">🔒</div><h3>Fully local</h3>
-        <p>A static page, a Python stdlib server bound to 127.0.0.1, and one SQLite
-           file. No account, no telemetry, no upload.</p>
+        <h3>Local, and light</h3>
+        <p>A static page, a Python standard-library server on 127.0.0.1, and one SQLite
+           file. No packages to install, no account, no telemetry, no upload.</p>
       </div>
       <div class="feature">
-        <div class="ico" aria-hidden="true">🧩</div><h3>Pluggable parsers</h3>
+        <h3>Pluggable parsers</h3>
         <p>Supporting a new agent means adding one file — no central registry to
            edit, so contributions never collide.</p>
       </div>
@@ -583,11 +776,33 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
         <h3>Look elsewhere</h3>
         <ul>
           <li>You only want token counts → <a href="https://ccusage.com/">ccusage</a></li>
-          <li>You can't modify agent prompts → a hook-based monitor</li>
+          <li>You can't modify agent prompts → <a href="https://arize.com/phoenix/">Phoenix</a>
+            or <a href="https://www.helicone.ai/">Helicone</a></li>
+          <li>You want evaluation and prompt versioning →
+            <a href="https://langfuse.com/">Langfuse</a></li>
           <li>You need a hosted team dashboard — this is deliberately local</li>
           <li>You want zero setup: this asks for a prompt change first</li>
         </ul>
       </div>
+    </div>
+
+    <!-- Placed between the fit block and the disclaimer on purpose. The reader has
+         just been told when to use something else; this says who wrote it and why,
+         and then the disclaimer follows in its own, deliberately un-playful voice.
+         The tone shift between these two blocks is the point: light about where the
+         project came from, straight about what it can delete. -->
+    <div class="origin" id="origin">
+      <h3>Why this exists</h3>
+      <p>
+        I am not a professional developer. I had agents running across a few
+        repositories, I wanted to know where the time went and what it cost, and
+        everything I found wanted infrastructure I did not understand. So I built this
+        over a few weekends, and it got slightly out of hand — there are six pages now.
+      </p>
+      <p>
+        It is MIT, it is free, it will have bugs, and wrong numbers are the ones I most
+        want to hear about.
+      </p>
     </div>
 
     <div class="disclaimer" id="disclaimer" style="margin-top:28px">
@@ -647,8 +862,23 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
 
 <footer>
   <div class="wrap foot-row">
-    <div>LogReporter · MIT · sponsored by
-      <a href="https://www.lespirant.com" rel="noopener sponsored">LESPIRANT</a></div>
+    <div class="foot-brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <clipPath id="lr-foot-foot"><rect x="5" y="22.4" width="24" height="5.6"/></clipPath>
+        <pattern id="lr-foot-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
+          <rect width="2" height="4" fill="var(--cat-mid)"/>
+        </pattern>
+        <g clip-path="url(#lr-foot-foot)">
+          <rect x="5" y="22.4" width="7" height="5.6" fill="var(--accent)"/>
+          <rect x="12" y="22.4" width="6.5" height="5.6" fill="var(--cat-pair)"/>
+          <rect x="18.5" y="22.4" width="4.5" height="5.6" fill="var(--cat-neutral)"/>
+          <rect x="23" y="22.4" width="3.5" height="5.6" fill="var(--cat-mid)"/>
+          <rect x="26.5" y="22.4" width="2.5" height="5.6" fill="url(#lr-foot-hatch)"/>
+        </g>
+        <rect x="5" y="4" width="5.6" height="24" fill="var(--accent)"/>
+      </svg>
+      <span>LogReporter · MIT · sponsored by
+      <a href="https://www.lespirant.com" rel="noopener sponsored">LESPIRANT</a></span></div>
     <!-- Disclaimer points at this page's own section rather than the README's
          anchor: the text is identical, and an internal link keeps the crawl on
          the site instead of handing the one page that qualifies the numbers to
@@ -670,22 +900,56 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
     var root = document.documentElement;
     var btn = document.getElementById('theme-toggle');
 
+    // Paper is the attribute-less default; "dark" is the override. The
+    // stored key keeps the app's vocabulary ('light'/'dark') so the demo
+    // still opens in whichever theme was picked here.
     function paint() {
-      var light = root.getAttribute('data-theme') === 'light';
-      btn.textContent = light ? '☾' : '☀';
-      btn.setAttribute('aria-pressed', String(light));
-      btn.title = 'Switch to ' + (light ? 'dark' : 'light') + ' mode';
+      var dark = root.getAttribute('data-theme') === 'dark';
+      btn.textContent = dark ? '☀' : '☾';
+      btn.setAttribute('aria-pressed', String(dark));
+      btn.title = 'Switch to ' + (dark ? 'light' : 'dark') + ' mode';
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', dark ? '#171312' : '#f3f2f2');
     }
 
     btn.addEventListener('click', function () {
-      var light = root.getAttribute('data-theme') !== 'light';
-      if (light) root.setAttribute('data-theme', 'light');
+      var dark = root.getAttribute('data-theme') !== 'dark';
+      if (dark) root.setAttribute('data-theme', 'dark');
       else root.removeAttribute('data-theme');
-      try { localStorage.setItem(KEY, light ? 'light' : 'dark'); } catch (e) { /* storage blocked */ }
+      try { localStorage.setItem(KEY, dark ? 'dark' : 'light'); } catch (e) { /* storage blocked */ }
       paint();
     });
 
     paint();
+  })();
+
+  // The hero log panel ticker — the page's one animated element. The rows
+  // are real markup and visible without JS; with JS they replay as a loop.
+  // Under prefers-reduced-motion everything stays static and the caret
+  // does not blink (the CSS side handles the caret).
+  (function () {
+    var panel = document.getElementById('logpanel');
+    if (!panel) return;
+    var rows = panel.querySelectorAll('.logrow');
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return; // rows are visible by default; nothing moves
+    }
+    panel.classList.add('js');
+    var i = 0;
+    function tick() {
+      if (i >= rows.length) {
+        setTimeout(function () {
+          for (var j = 0; j < rows.length; j++) rows[j].classList.remove('shown');
+          i = 0;
+          setTimeout(tick, 600);
+        }, 3200);
+        return;
+      }
+      rows[i].classList.add('shown');
+      i += 1;
+      setTimeout(tick, 1800);
+    }
+    setTimeout(tick, 500);
   })();
 </script>
 
