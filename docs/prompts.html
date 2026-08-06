@@ -5,7 +5,7 @@
 
 python log_activity.py \
   --log-type start|end|activity|issue|decision|github \
-  --repo &lt;name&gt; --branch &lt;name&gt; --task "&lt;title&gt;" \
+  --task "&lt;title&gt;" \
   --agent &lt;name&gt; --agent-path &lt;lineage&gt; \
   --trace-id &lt;id&gt; --log-title "&lt;one specific line&gt;" \
   [--log-description …] [--log-level info] [--status …]
@@ -13,7 +13,7 @@ python log_activity.py \
   [--error-details …] [--resolved-by …]
   [--performance-metrics '{"execution_ms":12}']
   [--commit-reference &lt;sha&gt;] [--sync]</pre>
-<p><code>log_activity.py</code> is synchronous: it validates the arguments, performs the INSERT, prints the new row id and exits. It opens the database in WAL mode with a 10-second busy timeout and retries five times with exponential backoff if it loses that timeout to another agent; a write that ultimately fails exits non-zero and says why. <code>--repo</code> and <code>--branch</code> are derived from git in the caller's working directory when omitted, so an agent in any repository logs under the right node without being told which one it is in.</p>
+<p><code>log_activity.py</code> is synchronous: it validates the arguments, performs the INSERT, prints the new row id and exits. It opens the database in WAL mode with a 10-second busy timeout and retries five times with exponential backoff if it loses that timeout to another agent; a write that ultimately fails exits non-zero and says why. The repository and branch are not arguments: both are read from git in the caller's working directory, so an agent in any repository logs under the right node without being told which one it is in. The repository is named after its <strong><code>origin</code> remote</strong> rather than its folder, because those drift apart — a checkout in a directory called <code>log_reporter</code> whose remote is <code>frenamezian/logreporter</code> logs as <code>logreporter</code> — and because the token-usage reader can only ever see the remote. <code>--repo</code> and <code>--branch</code> still exist for a directory git knows nothing about, but they are hidden from <code>--help</code> and outranked by git wherever git can answer.</p>
 
 <p>It was asynchronous until that default lost rows. A detached child can be killed by the terminal before SQLite commits — several agent harnesses run their shell inside a job object that takes every descendant with it — while the call itself has already exited 0, and a killed child cannot write to <code>log_activity_errors.log</code> or anywhere else. Re-logging afterwards does not repair the damage: the rows return carrying the time they were re-written, so the task&rsquo;s span collapses, and a span is what token usage is attributed to and what duration and idle time are derived from. <code>--async</code> restores the old behaviour for anyone who wants it, hardened to break away from the parent&rsquo;s job object where Windows permits; <code>--sync</code> is accepted and does nothing, since it now asks for the default.</p>
 <p>The full contracts live in <code>orchestrator_logging_instructions.md</code> and <code>subagent_logging_instructions.md</code> and are meant to be pasted into the agents' system prompts verbatim.</p>
@@ -42,8 +42,10 @@ WHILE WORKING, append one row per meaningful step:
 
 ON EVERY ROW
 - timestamp    UTC, 'YYYY-MM-DD HH:MM:SS'
-- repo_name, branch_name, task_title  identical for every row of one
-  task, character for character — they are the grouping keys
+- task_title   identical for every row of one task, character for
+               character — it is a grouping key, and a title that
+               drifts by one space becomes two tasks
+               (repo_name and branch_name are git's, not yours)
 - agent_name   your name. One lowercase token, and it must equal the
                last segment of agent_path — "Lead Architect" in one
                field and lead_architect in the other is two agents

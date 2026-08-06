@@ -124,6 +124,24 @@ The record shape has no field for it, and the writer filters `extra_json`
 against a whitelist. Do not read it in the first place — extract the numeric
 counters and the short envelope, and nothing else.
 
+### 5. Do not invent a repository name
+
+Call `parsers._gitname.repo_from_cwd()`. If your agent records the git remote
+itself, prefer that and pass it through `repo_name_from_url()` — `antigravity.py`
+is the worked example.
+
+`repo_name` is a join key shared with `log_activity.py`, which names a repository
+after its **`origin` remote** rather than the folder it is checked out into. The
+two differ constantly: a directory called `log_reporter` cloned from
+`frenamezian/logreporter`, a worktree called `Playground-Harness` belonging to
+`Playground`, a per-task clone with the task id glued onto its folder.
+
+This rule is fifth on a list of four because getting it wrong does not produce
+slightly wrong numbers. Attribution matches on an exact string, so a name that
+disagrees matches *nothing*: every row lands in Unattributed and the task renders
+a confident zero that is indistinguishable from work that genuinely cost nothing.
+That is not a hypothetical failure — it is where this rule came from.
+
 ---
 
 ## Step 4 — the cursor

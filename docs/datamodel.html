@@ -5,7 +5,7 @@
 <table><thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead><tbody>
 <tr><td>id</td><td>INTEGER PK</td><td>Rowid. The only key the UI uses to identify a row.</td></tr>
 <tr><td>timestamp</td><td>TEXT</td><td><code>YYYY-MM-DD HH:MM:SS</code>, UTC. Sorts lexically; parsed as UTC by the time model.</td></tr>
-<tr><td>repo_name / branch_name</td><td>TEXT</td><td>Verbatim identifiers, never humanised in the UI. <code>log_activity.py</code> derives them from git when omitted.</td></tr>
+<tr><td>repo_name / branch_name</td><td>TEXT</td><td>Verbatim identifiers, never humanised in the UI. <code>log_activity.py</code> reads both from git: <code>repo_name</code> is the <code>origin</code> remote's name, not the checkout folder's.</td></tr>
 <tr><td>task_title</td><td>TEXT</td><td>The unit of work, and part of the grouping key. Empty rows group as "Untitled task".</td></tr>
 <tr><td>log_type</td><td>TEXT</td><td>start · end · activity · issue · decision · github</td></tr>
 <tr><td>log_title</td><td>TEXT</td><td>One line, specific. Shown in every list.</td></tr>
@@ -27,7 +27,7 @@
 
 <h3>The three keys everything is built on</h3>
 <ul>
-<li><strong>(repo_name, branch_name, task_title)</strong> groups rows into a task. Character for character — a task title that drifts by one space becomes two tasks with two separate wall clocks.</li>
+<li><strong>(repo_name, branch_name, task_title)</strong> groups rows into a task. Character for character — a task title that drifts by one space becomes two tasks with two separate wall clocks. The first two are git's answer and agree automatically; the title is the one an agent can get wrong.</li>
 <li><strong>agent_path</strong> groups rows within a task into runs, and its <code>/</code> depth defines the parent-child relationship the waterfall indents and "own time" corrects for.</li>
 <li><strong>trace_id</strong> links rows into one narrative for the detail panel's trace timeline. It is the only key that is allowed to cross tasks.</li>
 </ul>

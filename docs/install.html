@@ -104,14 +104,14 @@ python &lt;LOGGER&gt; --sync --log-type start \
   └ feat/whatever-you-are-on    ← current branch, from git
       └ Smoke test              ← --task
           └ me                  ← --agent</pre>
-<p>That is <code>--repo</code> and <code>--branch</code> auto-deriving from git in the caller's working directory, and it is the reason one prompt works everywhere. If this step fails, fix it here — no prompt edit will make it work later. Delete the test row from the <em>Maintenance</em> page when you are done.</p>
+<p>Both come from git in the caller's working directory, which is the reason one prompt works everywhere. The repository is named after its <strong><code>origin</code> remote</strong>, not the folder it sits in — those drift apart, and the folder is a local accident that nothing keeps in sync. A linked worktree therefore reports the repository it belongs to rather than its own directory. If this step fails, fix it here — no prompt edit will make it work later. Delete the test row from the <em>Maintenance</em> page when you are done.</p>
 
 <h4>7 · Give your lead agent the orchestrator prompt</h4>
-<p>Paste the contents of <code>orchestrator_logging_instructions.md</code> (repository root) into your lead agent's system prompt, with <strong>two edits</strong>:</p>
+<p>Paste the contents of <code>orchestrator_logging_instructions.md</code> (repository root) into your lead agent's system prompt, with <strong>one edit</strong>:</p>
 <ol>
 <li>Replace every <code>python log_activity.py</code> and <code>python mint_trace.py</code> with the <strong>absolute</strong> paths from step 5.</li>
-<li><strong>Delete the <code>--repo</code> and <code>--branch</code> flags.</strong> The shipped file hardcodes <code>--repo logreporter --branch main</code>, because that is what this project's own agents used. Dropping them is exactly what makes the prompt portable: git then fills both in correctly, per repository and per branch, with no editing.</li>
 </ol>
+<p>That is the whole change. The shipped prompt passes no <code>--repo</code> or <code>--branch</code>, so git fills both in correctly per repository and per branch with no editing — which is what makes one prompt portable. It used to hardcode <code>--repo logreporter --branch main</code>, and that is precisely how this project's own token usage came to be filed under a repository that existed on only one side of the join.</p>
 <p>What the prompt asks the agent to do, in short:</p>
 <pre>python &lt;MINTER&gt;                     # mint ONE trace_id per task — lead only
 python &lt;LOGGER&gt; --log-type &lt;type&gt; --task "&lt;title&gt;" \
@@ -126,7 +126,7 @@ python &lt;LOGGER&gt; --log-type &lt;type&gt; --task "&lt;title&gt;" \
 </ul>
 
 <h4>8 · Give every subagent the subagent prompt</h4>
-<p>Same treatment for <code>subagent_logging_instructions.md</code>: absolute path, no <code>--repo</code>/<code>--branch</code>. The lead fills in the placeholders when it dispatches:</p>
+<p>Same treatment for <code>subagent_logging_instructions.md</code>: absolute paths, nothing else. The lead fills in the placeholders when it dispatches:</p>
 <table><thead><tr><th>Placeholder</th><th>Filled in with</th><th>Example</th></tr></thead><tbody>
 <tr><td><code>&lt;name&gt;</code></td><td>the subagent's <code>--agent</code></td><td><code>code_reviewer</code></td></tr>
 <tr><td><code>&lt;lineage&gt;</code></td><td>its <code>--agent-path</code></td><td><code>lead_architect/task_executor/code_reviewer</code></td></tr>
@@ -151,7 +151,7 @@ And <code>--agent-path</code> is what builds the agent tree, the waterfall's ind
 <tr><td>Header says <strong>Demo data</strong></td><td>Not served over <code>http://</code>, or <code>activity_logs.db</code> is missing. Start it with <code>python serve.py</code> and check the file exists.</td></tr>
 <tr><td><code>activity_logs.db not found at …</code> from an agent</td><td>The database was never created. Run step 2.</td></tr>
 <tr><td>Agent says it logged, nothing appears</td><td>A default (synchronous) call that returned 0 has written its row, so check the agent is calling the absolute path you think it is, and is not passing <code>--async</code>. Under <code>--async</code> the write happens in a detached child that the terminal can kill before SQLite commits — the call still exits 0 and nothing reaches <code>log_activity_errors.log</code>, because a killed process cannot report itself. Drop <code>--async</code>.</td></tr>
-<tr><td>Rows land under the wrong repository</td><td>The agent's working directory is not what you think, or the prompt still passes <code>--repo</code>/<code>--branch</code>. Delete those flags, or <code>cd</code> first.</td></tr>
+<tr><td>Rows land under the wrong repository</td><td>The agent's working directory is not what you think — <code>cd</code> into the right checkout before logging. A prompt still passing <code>--repo</code> cannot cause this: git overrides it and records the override in <code>log_activity_errors.log</code>.</td></tr>
 <tr><td>One task appears twice</td><td>Two spellings of the same <code>task_title</code>. It is a grouping key, matched exactly.</td></tr>
 <tr><td>A task shows huge idle time</td><td>Something ran without logging, or an <code>end</code> row never arrived. Both are real findings, not display bugs.</td></tr>
 <tr><td>A task expands into what looks like a directory listing — <code>projects</code> → <code>docs</code> → a filename</td><td>An agent is writing a <em>file path</em> into <code>--agent-path</code>. The tree splits that field on <code>/</code> and shows every segment as an agent, so you get one phantom agent per directory and the real one disappears. <code>agent_path</code> is a lineage of agents (<code>lead_architect/code_reviewer</code>); the file being worked on belongs in <code>--log-title</code> or <code>--log-description</code>.</td></tr>
