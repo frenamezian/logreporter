@@ -354,14 +354,24 @@
   <div class="poster">
     <div class="wrap">
       <p class="eyebrow">What makes it different</p>
-      <h2 id="why-h">There are 3 common ways to watch an agent,<br>
-        but here is <span class="hi">a 4th odd one</span></h2>
+      <h2 id="why-h">The simplest way to know<br>
+        what your agents are doing<br>
+        <span class="punch"><span class="hi">…is just to ask them</span> <span class="wink" aria-hidden="true">😉</span></span></h2>
       <p class="lede">
-        Most observability tools watch from the outside — an SDK, a proxy, an OpenTelemetry
-        collector — and they are very good at it. What none of them can see is the option
-        your agent considered and threw away, because that never leaves the model. So this
-        one just asks the agent to write it down. A different approach, not a better one —
-        and honestly, the strong setup is probably both.
+        Most observability tools watch from the outside with 3 common approaches:
+      </p>
+      <ul class="poster-list">
+        <li>an SDK</li>
+        <li>a proxy</li>
+        <li>an OpenTelemetry collector</li>
+      </ul>
+      <p class="lede">
+        and they are very good at it. What none of them can see is the option your agents
+        considered and threw away, because that never leaves the model.
+      </p>
+      <p class="lede">
+        But our way is just to ask agents to write it down. A different approach, not a
+        better one…
       </p>
     </div>
   </div>
@@ -624,26 +634,56 @@ python <span class="p">&lt;path-to&gt;</span>/log_activity.py --log-type decisio
     <p class="lede">Every card opens the live demo on that page.</p>
     <div class="pages" style="margin-top:32px">
       <a class="page-card" href="app/index.html#hierarchy">
+        <picture>
+          <source type="image/webp" srcset="assets/img/hierarchy-thumb.webp">
+          <img src="assets/img/hierarchy-thumb.png" loading="lazy" decoding="async"
+               alt="The Hierarchy page" width="560" height="315">
+        </picture>
         <span class="mark mark-activity" aria-hidden="true"></span>
         <div class="body"><h3>Hierarchy</h3><p>What work exists, and how does it nest?</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#chronology">
+        <picture>
+          <source type="image/webp" srcset="assets/img/chronology-thumb.webp">
+          <img src="assets/img/chronology-thumb.png" loading="lazy" decoding="async"
+               alt="The Chronology page" width="560" height="315">
+        </picture>
         <span class="mark mark-pair" aria-hidden="true"></span>
         <div class="body"><h3>Chronology</h3><p>What happened, in order — including the silences.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#timegoes">
+        <picture>
+          <source type="image/webp" srcset="assets/img/timegoes-thumb.webp">
+          <img src="assets/img/timegoes-thumb.png" loading="lazy" decoding="async"
+               alt="The Where time goes page" width="560" height="315">
+        </picture>
         <span class="mark mark-neutral" aria-hidden="true"></span>
         <div class="body"><h3>Where time goes</h3><p>Which agent, which category, and how much was nobody working.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#metrics">
+        <picture>
+          <source type="image/webp" srcset="assets/img/metrics-usage-thumb.webp">
+          <img src="assets/img/metrics-usage-thumb.png" loading="lazy" decoding="async"
+               alt="The Metrics page with token usage" width="560" height="315">
+        </picture>
         <span class="mark mark-midred" aria-hidden="true"></span>
         <div class="body"><h3>Metrics</h3><p>Counts, distributions, token cost, and the issues still open.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#models">
+        <picture>
+          <source type="image/webp" srcset="assets/img/models-thumb.webp">
+          <img src="assets/img/models-thumb.png" loading="lazy" decoding="async"
+               alt="The Models and pricing page" width="560" height="315">
+        </picture>
         <span class="mark mark-mid" aria-hidden="true"></span>
         <div class="body"><h3>Models</h3><p>Every model and price tier the cost figures are drawn from.</p><span class="open">Open in demo →</span></div>
       </a>
       <a class="page-card" href="app/index.html#maintenance">
+        <picture>
+          <source type="image/webp" srcset="assets/img/maintenance-thumb.webp">
+          <img src="assets/img/maintenance-thumb.png" loading="lazy" decoding="async"
+               alt="The Maintenance page" width="560" height="315">
+        </picture>
         <span class="mark mark-idle" aria-hidden="true"></span>
         <div class="body"><h3>Maintenance</h3><p>What is stored; delete or export part of it.</p><span class="open">Open in demo →</span></div>
       </a>
