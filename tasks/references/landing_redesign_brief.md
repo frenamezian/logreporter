@@ -13,6 +13,20 @@
 >    recolored in the landing's red-family dialect: stem `#ec3013`, foot segments
 >    `#ec3013` / `#7a1a0c` / `#3a3735` / `#8a8582` / hatched idle. One logo across landing
 >    and app; each surface colors it from its own palette.
+>
+> Two further owner decisions (2026-08-06), after seeing the page live:
+> 3. **Screenshots print in COLOUR, not grayscale.** Every `filter: grayscale(1)` instruction
+>    in this brief (§Rules, §"One screen, annotated", §Tokens & cost, §Sponsor, and the
+>    dark-mode `grayscale(1) brightness(.9)`) is void — the app's category hues are the
+>    product, and draining them made the page duller than the thing it sells. The 2px ink
+>    borders stay.
+> 4. **The six view cards keep their screenshot thumbnails**, above the category mark and
+>    title, rather than the mark alone.
+>
+> And one copy revision (2026-08-06): the §"Red poster band" copy was rewritten by the owner —
+> a statement-and-punchline headline plus a bulleted list of the three outside-in approaches.
+> The live page is authoritative for that section; `tasks/checks/check_copy_verbatim.py`
+> records the exact old→new pair.
 
 Restyle the existing landing page (https://frenamezian.github.io/logreporter/) to a flat, brutalist "modernist" direction: red ink on paper, hard rules, zero radius, oversized numerals, one animated hero panel. **Keep all existing copy verbatim** — this is a visual redesign, not a rewrite. Keep the existing anchors (`#how`, `#cost`, `#disclaimer`) and all links.
 

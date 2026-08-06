@@ -49,6 +49,42 @@ from _lib import (  # noqa: E402
 
 PAGE = "site/index.html"
 
+# --- approved copy rewrites, post-0010 -------------------------------------
+# Task 0010 froze the copy. Anything here is a LATER, owner-approved rewrite,
+# recorded as an exact old->new pair so the rest of the page stays under the
+# verbatim contract and each rewrite stays reviewable long after the fact.
+#
+# 2026-08-06 — the "What makes it different" poster. The owner supplied the
+# replacement copy verbatim: a plainer statement-and-punchline headline, and
+# the three outside-in approaches pulled out of the paragraph into a list.
+REWRITE_OLD = [
+    "There are 3 common ways to watch an agent, but here is a 4th odd one",
+    "Most observability tools watch from the outside — an SDK, a proxy, an "
+    "OpenTelemetry collector — and they are very good at it. What none of them "
+    "can see is the option your agent considered and threw away, because that "
+    "never leaves the model. So this one just asks the agent to write it down. "
+    "A different approach, not a better one — and honestly, the strong setup "
+    "is probably both.",
+]
+REWRITE_NEW = [
+    "The simplest way to know what your agents are doing …is just to ask them 😉",
+    "Most observability tools watch from the outside with 3 common approaches:",
+    "an SDK", "a proxy", "an OpenTelemetry collector",
+    "and they are very good at it. What none of them can see is the option your "
+    "agents considered and threw away, because that never leaves the model.",
+    "But our way is just to ask agents to write it down. A different approach, "
+    "not a better one…",
+]
+# Level 2 works on contiguous runs, which a rewrite necessarily breaks. These
+# are the old runs the rewrite above is allowed to have consumed — matched by
+# squashed prefix, and each one asserted to be genuinely absent so this list
+# cannot quietly outlive the change it documents.
+REWRITTEN_RUNS = [
+    "There are 3 common ways to watch an agent,",
+    "a 4th odd one",
+    "Most observability tools watch from the outside — an SDK, a proxy, an OpenTelemetry",
+]
+
 # --- sanctioned removals ---------------------------------------------------
 # The brief, §"What it gives you": "Drop the emoji icons". The punchline
 # magnifier goes with the section that stopped being an icon-led callout.
@@ -112,8 +148,8 @@ def main() -> None:
 
     # ---- level 1: exact multiset equation ---------------------------------
     old_t, new_t = copy_tokens(old_text), copy_tokens(new_text)
-    expect_removed = copy_tokens(" ".join(SANCTIONED_REMOVED))
-    expect_added = copy_tokens(" ".join(SANCTIONED_ADDED))
+    expect_removed = copy_tokens(" ".join(SANCTIONED_REMOVED + REWRITE_OLD))
+    expect_added = copy_tokens(" ".join(SANCTIONED_ADDED + REWRITE_NEW))
 
     lhs = new_t + expect_removed
     rhs = old_t + expect_added
@@ -151,17 +187,31 @@ def main() -> None:
                  f"CTA glyph {glyph} count unchanged ({old_text.count(glyph)})")
 
     # ---- level 2: order and contiguity ------------------------------------
+    # The rewrite's old text must really be gone — otherwise REWRITTEN_RUNS
+    # would be a permanent waiver for runs that are still on the page.
+    old_haystack = squash(old_text)
+    for run in REWRITTEN_RUNS:
+        c.expect(squash(run) in old_haystack,
+                 f"rewritten run really was on the old page: {run[:60]!r}")
+        c.expect(squash(run) not in squash(new_text),
+                 f"rewritten run is gone from the new page: {run[:60]!r}")
+
     haystack = squash(new_text)
-    checked, missing = 0, []
+    rewritten = [squash(r) for r in REWRITTEN_RUNS]
+    checked, missing, skipped = 0, [], 0
     for run in text_runs(old_doc):
         for glyph in SANCTIONED_REMOVED:
             run = run.replace(glyph, " ")
         run = run.strip()
         if len(run.split()) < MIN_RUN_WORDS:
             continue
+        if any(squash(run).startswith(r) for r in rewritten):
+            skipped += 1
+            continue
         checked += 1
         if squash(run) not in haystack:
             missing.append(run)
+    c.note(f"{skipped} old run(s) skipped as owner-approved rewrites")
     if c.expect(checked >= 100, f"level-2 scan found {checked} old text runs to verify (expected >= 100)"):
         c.expect(not missing,
                  f"all {checked} old text runs survive contiguous and in order "
