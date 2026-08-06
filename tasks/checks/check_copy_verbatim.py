@@ -75,6 +75,17 @@ REWRITE_NEW = [
     "But our way is just to ask agents to write it down. A different approach, "
     "not a better one…",
 ]
+
+# 2026-08-06 — the hero's closing aside, and the prior-art callout's new
+# check mark. The aside's terminal period goes with it: the emoji ends the
+# sentence now.
+REWRITE_OLD += [
+    "partly on purpose, partly because it is all I know how to build.",
+]
+REWRITE_NEW += [
+    "partly on purpose, partly because I am too busy dancing tango for anything else 😄",
+    "✅",   # the oversize mark leading the "We checked" callout
+]
 # Level 2 works on contiguous runs, which a rewrite necessarily breaks. These
 # are the old runs the rewrite above is allowed to have consumed — matched by
 # squashed prefix, and each one asserted to be genuinely absent so this list
@@ -83,6 +94,7 @@ REWRITTEN_RUNS = [
     "There are 3 common ways to watch an agent,",
     "a 4th odd one",
     "Most observability tools watch from the outside — an SDK, a proxy, an OpenTelemetry",
+    "partly on purpose, partly because it is all I know how to build",
 ]
 
 # --- sanctioned removals ---------------------------------------------------
