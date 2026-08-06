@@ -37,6 +37,7 @@ import os
 from pathlib import Path
 
 from . import UsageRecord
+from ._gitname import repo_from_cwd
 
 AGENT_ID = "claude_code"
 AGENT_NAME = "Claude Code"
@@ -45,9 +46,21 @@ PRIORITY = 100
 
 # Bump when the meaning of what this parser emits changes — a new counter, a
 # different dedupe key, a corrected mapping. It travels inside the cursor, so
-# every file is re-read once after a bump and old rows are corrected in place
-# by the primary key. See _read_cursor.
-PARSE_VERSION = 1
+# every file is re-read once after a bump. See _read_cursor.
+#
+# 2: repo_name comes from the origin remote rather than the folder name, so a
+#    checkout whose directory was never renamed to match its repository
+#    (log_reporter -> github.com/frenamezian/logreporter) stops orphaning every
+#    row it produces. See _gitname.py.
+#
+# A bump invalidates stored cursors, but that is NOT what updates rows already
+# in the database: the reader skips a file whose size and mtime are unchanged
+# without consulting the cursor, and rows are written INSERT OR IGNORE on
+# request_id, so re-reading an imported request changes nothing. Correcting
+# what this parser emits for already-imported requests needs the escape hatch,
+# `python usage_reader.py --rebuild`, which is safe precisely because
+# token_usage.db is a cache and nothing else.
+PARSE_VERSION = 2
 
 # Envelope fields worth keeping. Every one of these is a short enum-like token
 # or a version string; none of them can carry message content.
@@ -132,60 +145,18 @@ def _write_cursor(offset: int) -> str:
 
 # --- repo naming ------------------------------------------------------------
 
-_repo_cache: dict[str, str | None] = {}
-
-
 def _repo_from_cwd(cwd: str | None) -> str | None:
-    """The repository name log_activity.py would have recorded for this cwd.
+    """The repository name log_activity.py records for this cwd.
 
     Transcripts record the *working directory*, which is frequently a
     subdirectory deep inside the repo. Attribution (§7) joins on repo name, so
     `.../template_project/frontend/src` has to come back as the repo, not as
-    `src`. Walk up to the nearest `.git` the way git itself does, and mirror
-    log_activity.py's conventions: a linked worktree reports the main repo so
-    worktrees stay one node, a submodule reports its own name.
-
-    No subprocess: a `git rev-parse` is ~70ms on Windows and there are hundreds
-    of distinct directories in a history. This is a stat walk plus a cache.
+    `src`. The rule — origin remote, then the folder holding `.git`, then the
+    bare directory name — lives in `_gitname` because log_activity.py and every
+    other parser have to agree with it exactly or the join silently produces
+    zeroes.
     """
-    if not cwd:
-        return None
-    if cwd in _repo_cache:
-        return _repo_cache[cwd]
-
-    name = None
-    try:
-        p = Path(cwd)
-        for d in (p, *p.parents):
-            dot = d / ".git"
-            try:
-                if dot.is_dir():
-                    name = d.name
-                    break
-                if dot.is_file():
-                    # A `.git` file points at the real git directory:
-                    #   worktree  -> <main-repo>/.git/worktrees/<id>
-                    #   submodule -> <super-repo>/.git/modules/<sub>
-                    text = dot.read_text(encoding="utf-8", errors="replace").strip()
-                    target = text[len("gitdir:"):].strip() if text.startswith("gitdir:") else ""
-                    norm = target.replace("\\", "/")
-                    if "/.git/worktrees/" in norm:
-                        name = Path(norm.split("/.git/worktrees/")[0]).name
-                    else:
-                        name = d.name          # submodule, or anything unusual
-                    break
-            except OSError:
-                continue
-        if not name:
-            # Not a git repo, or the directory no longer exists (a transcript
-            # outlives the checkout it came from). Same fallback as
-            # log_activity.py: the directory's own name.
-            name = p.name or None
-    except (OSError, ValueError):
-        name = None
-
-    _repo_cache[cwd] = name
-    return name
+    return repo_from_cwd(cwd)
 
 
 # --- parse ------------------------------------------------------------------

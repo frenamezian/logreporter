@@ -52,6 +52,7 @@ import json
 from pathlib import Path
 
 from . import UsageRecord
+from ._gitname import repo_from_cwd, repo_name_from_url  # noqa: F401  (see _repo_from_cwd)
 
 AGENT_ID = "template"
 AGENT_NAME = "Template Agent"
@@ -174,14 +175,19 @@ def _write_cursor(offset: int) -> str:
 
 
 def _repo_from_cwd(cwd):
-    """Nearest ancestor containing .git, else the directory name."""
-    if not cwd:
-        return None
-    p = Path(cwd)
-    for d in (p, *p.parents):
-        if (d / ".git").exists():
-            return d.name
-    return p.name or None
+    """The repository name, by the one rule every side of the join shares.
+
+    Do not reimplement this. Attribution (§7) joins usage rows to tasks on
+    `repo_name`, so a parser that names repositories even slightly differently
+    from `log_activity.py` does not produce slightly wrong numbers — it
+    produces zero, with every row landing in Unattributed and nothing on screen
+    saying why. `_gitname` takes the name from the origin remote and falls back
+    to the folder; it handles worktrees and submodules for you.
+
+    If your agent records the remote itself, prefer that over the cwd and use
+    `repo_name_from_url` — `parsers/antigravity.py` is the worked example.
+    """
+    return repo_from_cwd(cwd)
 
 
 # --- the scrubber -----------------------------------------------------------

@@ -84,6 +84,7 @@ The calling contract lives with each repo's harness, in its
 import argparse
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -125,6 +126,68 @@ def _git(*args):
     return r.stdout.strip() or None
 
 
+# --- naming the repository --------------------------------------------------
+#
+# Duplicated, deliberately, from parsers/_gitname.py. This script is the
+# ground-truth writer for activity_logs.db and agents in every repo invoke it
+# by absolute path; giving it an import from the parser package would mean a
+# broken parser can stop logging, which is the one failure this file may not
+# have. The rule is small and stable — if you change it, change both.
+
+_CREDS = re.compile(r"^([a-z][a-z0-9+.\-]*://)[^/@]*@", re.I)
+_SECTION_RE = re.compile(r"^\[([^\]]+)\]$")
+_REMOTE_RE = re.compile(r'^remote\s+"?([^"]+)"?$', re.I)
+
+
+def repo_name_from_url(url):
+    """The repository name from a remote URL, or None. Credentials stripped."""
+    if not isinstance(url, str) or not url.strip():
+        return None
+    u = _CREDS.sub(r"\1", url.strip()).replace("\\", "/").rstrip("/")
+    if u.lower().endswith(".git"):
+        u = u[:-4].rstrip("/")
+    name = u.rsplit("/", 1)[-1]
+    if ":" in name:
+        name = name.rsplit(":", 1)[-1]     # scp-like: git@host:name
+    return name[:64] or None
+
+
+def repo_from_git_dir(git_dir):
+    """The origin remote's repository name for a resolved git directory.
+
+    `git rev-parse --git-common-dir` has already followed a worktree or
+    submodule pointer, so `config` is simply inside it — which is why worktrees
+    report their MAIN repo (they share its config) and submodules report their
+    own, with no special case here.
+    """
+    try:
+        with open(os.path.join(git_dir, "config"), encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return None
+    urls, section = {}, None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line[0] in "#;":
+            continue
+        m = _SECTION_RE.match(line)
+        if m:
+            section = m.group(1).strip()
+            continue
+        if not section or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        if key.strip().lower() != "url":
+            continue
+        rm = _REMOTE_RE.match(section)
+        if rm:
+            urls.setdefault(rm.group(1), value.strip())
+    url = urls.get("origin")
+    if url is None and len(urls) == 1:
+        url = next(iter(urls.values()))    # sole remote, whatever it is called
+    return repo_name_from_url(url)
+
+
 def detect_repo_and_branch():
     """Both grouping keys from ONE git call. Returns (repo, branch).
 
@@ -133,13 +196,24 @@ def detect_repo_and_branch():
     log call. `rev-parse` accepts both queries at once and prints them on
     separate lines.
 
+    The repo name is the ORIGIN REMOTE's name, not the folder's. Those differ
+    more often than they look like they should — this repository lives in a
+    directory called `log_reporter` and is `github.com/frenamezian/logreporter`
+    — and the folder name is the local accident: chosen at clone time, never
+    resynchronised, and different again for every worktree and every per-task
+    clone. Usage attribution (§7) joins on this name, so a parser reading a
+    transcript's cwd has to arrive at the same string this writes; the remote
+    is the only identity both sides can see. See parsers/_gitname.py.
+
     --git-common-dir points at the shared .git of every worktree of a repo: the
     literal '.git' in a main worktree, an absolute path in a linked one — hence
-    the abspath() before taking the containing directory's name. That is what
-    makes a linked worktree log under its MAIN repo rather than under its own
-    directory, so a repo with several worktrees stays one node on the dashboard.
+    the abspath(). It is where `config`, and therefore the remote, lives. It is
+    also what makes a linked worktree log under its MAIN repo rather than under
+    its own directory, so a repo with several worktrees stays one node on the
+    dashboard.
 
-    Three shapes of common dir resolve to the right repo name:
+    Falling back to the folder when there is no usable remote, three shapes of
+    common dir resolve to the right repo name:
 
       - linked worktree: an absolute path ending in <main>/.git -> parent is
         <main>, basename is the main repo name (the case above).
@@ -157,13 +231,25 @@ def detect_repo_and_branch():
     """
     out = _git("rev-parse", "--git-common-dir", "--abbrev-ref", "HEAD")
     if not out:
-        return (os.path.basename(os.getcwd()) or None), None
+        # (None, None) means "git could not answer", not "this repo has no
+        # name". The distinction is load-bearing: resolve_scope only lets an
+        # explicit --repo through on this path, and a directory-name guess
+        # returned from here would outrank it and silently win instead.
+        return None, None
     lines = out.splitlines()
     common = lines[0].strip()
     branch = lines[1].strip() if len(lines) > 1 else ""
 
-    # Resolve the repo name from the common dir, handling the three shapes.
     abs_common = os.path.abspath(common)
+
+    # The remote is the repository's real identity; everything below is the
+    # fallback for a checkout that has none (a freshly `git init`-ed harness, a
+    # local-only scratch repo).
+    repo = repo_from_git_dir(abs_common)
+    if repo:
+        return repo, ("detached" if branch == "HEAD" else (branch or None))
+
+    # Resolve the repo name from the common dir, handling the three shapes.
     head, tail = os.path.split(abs_common)
     if tail == ".git":
         # Main worktree or linked worktree: <main>/.git -> repo is <main>.
@@ -186,6 +272,50 @@ def detect_repo_and_branch():
     repo = repo or os.path.basename(os.getcwd()) or None
 
     return repo, ("detached" if branch == "HEAD" else (branch or None))
+
+
+def resolve_scope(args):
+    """Settle repo_name and branch_name, in the order that keeps them joinable.
+
+        1. --_resolved-* from the async parent, which already did the git call
+        2. git, whenever git can answer
+        3. --repo / --branch, for a directory git knows nothing about
+        4. the directory's own name, so a row is still filed rather than refused
+
+    Git outranks the flags rather than deferring to them, which is the whole
+    point of the ordering. The two names are a join key shared with a reader
+    that never sees this database: it derives the repo from the remote of the
+    checkout a transcript recorded, so the only value that can match is the one
+    git reports. A declared name does not relabel the work, it disconnects it,
+    and the resulting task shows a confident zero rather than an error.
+
+    Rung 3 is why git returning None has to mean "could not answer" rather than
+    "no name available". If it guessed a directory name instead, that guess
+    would outrank the caller and the escape hatch would never be reachable.
+
+    A disagreement is a caller worth fixing — an old prompt with the repo
+    hardcoded — so it goes to the error log. It is not fatal and does not touch
+    the row: the row is already correct, and refusing to write it would trade a
+    stale argument for a hole in the ground truth.
+    """
+    if args.resolved_repo or args.resolved_branch:
+        args.repo = args.resolved_repo or args.repo
+        args.branch = args.resolved_branch or args.branch
+        return
+
+    declared_repo, declared_branch = args.repo, args.branch
+    repo, branch = detect_repo_and_branch()
+    args.repo = repo or declared_repo or os.path.basename(os.getcwd()) or None
+    args.branch = branch or declared_branch
+
+    # Only when git actually answered: overriding a value git never produced is
+    # the flag doing its job, not a caller contradicting it.
+    for flag, declared, derived in (("--repo", declared_repo, repo),
+                                    ("--branch", declared_branch, branch)):
+        if declared and derived and declared != derived:
+            log_error(f"ignored {flag} {declared!r}: git reports {derived!r} for "
+                      f"{os.getcwd()!r}. The grouping keys come from git; remove "
+                      f"{flag} from the caller.")
 
 
 def validate(args):
@@ -335,14 +465,14 @@ def spawn_detached_child(args):
     # Pass the original args through verbatim, plus the --_child marker so the
     # child takes the synchronous insert path instead of respawning.
     #
-    # --repo/--branch are re-appended from the PARENT's already-resolved values
-    # rather than left to the child to re-derive: argparse takes the last
-    # occurrence, so this is idempotent when they were passed explicitly, and it
-    # keeps the git detection to one call in one process. The child inherits the
-    # parent's cwd, so re-deriving would agree — it would just cost two more
-    # subprocesses per log row.
+    # The grouping keys travel as --_resolved-*, carrying the PARENT's already
+    # settled values rather than leaving the child to derive them again. The
+    # child inherits the parent's cwd so it would reach the same answer; it
+    # would just pay for another git call per log row. They cannot be re-sent
+    # as --repo/--branch: those are now outranked by git (see resolve_scope),
+    # so the child would ignore them and make exactly the call this avoids.
     child_args = [sys.executable, __file__, "--_child"] + sys.argv[1:] + [
-        "--repo", args.repo or "", "--branch", args.branch or "",
+        "--_resolved-repo", args.repo or "", "--_resolved-branch", args.branch or "",
     ]
     # DETACHED_PROCESS | CREATE_NO_WINDOW: no console, survives parent exit.
     # CREATE_BREAKAWAY_FROM_JOB: also survives the parent's *job object*, which
@@ -393,10 +523,30 @@ def main():
     p.add_argument("--sync", action="store_true",
                    help="no-op: the INSERT is synchronous by default. Overrides --async")
     p.add_argument("--timestamp", help="UTC 'YYYY-MM-DD HH:MM:SS'; auto-filled if omitted")
-    p.add_argument("--repo", "--repo-name", dest="repo",
-                   help="defaults to the main repo's name, derived from git in the caller's cwd")
-    p.add_argument("--branch", "--branch-name", dest="branch",
-                   help="defaults to the current branch, derived from git in the caller's cwd")
+    # Hidden, accepted, and outranked by git. Not part of this tool's surface:
+    # they are absent from --help and from every agent prompt, because the
+    # grouping keys are not an agent's to choose. Usage attribution joins on
+    # repo_name, and the token reader derives that name independently from the
+    # remote of the checkout a transcript recorded — it cannot see anything an
+    # agent declared. A caller that names the repo differently therefore does
+    # not shift the reporting, it detaches from it: the tokens file under a
+    # repository that exists on one side of the join only, and the task renders
+    # as having cost nothing.
+    #
+    # Still ACCEPTED rather than rejected, for two reasons. Prompts hardcoding
+    # `--repo <name>` are in circulation in other repositories, and argparse
+    # would exit 2 on them — turning a wrong repo name into no logging at all,
+    # against the one database in this system that nothing can reconstruct.
+    # And they remain the only way to name a directory that was never
+    # `git init`-ed, which is what resolve_scope() falls back to.
+    p.add_argument("--repo", "--repo-name", dest="repo", help=argparse.SUPPRESS)
+    p.add_argument("--branch", "--branch-name", dest="branch", help=argparse.SUPPRESS)
+    # Written by spawn_detached_child() only, and trusted verbatim: the parent
+    # has already paid for the git call and the child inherits its cwd, so
+    # re-deriving would agree and cost two more subprocesses per row. A caller
+    # cannot reach this path without impersonating the async dispatcher.
+    p.add_argument("--_resolved-repo", dest="resolved_repo", help=argparse.SUPPRESS)
+    p.add_argument("--_resolved-branch", dest="resolved_branch", help=argparse.SUPPRESS)
     p.add_argument("--task", "--task-title", dest="task")
     p.add_argument("--log-type", required=False, help="one of: start end activity issue decision github")
     p.add_argument("--log-title")
@@ -423,13 +573,7 @@ def main():
     p.add_argument("--_child", action="store_true", help=argparse.SUPPRESS)
     args = p.parse_args()
 
-    # Grouping keys, resolved before the required-field check so an omitted
-    # --repo is only an error when git cannot answer for it either. Skipped
-    # entirely — no git call at all — when both were passed explicitly.
-    if not args.repo or not args.branch:
-        repo, branch = detect_repo_and_branch()
-        args.repo = args.repo or repo
-        args.branch = args.branch or branch
+    resolve_scope(args)
 
     # Required fields.
     missing = [n for n in ("repo", "log_type", "log_title", "agent") if not getattr(args, n)]
