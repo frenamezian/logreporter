@@ -22,7 +22,6 @@ Capture the printed id and reuse it for every row of the task it belongs to — 
 ```
 python log_activity.py \
   --log-type <type> \
-  --repo logreporter --branch main \
   --task "<task title>" \
   --agent lead_architect --agent-path lead_architect \
   --trace-id <id> \
@@ -38,7 +37,9 @@ python log_activity.py \
   [--performance-metrics '{"execution_ms":12}'] \
   [--commit-reference <sha>]
 ```
-Required: `--log-type`, `--repo`, `--log-title`, `--agent`. `--agent-path` defaults to `--agent`. `--log-level` defaults to `info`. `--user-id` defaults to `admin`. `--timestamp` is available and takes UTC `'YYYY-MM-DD HH:MM:SS'` — see [If you notice a row is missing](#if-you-notice-a-row-is-missing).
+Required: `--log-type`, `--log-title`, `--agent`. `--agent-path` defaults to `--agent`. `--log-level` defaults to `info`. `--user-id` defaults to `admin`. `--timestamp` is available and takes UTC `'YYYY-MM-DD HH:MM:SS'` — see [If you notice a row is missing](#if-you-notice-a-row-is-missing).
+
+**Run it from inside the repository you are working on.** Your working directory decides which repository and branch every row is filed under; the tool reads both from git and there is nothing for you to pass.
 
 ### `--agent-path` is a lineage, NOT a file path
 
@@ -125,7 +126,7 @@ exists, and a tag claiming otherwise would move real tokens onto the wrong row.
 
 ## On every row
 
-- `repo_name`, `branch_name`, `task_title` — identical for every row of one task, character for character (they are the grouping keys).
+- `task_title` — identical for every row of one task, character for character. It is a grouping key: a title that drifts by one space becomes two tasks.
 - `agent_name` = `lead_architect`; `agent_path` = `lead_architect` (or your lineage if you have a parent — you don't, you're the root). One lowercase token, and it must equal the last segment of `agent_path`: `Lead Architect` in one field and `lead_architect` in the other is two agents as far as the tree is concerned.
 - `trace_id` — shared by every agent on this task.
 - `log_title` — one specific line ("Chose append-only over upsert", not "Made a decision").
@@ -176,16 +177,13 @@ Those are the only two shapes. What must never happen is one trace carrying seve
 ## When you dispatch a subagent
 
 You MUST pass, in the subagent's task prompt:
-1. The **subagent logging instructions** (`subagent_logging_instructions.md` contents), with `<name>`, `<trace_id>`, `<parent_trace_id>`, `repo_name`, `branch_name`, and `task_title` filled in.
+1. The **subagent logging instructions** (`subagent_logging_instructions.md` contents), with `<name>`, `<trace_id>`, `<parent_trace_id>`, and `<task_title>` filled in.
 2. The current `task_title` to use for every row the subagent writes (the same as yours, unless the subagent is a genuinely independent task — in which case you mint a new trace first and pass that).
-3. `repo_name` = `logreporter`, `branch_name` = `main`.
 
 You are responsible for: minting the trace before the first `start` row of a task; passing it to every subagent; and writing the task's `end` row after all subagents for that task have finished (or letting the last subagent write it if the task is fully delegated).
 
 ## Suggested conventions for this implementation
 
-- `repo_name`: `logreporter`
-- `branch_name`: `main`
 - `task_title`: one per phase, e.g. `"Reorganize files"`, `"Implement header dropdown"`, `"Implement hierarchy page"`, `"Port help guide"`.
 - For subagents, use the component name as `agent_name`, e.g. `header_agent`, and `agent_path` = `lead_architect/header_agent`.
 
@@ -195,7 +193,7 @@ You are responsible for: minting the trace before the first `start` row of a tas
 $ python mint_trace.py
 9f2c41a8
 
-$ python log_activity.py --log-type start --repo logreporter --branch main \
+$ python log_activity.py --log-type start \
     --task "Implement header dropdown" --agent lead_architect \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "Started header dropdown task" --log-level info \
@@ -205,13 +203,13 @@ $ python log_activity.py --log-type start --repo logreporter --branch main \
 # ... dispatch header_agent subagent, passing trace 9f2c41a8 as its trace_id
 #     and 9f2c41a8 as its parent_trace_id ...
 
-$ python log_activity.py --log-type activity --repo logreporter --branch main \
+$ python log_activity.py --log-type activity \
     --task "Implement header dropdown" --agent lead_architect \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "Wired header_agent output into app-shell.js" --log-level info
 # prints the new row id
 
-$ python log_activity.py --log-type end --repo logreporter --branch main \
+$ python log_activity.py --log-type end \
     --task "Implement header dropdown" --agent lead_architect \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "Finished header dropdown" --log-level info --status completed
@@ -224,7 +222,7 @@ After committing (e.g. `git rev-parse HEAD` → `a1b2c3d4e5f67890123456789012345
 `git log -1 --format=%h` → `a1b2c3d4`):
 
 ```
-$ python log_activity.py --log-type github --repo logreporter --branch main \
+$ python log_activity.py --log-type github \
     --task "Implement header dropdown" --agent lead_architect \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "commit a1b2c3d4: Add header dropdown" \

@@ -183,7 +183,7 @@ Delete the test row from the **Maintenance** page when you are done.
 Paste the contents of **[`orchestrator_logging_instructions.md`](orchestrator_logging_instructions.md)** into your lead agent's system prompt, with two edits:
 
 1. Replace every `python log_activity.py` / `python mint_trace.py` with the **absolute** path.
-2. **Delete the `--repo` and `--branch` flags.** The shipped file hardcodes `--repo logreporter --branch main` because that is what this project's own agents used. Dropping them is what makes the prompt portable — git fills both in correctly, per repo, per branch, with no editing.
+2. That is the whole edit. The shipped files pass no `--repo` or `--branch`, so git fills both in correctly, per repo, per branch, with no editing. (They used to hardcode `--repo logreporter --branch main`, which is how this project's own token usage came to be attributed to a repository that existed on only one side of the join.)
 
 Here is the portable form, ready to paste (replace `<LOGGER>` and `<MINTER>`):
 
@@ -329,17 +329,26 @@ Then set `LOGREPORTER_DB` for your agents. Note that **`serve.py` still serves t
 
 ### Repository and branch detection
 
-`detect_repo_and_branch()` makes one `git rev-parse` call and handles the cases that would otherwise scatter your data:
+`detect_repo_and_branch()` makes one `git rev-parse` call, reads the remote out of the git directory it points at, and handles the cases that would otherwise scatter your data:
 
 | Situation | What you get |
 | --- | --- |
-| Normal checkout | the repo directory name, and the current branch |
+| Normal checkout | the **origin remote's** repository name, and the current branch |
+| Folder renamed, or never named after the repo | still the remote's name — `log_reporter/` on disk logs as `logreporter` |
 | Linked worktree | the **main** repo's name, so worktrees stay one node instead of several |
+| Per-task clone in its own folder | the repo it was cloned from, not the folder |
 | Submodule | the submodule's own name, not `modules` |
 | Detached HEAD | branch reads `detached` rather than being blank |
+| No remote configured | the folder holding `.git`, with the worktree and submodule rules above |
 | Not a git repo | the directory's name, and no branch |
 
-Override either with `--repo` / `--branch` when you need to — for example to log CI work under a fixed name. Passing both skips the git call entirely, which is the fastest path (a git subprocess is ~70ms on Windows and is most of the cost of a log call).
+**The repo name comes from the remote, not the folder**, because the folder name is a local accident — chosen at clone time, never resynchronised, and different for every worktree. Token-usage attribution joins on this name, and the usage reader can only observe the checkout a transcript recorded; the remote is the one identity both sides see. `parsers/_gitname.py` implements the same rule for parsers, and the two must agree exactly or the join yields zeroes rather than approximations.
+
+**Neither is an agent's to choose, so neither is part of the tool's surface.** `--repo` and `--branch` do not appear in `--help` or in either agent prompt. They are still accepted, and they are outranked: git wins whenever git can answer, and a passed value is used only for a directory git knows nothing about — one that has never been `git init`-ed.
+
+The ordering is what keeps the two databases joinable. `repo_name` is a key shared with a reader that never sees `activity_logs.db`: it derives the repo from the remote of the checkout a transcript recorded, so the only value that can match is the one git reports. A declared name does not relabel the work, it detaches it, and the task then renders as having cost nothing rather than as an error. That is not a hypothetical — it is how this project's own 76M tokens went missing.
+
+They remain accepted rather than rejected because prompts hardcoding `--repo <name>` are in circulation, and `argparse` would exit 2 on them: a wrong repo name would become no logging at all, against the one database here that nothing can reconstruct. Such a call now writes the correct row and leaves a line in `log_activity_errors.log` naming the caller to fix.
 
 ### Synchronous vs asynchronous
 
@@ -382,7 +391,7 @@ The two instruction files are meant to be **copied into your agents' prompts**, 
 ### Change these to fit your setup
 
 - **The tool paths.** Absolute, always.
-- **Drop `--repo` / `--branch`** unless you deliberately want a fixed name.
+- **Nothing about the repo or branch.** git supplies both; the prompts do not mention them.
 - **Agent names and lineage.** `lead_architect` is just this project's convention. Use whatever your roles are called; only the `/`-separated lineage shape matters.
 - **Task titles.** Whatever unit of work makes sense — a ticket id, a phase, a feature. One title per task.
 - **Tags.** Free-form `#tokens`. The only ones the UI reads are the git actions on `github` rows: `#pull #push #commit #add #delete`.
@@ -426,7 +435,7 @@ The database grows by a few hundred bytes per row, more if your agents write lon
 | Header says **Demo data** | The page is not being served over `http://`, or `activity_logs.db` is missing. Start it with `python serve.py` and check the file exists. |
 | `activity_logs.db not found at …` from an agent | The database was never created. Run `bash seed/init_db.sh`, or the empty-database snippet in [Quick start](#quick-start). |
 | Agent says it logged, nothing appears | Async writes report failures to `log_activity_errors.log` next to the database. Check it. Re-run the same call with `--sync` to see the error directly. |
-| Rows land under the wrong repository | The agent's working directory is not what you think. Pass `--repo` / `--branch` explicitly, or `cd` first. |
+| Rows land under the wrong repository | The agent's working directory is not what you think — `cd` into the right checkout before logging. If a caller passes `--repo`, git overrides it and says so in `log_activity_errors.log`. |
 | A task shows huge idle time | Something ran without logging, or an `end` row never arrived. Both are real findings, not display bugs. |
 | Deleting does nothing / says **NOT saved** | The page is being served by something other than `serve.py` (e.g. `python -m http.server`), so the delete endpoint is missing. Use `serve.py`. |
 | Nothing renders, console shows a CDN error | `sql.js` could not be fetched. See below. |
