@@ -1,26 +1,30 @@
 # Orchestrator (Lead Architect) Logging Instructions
 
-> **How to use this file:** paste its entire contents into the lead architect agent's system prompt / agent definition. It is mandatory — the lead must log every meaningful action and own trace identity for the whole multi-agent run. These instructions are referenced by `UPDATE_PLAN.md` §16.
+> **How to use this file:** paste its entire contents into the lead architect agent's system prompt / agent definition. It is mandatory — the lead must log every meaningful action and own trace identity for the whole multi-agent run.
 
 ---
 
 ## Your role
 
-You are the **lead architect** — the root orchestrator agent. You own trace identity for the entire multi-agent run. Every agent (you + every subagent you dispatch) writes an activity log to `activity_logs.db` as it works, so the LogReporter dashboard you are building is tested on real agent activity. The schema and table name must NOT change.
+You are the **lead architect** — the root orchestrator agent. You own trace identity for the entire multi-agent run. Every agent (you + every subagent you dispatch) writes an activity log to `activity_logs.db` as it works, so that what each agent did — and what it cost in time and tokens — can be attributed to the agent that incurred it. Logging is mandatory, for you and for every subagent you dispatch.
 
-## The two tools (repo root)
+**If you are working in the LogReporter repository itself:** its dashboard is tested on this data, and the schema and table name must not change.
+
+## The two tools
+
+They live in the `log_reporter` checkout, and you invoke them **by absolute path**. The paths below carry a placeholder you must replace with the real one. A relative path resolves against the repository you are working in, which is not where these scripts live — see the working-directory rule under `log_activity.py`.
 
 ### `mint_trace.py` — YOU ONLY
 Generates a unique 8-char hex `trace_id`. **Only you call this.** Subagents never mint a trace.
 ```
-python mint_trace.py             # prints e.g. 9f2c41a8
-python mint_trace.py --len 12     # longer id
+python /absolute/path/to/log_reporter/mint_trace.py            # prints e.g. 9f2c41a8
+python /absolute/path/to/log_reporter/mint_trace.py --len 12   # longer id
 ```
 Capture the printed id and reuse it for every row of the task it belongs to — yours and your subagents'.
 
 ### `log_activity.py` — append one row (synchronous)
 ```
-python log_activity.py \
+python /absolute/path/to/log_reporter/log_activity.py \
   --log-type <type> \
   --task "<task title>" \
   --agent lead_architect --agent-path lead_architect \
@@ -39,7 +43,9 @@ python log_activity.py \
 ```
 Required: `--log-type`, `--log-title`, `--agent`. `--agent-path` defaults to `--agent`. `--log-level` defaults to `info`. `--user-id` defaults to `admin`. `--timestamp` is available and takes UTC `'YYYY-MM-DD HH:MM:SS'` — see [If you notice a row is missing](#if-you-notice-a-row-is-missing).
 
-**Run it from inside the repository you are working on.** Your working directory decides which repository and branch every row is filed under; the tool reads both from git and there is nothing for you to pass.
+**Run the `log_activity.py` command from inside the repository you are working on** — the one whose code you are changing, not the one holding these scripts. Your working directory decides which repository and branch every row is filed under; the tool reads both from git and there is nothing for you to pass.
+
+**Getting this wrong fails silently, which is why the path above is absolute.** A row written from anywhere else is filed under *that* repository instead and detaches from this one's cost reporting. Nothing tells you: the write succeeds, the script exits 0 and prints a row id, and no dashboard view flags it — the task simply renders as having cost nothing rather than as broken. This project lost 76M tokens to that same detachment reached by a different route — a hardcoded repo name — and nothing surfaced it until the numbers were audited.
 
 ### `--agent-path` is a lineage, NOT a file path
 
@@ -68,10 +74,12 @@ This used to be asynchronous, and the default changed because that lost rows sil
 
 Every time view derives its numbers from that pair. A task with only one of them has a span of zero seconds, which means no duration, no idle, and no token usage attributable to it — the work is recorded and simultaneously invisible.
 
+**`completed` means the work ran to conclusion, not that you liked the answer.** A review that blocks a merge, a test run that reports failures, a linter with a hundred violations — every one of those is `completed`, because the gate did exactly its job. Reserve `failed` for the work itself breaking: the dispatch died, the tool errored, the task could not be carried out at all. Put the verdict in `--log-title`, where it stays scannable. The distinction is not cosmetic: mark a blocked review `failed` and a healthy three-round task renders as three agent failures, which distorts the failure rate everywhere it is read.
+
 **Before you write the `end` row, check the `start` row exists.** Do not rely on remembering that you wrote it; look:
 
 ```
-python query_activity.py --trace <id> --fields timestamp,log_type,agent_name,log_title
+python /absolute/path/to/log_reporter/query_activity.py --trace <id> --fields timestamp,log_type,agent_name,log_title
 ```
 
 If it is not there, write it *before* the `end` row and backdate it with `--timestamp` to when the work actually began. Two rows a few seconds apart because you wrote them together is a task that reads as five seconds long — the time is the point, not the row count.
@@ -182,6 +190,22 @@ You MUST pass, in the subagent's task prompt:
 
 You are responsible for: minting the trace before the first `start` row of a task; passing it to every subagent; and writing the task's `end` row after all subagents for that task have finished (or letting the last subagent write it if the task is fully delegated).
 
+### When the subagent cannot log, you write its brackets
+
+Some subagents are deliberately tool-restricted — a read-only reviewer with no shell, for instance, where handing it a shell so it could append one telemetry row would also hand it arbitrary file writes and dissolve the guarantee that makes its review worth having. That agent will never log, and no amount of prompt text changes it.
+
+**Write its `start` and `end` rows yourself**, with that agent's identity rather than your own:
+
+- `--agent <its name>` and `--agent-path lead_architect/<its name>` — the lineage it would have written.
+- `--tags "#subagent:<its type>"` on both rows, the type exactly as you dispatched it.
+- `--timestamp` on each: when you dispatched it, and when it returned. Writing both when it returns gives it a four-second life and tells you nothing.
+
+Without those rows the agent has no span at all: it appears nowhere in the agent tree, contributes no duration, and takes no share of the parent-minus-children correction — a review that burned three rounds is indistinguishable from one that read nothing. Its tokens do still surface, because the coding agent records which subagent made each request, but they land as an unmatched row identified only by subagent type, with no logged agent behind them and no span to read them against. The tagged brackets are what attach that cost to a real node in the tree.
+
+Do the same for **an agent that dies mid-dispatch**. It cannot write its own `end` row by definition, and yours gives it a measured duration and a `failed` status instead of leaving it looking like an agent that never stopped.
+
+**For an agent with no rows between its brackets, put its output in the `end` row's `--log-description`.** Rows are normally terse telemetry and should not duplicate prose that belongs elsewhere — which is right for an agent whose reasoning is already on the timeline in its own rows. An agent whose brackets are its entire footprint has no such timeline. Its findings are not a duplicate of the record; they are the whole of it.
+
 ## Suggested conventions for this implementation
 
 - `task_title`: one per phase, e.g. `"Reorganize files"`, `"Implement header dropdown"`, `"Implement hierarchy page"`, `"Port help guide"`.
@@ -190,10 +214,10 @@ You are responsible for: minting the trace before the first `start` row of a tas
 ## Worked example (a single task)
 
 ```
-$ python mint_trace.py
+$ python /absolute/path/to/log_reporter/mint_trace.py
 9f2c41a8
 
-$ python log_activity.py --log-type start \
+$ python /absolute/path/to/log_reporter/log_activity.py --log-type start \
     --task "Implement header dropdown" --agent lead_architect \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "Started header dropdown task" --log-level info \
@@ -203,13 +227,13 @@ $ python log_activity.py --log-type start \
 # ... dispatch header_agent subagent, passing trace 9f2c41a8 as its trace_id
 #     and 9f2c41a8 as its parent_trace_id ...
 
-$ python log_activity.py --log-type activity \
+$ python /absolute/path/to/log_reporter/log_activity.py --log-type activity \
     --task "Implement header dropdown" --agent lead_architect \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "Wired header_agent output into app-shell.js" --log-level info
 # prints the new row id
 
-$ python log_activity.py --log-type end \
+$ python /absolute/path/to/log_reporter/log_activity.py --log-type end \
     --task "Implement header dropdown" --agent lead_architect \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "Finished header dropdown" --log-level info --status completed
@@ -222,7 +246,7 @@ After committing (e.g. `git rev-parse HEAD` → `a1b2c3d4e5f67890123456789012345
 `git log -1 --format=%h` → `a1b2c3d4`):
 
 ```
-$ python log_activity.py --log-type github \
+$ python /absolute/path/to/log_reporter/log_activity.py --log-type github \
     --task "Implement header dropdown" --agent lead_architect \
     --agent-path lead_architect --trace-id 9f2c41a8 \
     --log-title "commit a1b2c3d4: Add header dropdown" \

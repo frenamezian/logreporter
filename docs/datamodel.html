@@ -11,7 +11,7 @@
 <tr><td>log_title</td><td>TEXT</td><td>One line, specific. Shown in every list.</td></tr>
 <tr><td>log_description</td><td>TEXT</td><td>The prose. A snippet in lists, in full in the detail panel.</td></tr>
 <tr><td>log_level</td><td>TEXT</td><td>debug · info · warning · error</td></tr>
-<tr><td>status</td><td>TEXT</td><td>pending · in_progress · failed · completed. Only read on <code>end</code> rows, where it becomes the task's state.</td></tr>
+<tr><td>status</td><td>TEXT</td><td>pending · in_progress · failed · completed. Only read on <code>end</code> rows, where it becomes the task's state. The convention: <code>completed</code> whenever the agent ran to conclusion — a gate reporting problems is a gate working — and <code>failed</code> only when the work itself broke.</td></tr>
 <tr><td>priority</td><td>TEXT</td><td>low · medium · high · critical</td></tr>
 <tr><td>agent_name</td><td>TEXT</td><td>The agent that wrote the row; shown in the entry lists.</td></tr>
 <tr><td>agent_path</td><td>TEXT</td><td>Slash-delimited lineage of <em>agents</em>, e.g. <code>lead_architect/task_executor</code> — never a file path. Groups runs, drives indentation, and is what "own time" subtracts along. Every <code>/</code>-separated segment becomes an agent, so a filesystem path written here invents one agent per directory.</td></tr>

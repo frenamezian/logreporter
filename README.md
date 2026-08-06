@@ -182,7 +182,7 @@ Delete the test row from the **Maintenance** page when you are done.
 
 Paste the contents of **[`orchestrator_logging_instructions.md`](orchestrator_logging_instructions.md)** into your lead agent's system prompt, with two edits:
 
-1. Replace every `python log_activity.py` / `python mint_trace.py` with the **absolute** path.
+1. Replace every `/absolute/path/to/log_reporter/` placeholder with the real absolute path.
 2. That is the whole edit. The shipped files pass no `--repo` or `--branch`, so git fills both in correctly, per repo, per branch, with no editing. (They used to hardcode `--repo logreporter --branch main`, which is how this project's own token usage came to be attributed to a repository that existed on only one side of the join.)
 
 Here is the portable form, ready to paste (replace `<LOGGER>` and `<MINTER>`):
@@ -193,7 +193,7 @@ Here is the portable form, ready to paste (replace `<LOGGER>` and `<MINTER>`):
 You are the **lead architect** — the root agent. You own trace identity for the
 whole run. Log every meaningful step to LogReporter as you work.
 
-### Tools (absolute paths — call them from wherever you are)
+### Tools (absolute paths — because you call them from elsewhere)
 
     python <MINTER>                    # mint a trace_id — YOU ONLY, never a subagent
     python <LOGGER> --log-type <type> --task "<title>" \
@@ -204,17 +204,23 @@ whole run. Log every meaningful step to LogReporter as you work.
 
 Required: `--log-type`, `--log-title`, `--agent`. **Do not pass `--repo` or
 `--branch`** — they are derived from git in your working directory, which is
-what makes one prompt work in every repository. The call is synchronous: it
+what makes one prompt work in every repository. **Run the logger from inside
+the repository you are working on**, not from the one holding these scripts: a
+row written elsewhere is filed under that repository instead and silently
+detaches from this one's cost reporting — the write succeeds, prints a row id,
+and the task renders as having cost nothing. The call is synchronous: it
 validates, writes the row, prints its id and returns — so if it returned
 successfully, the row is in the database.
 
 ### Bracket every task
 
 - First action on a task: a `start` row.
-- Last action, always, even on failure: an `end` row with the final `--status`
-  (`completed` or `failed`). Durations and idle time are derived from this
-  pair — a missing `end` erases everything after your last log from every time
-  view.
+- Last action, always, even on failure: an `end` row with the final `--status`.
+  `completed` whenever the work ran to conclusion — a review that blocks or a
+  test run that reports failures is a gate working, not a failure; `failed`
+  only when the work itself broke. Put the verdict in `--log-title`.
+- Durations and idle time are derived from that pair — a missing `end` erases
+  everything after your last log from every time view.
 
 ### Between the brackets, one row per meaningful step
 
@@ -241,6 +247,14 @@ Include the subagent logging block in its prompt with `<name>`, `<trace_id>`,
 `<parent_trace_id>` and `<task_title>` filled in. `task_title` must be
 identical, character for character, across every row of one task — it is a
 grouping key.
+
+If the subagent is too tool-restricted to log at all — a read-only reviewer
+with no shell — **you write its `start` and `end` rows for it**, using its
+`--agent`, its `--agent-path`, its `--tags "#subagent:<type>"`, and
+`--timestamp` set to when you dispatched it and when it returned. Otherwise it
+has no span: no place in the tree, no duration, and its token cost floats with
+no agent behind it. Put its output in the `end` row's `--log-description` —
+those two rows are the only record of it there will ever be.
 
 Do NOT log per token, per line or inside tight loops. One row per step a human
 would want to see. Silence between rows is reported as idle time, so log before
@@ -390,19 +404,20 @@ The two instruction files are meant to be **copied into your agents' prompts**, 
 
 ### Change these to fit your setup
 
-- **The tool paths.** Absolute, always.
+- **The tool paths.** Absolute, always. The prompts ship `/absolute/path/to/log_reporter/` as a placeholder precisely so that copying them verbatim yields something that visibly must be edited rather than something that silently half-works. A relative path resolves against the repository the agent is working in — which, by the rule directly below, is never the one holding these scripts.
 - **Nothing about the repo or branch.** git supplies both; the prompts do not mention them.
+- **The "if you are working in the LogReporter repository itself" line.** One sentence near the top of both prompts, saying this dashboard is tested on the data and the schema must not change. True only here — delete it from your copy. The sentence above it, on what the logging is for, holds in any repo.
 - **Agent names and lineage.** `lead_architect` is just this project's convention. Use whatever your roles are called; only the `/`-separated lineage shape matters.
 - **Task titles.** Whatever unit of work makes sense — a ticket id, a phase, a feature. One title per task.
 - **Tags.** Free-form `#tokens`. The only ones the UI reads are the git actions on `github` rows: `#pull #push #commit #add #delete`.
-- **The `UPDATE_PLAN.md §16` references** at the bottom of both files — that document is specific to this repository's own build history. Point them at your own contract, or delete the line.
 
 ### Do not change these
 
 | Rule | Why |
 | --- | --- |
-| Every agent writes a `start` row and an `end` row | Every duration and every idle gap is derived from that pair. No `end`, no time. |
-| `repo_name` + `branch_name` + `task_title` identical across a task, character for character | They are the grouping key. A title that drifts by one space becomes two tasks with two wall clocks. |
+| Every agent gets a `start` row and an `end` row — written by the agent, or by its dispatcher when it is too tool-restricted to log for itself | Every duration and every idle gap is derived from that pair. No `end`, no time. |
+| `completed` for any agent that ran to conclusion; `failed` only when the work itself broke | A gate reporting problems is a gate working. Mark a blocked review `failed` and a healthy three-round task renders as three agent failures, which makes the failure rate unreadable. |
+| `task_title` identical across every row of a task, character for character | With `repo_name` and `branch_name` it forms the grouping key, and it is the only one of the three an agent controls — git derives the other two per invocation. A title that drifts by one space becomes two tasks with two wall clocks. |
 | `agent_path` is the real lineage | It builds the agent tree, the waterfall indentation, and the parent-minus-children "own time" correction. |
 | One `trace_id` per task, minted by the lead, reused by every subagent | The trace timeline is how a multi-agent run reads as one sequence. A trace per subagent detaches the work. |
 | Log before waiting on something slow | Silence is reported as idle time. That is the honest reading — but it is only useful if agents mark the difference between waiting and being finished. |

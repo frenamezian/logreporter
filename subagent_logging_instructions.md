@@ -1,18 +1,23 @@
 # Subagent Logging Instructions
 
-> **How to use this file:** the lead architect pastes this entire block into every subagent's task prompt, with the placeholders (`<name>`, `<trace_id>`, `<parent_trace_id>`, `<task_title>`) filled in. It is mandatory — every dispatched subagent must log its activity. These instructions are referenced by `UPDATE_PLAN.md` §16.
+> **How to use this file:** the lead architect pastes this entire block into every subagent's task prompt, with the placeholders (`<name>`, `<trace_id>`, `<parent_trace_id>`, `<task_title>`) filled in. It is mandatory — every dispatched subagent must log its activity.
 
 ---
 
 ## Your role
 
-You are a **subagent** dispatched by the lead architect. You write an activity log to `activity_logs.db` as you work, so the LogReporter dashboard is tested on real agent activity. The schema and table name must NOT change.
+You are a **subagent** dispatched by the lead architect. You write an activity log to `activity_logs.db` as you work, so that what each agent did — and what it cost in time and tokens — can be attributed to the agent that incurred it. Logging is mandatory, for you and for any subagent you dispatch in turn.
+
+**If you are working in the LogReporter repository itself:** its dashboard is tested on this data, and the schema and table name must not change.
 
 ## The one tool you use
 
 ### `log_activity.py` — append one row (synchronous)
+
+It lives in the `log_reporter` checkout, and you invoke it **by absolute path**. The path below carries a placeholder the lead must replace with the real one. A relative path resolves against the repository you are working in, which is not where the script lives.
+
 ```
-python log_activity.py \
+python /absolute/path/to/log_reporter/log_activity.py \
   --log-type <type> \
   --task "<task title>" \
   --agent <name> --agent-path lead_architect/<name> \
@@ -31,7 +36,9 @@ python log_activity.py \
 ```
 Required: `--log-type`, `--log-title`, `--agent`. `--agent-path` defaults to `--agent`. `--log-level` defaults to `info`. `--user-id` defaults to `admin`. `--timestamp` is available and takes UTC `'YYYY-MM-DD HH:MM:SS'` — see [If you notice a row is missing](#if-you-notice-a-row-is-missing).
 
-**Run it from inside the repository you are working on.** Your working directory decides which repository and branch every row is filed under; the tool reads both from git and there is nothing for you to pass.
+**Run the `log_activity.py` command from inside the repository you are working on** — the one whose code you are changing, not the one holding the script. Your working directory decides which repository and branch every row is filed under; the tool reads both from git and there is nothing for you to pass.
+
+**Getting this wrong fails silently, which is why the path above is absolute.** A row written from anywhere else is filed under *that* repository instead and detaches from this one's cost reporting. Nothing tells you: the write succeeds, the script exits 0 and prints a row id, and no dashboard view flags it — the work simply renders as having cost nothing rather than as broken. This project lost 76M tokens to that same detachment reached by a different route — a hardcoded repo name — and nothing surfaced it until the numbers were audited.
 
 ### `--agent-path` is a lineage, NOT a file path
 
@@ -83,10 +90,14 @@ If the `task_title` you were given and the `trace_id` you were given do not obvi
 
 Every time view derives its numbers from that pair. A portion with only one of them has a span of zero seconds, which means no duration, no idle, and no token usage attributable to you — your work is recorded and simultaneously invisible.
 
+**`completed` means you ran to conclusion, not that you liked the answer.** If you are a gate — a reviewer, a test run, a linter — reporting problems is you working correctly, and that is `completed`. Reserve `failed` for your own work breaking: the tool errored, you were blocked, the portion could not be carried out at all. Put the verdict in `--log-title`, where it stays scannable. Mark a blocked review `failed` and a healthy three-round task renders as three agent failures, which distorts the failure rate everywhere it is read.
+
+**Unless the lead told you it writes your brackets, they are yours.** Some subagents are tool-restricted to the point of being unable to log at all, and their dispatcher writes the `start` and `end` rows on their behalf; if you were told that is your case, do not write them too — two starts and two ends read as a longer, messier span than one of each.
+
 **Before you write the `end` row, check the `start` row exists.** Do not rely on remembering that you wrote it; look:
 
 ```
-python query_activity.py --trace <trace_id> --fields timestamp,log_type,agent_name,log_title
+python /absolute/path/to/log_reporter/query_activity.py --trace <trace_id> --fields timestamp,log_type,agent_name,log_title
 ```
 
 If it is not there, write it *before* the `end` row and backdate it with `--timestamp` to when you actually began. Two rows a few seconds apart because you wrote them together is work that reads as five seconds long — the time is the point, not the row count.
@@ -144,21 +155,21 @@ Silence between rows is reported as idle time, so log when you begin waiting on 
 Given by the lead: `name=header_agent`, `trace_id=9f2c41a8`, `parent_trace_id=9f2c41a8`, `task_title="Implement header dropdown"`.
 
 ```
-$ python log_activity.py --log-type start \
+$ python /absolute/path/to/log_reporter/log_activity.py --log-type start \
     --task "Implement header dropdown" --agent header_agent \
     --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
     --parent-trace-id 9f2c41a8 --log-title "Started header dropdown component" \
     --log-level info --status in_progress
 # prints the new row id; the row is already written
 
-$ python log_activity.py --log-type activity \
+$ python /absolute/path/to/log_reporter/log_activity.py --log-type activity \
     --task "Implement header dropdown" --agent header_agent \
     --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
     --parent-trace-id 9f2c41a8 --log-title "Read prototype header markup (L32-53)" \
     --log-level info
 # prints the new row id
 
-$ python log_activity.py --log-type decision \
+$ python /absolute/path/to/log_reporter/log_activity.py --log-type decision \
     --task "Implement header dropdown" --agent header_agent \
     --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
     --parent-trace-id 9f2c41a8 \
@@ -167,7 +178,7 @@ $ python log_activity.py --log-type decision \
     --log-level info
 # prints the new row id
 
-$ python log_activity.py --log-type end \
+$ python /absolute/path/to/log_reporter/log_activity.py --log-type end \
     --task "Implement header dropdown" --agent header_agent \
     --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
     --parent-trace-id 9f2c41a8 --log-title "Finished header dropdown component" \
@@ -181,7 +192,7 @@ After committing (e.g. `git rev-parse HEAD` → `a1b2c3d4e5f67890123456789012345
 `git log -1 --format=%h` → `a1b2c3d4`):
 
 ```
-$ python log_activity.py --log-type github \
+$ python /absolute/path/to/log_reporter/log_activity.py --log-type github \
     --task "Implement header dropdown" --agent header_agent \
     --agent-path lead_architect/header_agent --trace-id 9f2c41a8 \
     --parent-trace-id 9f2c41a8 \

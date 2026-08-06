@@ -109,7 +109,7 @@ python &lt;LOGGER&gt; --sync --log-type start \
 <h4>7 · Give your lead agent the orchestrator prompt</h4>
 <p>Paste the contents of <code>orchestrator_logging_instructions.md</code> (repository root) into your lead agent's system prompt, with <strong>one edit</strong>:</p>
 <ol>
-<li>Replace every <code>python log_activity.py</code> and <code>python mint_trace.py</code> with the <strong>absolute</strong> paths from step 5.</li>
+<li>Replace every <code>/absolute/path/to/log_reporter/</code> placeholder with the real path from step 5.</li>
 </ol>
 <p>That is the whole change. The shipped prompt passes no <code>--repo</code> or <code>--branch</code>, so git fills both in correctly per repository and per branch with no editing — which is what makes one prompt portable. It used to hardcode <code>--repo logreporter --branch main</code>, and that is precisely how this project's own token usage came to be filed under a repository that existed on only one side of the join.</p>
 <p>What the prompt asks the agent to do, in short:</p>
@@ -120,7 +120,7 @@ python &lt;LOGGER&gt; --log-type &lt;type&gt; --task "&lt;title&gt;" \
   [--log-level info] [--status in_progress] [--tags "#x #y"] \
   [--error-details "..."] [--commit-reference &lt;sha&gt;]</pre>
 <ul>
-<li><strong>Bracket every task</strong> — a <code>start</code> row first, an <code>end</code> row last <em>even on failure</em>, carrying the final <code>--status</code>.</li>
+<li><strong>Bracket every task</strong> — a <code>start</code> row first, an <code>end</code> row last <em>even on failure</em>, carrying the final <code>--status</code>: <code>completed</code> whenever the agent ran to conclusion, <code>failed</code> only when the work itself broke. A review that blocks or a test run that reports failures is a gate working, and marking it <code>failed</code> turns a healthy task into a run of agent failures.</li>
 <li><strong>One row per meaningful step</strong> between them: <code>activity</code>, <code>decision</code>, <code>issue</code>, <code>github</code>. Not per token, not per line, not inside loops.</li>
 <li><strong>The lead owns trace identity.</strong> One trace per task, reused by every row of that task including its subagents'.</li>
 </ul>
@@ -134,6 +134,7 @@ python &lt;LOGGER&gt; --log-type &lt;type&gt; --task "&lt;title&gt;" \
 <tr><td><code>&lt;parent_trace_id&gt;</code></td><td>the lead's trace</td><td><code>9f2c41a8</code></td></tr>
 <tr><td><code>&lt;task_title&gt;</code></td><td>the lead's exact task title</td><td><code>task_0350 - Fix docstring</code></td></tr>
 </tbody></table>
+<p><strong>A subagent that cannot log is bracketed by whoever dispatched it.</strong> Some are deliberately tool-restricted — a read-only reviewer with no shell, where granting it one so it could append a row would also grant it arbitrary writes. The lead writes that agent's <code>start</code> and <code>end</code> rows on its behalf, using the agent's own <code>--agent</code>, <code>--agent-path</code> and <code>#subagent:</code> tag, with <code>--timestamp</code> set to when it was dispatched and when it returned. Without them the agent has no span: no place in the tree, no duration, and its token cost floating with no agent behind it. The same applies to an agent that dies mid-dispatch — the lead's rows give it a measured duration instead of an open end.</p>
 
 <div class="help-callout"><strong>Three things that quietly ruin the output if you get them wrong.</strong>
 A missing <code>end</code> row erases everything after the agent's last log from every time view — the run is closed at its last event.
