@@ -53,6 +53,17 @@
   --cat-mid: #8a8582;
   --cat-idle: repeating-linear-gradient(135deg, #8a8582 0 4px, transparent 4px 8px);
 
+  /* MAX EMPHASIS — the page's one non-red flood (owner decision 2026-08-06).
+     Amber rather than another red, because red is already the brand accent
+     and the poster band: a second red would read as more of the same instead
+     of as a different voice. It rhymes with --log-decision, the amber in the
+     hero panel, so it is new to the page but not foreign to it. Deliberately
+     outside the ink/paper/red palette — that is the point. Ink on amber
+     measures 13.3:1, and the pair holds in both themes (amber glows on
+     charred paper), so it is declared once here. */
+  --pop: #ffd166;
+  --on-pop: #201e1d;
+
   /* Hero log panel row-type colors — tuned for the dark panel, same in
      both themes because the panel stays dark(ish) in both. */
   --log-activity: #ff8a75;
@@ -237,6 +248,7 @@ h3 { font-size: 21px; font-weight: 700; }
 .btn-ghost { border-color: transparent; }
 .meta-line { color: var(--muted); font-size: 14.5px; }
 .meta-line strong { color: var(--ink); font-weight: 700; }
+.laugh { font-size: 1.2em; vertical-align: -0.12em; }
 .meta-line a { color: inherit; }
 
 /* The live log panel — the page's one animated element. */
@@ -379,15 +391,24 @@ figure { margin: 0; }
 .scroll-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* The prior-art aside. */
+/* The prior-art claim is the page's boldest small object: an amber flood
+   with ink type, a 3px ink rule, and an oversize check. Type is 30% up on
+   the surrounding cards, so it reads as the loudest thing in the section
+   without needing a second red. */
 .punchline {
-  display: grid; grid-template-columns: auto 1fr; gap: 18px;
-  margin-top: 20px; padding: 20px 24px;
-  background: var(--bg); border: 2px solid var(--cat-mid);
+  display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: start;
+  margin-top: 20px; padding: 26px 30px;
+  background: var(--pop); color: var(--on-pop); border: 3px solid var(--ink);
 }
-.punchline-icon { width: 14px; height: 14px; margin-top: 5px; background: var(--accent); font-size: 0; }
-.punchline h3 { margin: 0 0 8px; font-size: 19px; }
-.punchline p { margin: 0; color: var(--muted); font-size: 16.5px; }
-@media (max-width: 700px) { .punchline { grid-template-columns: 1fr; gap: 10px; } }
+.punchline-icon { font-size: 56px; line-height: 1; width: auto; height: auto; background: none; }
+.punchline h3 { margin: 0 0 10px; font-size: 25px; color: var(--on-pop); }
+.punchline p { margin: 0; color: var(--on-pop); font-size: 21px; opacity: .88; }
+@media (max-width: 700px) {
+  .punchline { grid-template-columns: 1fr; gap: 12px; padding: 22px; }
+  .punchline-icon { font-size: 44px; }
+  .punchline h3 { font-size: 22px; }
+  .punchline p { font-size: 19px; }
+}
 
 /* The trade callout — the author's-voice treatment: red border, slight
    tilt. The honesty is the brand's charm; lean into it. */
