@@ -1,7 +1,8 @@
 (function (window) {
 'use strict';
 const LogComponent = window.LogComponent;
-const { esc, fmt, bar, statusBadge, typeDot, fmtTs } = window.LRC;
+const { esc, fmt, bar, statusBadge, typeDot, fmtTs, fmtDayMon, fmtStamp } = window.LRC;
+const { orderTasks } = window.LR;
 
 // idle share as a rounded percentage of wall time (§4.6)
 function idleShare(ms) {
@@ -107,7 +108,7 @@ class LogTree extends LogComponent {
         <button class="btn btn-secondary time-btn" data-time='{"repo":"${esc(r.name)}","branch":"${esc(b.name)}"}'>Time →</button>
       </div>
       <div class="tree-body" ${open ? '' : 'hidden'} style="padding-left:28px">
-        ${b.tasks.map((t) => this.taskBlock(r, b, t, s)).join('')}
+        ${orderTasks(b.tasks, s.taskOrder).map((t) => this.taskBlock(r, b, t, s)).join('')}
       </div>
     `;
   }
@@ -123,7 +124,7 @@ class LogTree extends LogComponent {
         <div class="tree-head task-head" data-key="${esc(key)}" data-repo="${esc(r.name)}" data-branch="${esc(b.name)}" data-task="${esc(t.title)}" style="padding-left:40px">
           <span class="caret">${open ? '▾' : '▸'}</span>
           <span class="name">${esc(t.title)} ${statusBadge(t.status)}</span>
-          <span class="meta">${t.ms.logs} entries · ${fmt(t.ms.wall)} · ${(t.agents || []).length} agents</span>
+          <span class="meta" title="Last log ${esc(fmtStamp(t.span.to))}">${t.ms.logs} entries · ${fmt(t.ms.wall)} · ${(t.agents || []).length} agents · last ${esc(fmtDayMon(t.span.to))}</span>
           <div style="width:160px">${bar(t.ms, Math.max(t.ms.wall, 1))}</div>
           <span class="tree-badges">${this.badges(t.ms)}</span>
           ${ish ? `<span class="tag tag-outline">${ish}% idle</span>` : ''}

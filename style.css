@@ -659,6 +659,38 @@ log-filters .nav-tree .node-meta {
   flex: none; margin-left: auto; font-size: 10.5px;
   font-variant-numeric: tabular-nums; opacity: .6;
 }
+/* The date of a task's last log, on the task's own row and to the left of its
+   title — the value the default order sorts on, shown where it can be scanned.
+   Tasks under one branch share an indent, so this reads as a column.
+
+   Fixed width, not fitted: dd/mon is six characters but dd/mon/yy is nine, and
+   a slot that resized per row would push every title to a different x and lose
+   the column that is the whole point. 54px fits the longer form. */
+log-filters .nav-tree .node-date {
+  flex: none; width: 54px; font-size: 10.5px;
+  font-variant-numeric: tabular-nums; opacity: .6;
+}
+/* Agent nodes carry no date, but they nest one level under a task — without a
+   matching slot their labels would start to the LEFT of the title of the task
+   that owns them, and the tree would read as if the child outranked it. */
+log-filters .nav-tree .node-date-spacer { flex: none; width: 54px; }
+/* Which rule the tasks are in. The tree has always been ordered by last log,
+   newest first; nothing said so, which made a correct order look like none. */
+log-filters .nav-sort {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 6px 8px; font-size: 11px; color: var(--text-dim);
+}
+log-filters .nav-sort-label { margin-right: 2px; }
+log-filters .nav-sort-btn {
+  padding: 2px 9px; font-size: 11px; line-height: 1.5;
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+}
+log-filters .nav-sort-btn:hover { color: var(--text); border-color: var(--text-dim); }
+log-filters .nav-sort-btn.active {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+  color: var(--on-accent); border-color: transparent;
+}
 log-filters .nav-tree .caret { flex: none; width: 12px; text-align: center; opacity: .6; }
 log-filters .nav-tree .nav-caret {
   flex: none; width: 14px; padding: 0; font-size: 9px; line-height: 1;
@@ -785,11 +817,38 @@ log-filters .nav-tree .node.mono, log-filters .nav-tree .node-label.mono { font-
 .gap-row:hover { background: var(--surface-2); }
 
 /* --- maintenance page (§8) --- */
-/* Delete and Export sit side by side and share the same internal rhythm:
-   title, note, controls, then an action row pinned to the bottom of both cards
-   so their buttons line up however tall the cards get. */
-.maint-row { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
-.maint-card { flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; padding: 14px; margin-bottom: 0; }
+/* Delete, Token usage and Export sit side by side and share the same internal
+   rhythm: title, note, controls, then an action row pinned to the bottom of
+   every card so their buttons line up however tall the cards get.
+
+   A grid rather than three flex items, because Export's width is a stated
+   figure and not an outcome of basis arithmetic. It holds three buttons and no
+   body, so an even third of the row is mostly empty card; a clamped quarter
+   gives the two cards that do carry content the surplus.
+
+   The bounds are what make the quarter safe at both ends. The floor is measured,
+   not guessed: the three buttons and their gaps come to 196px, plus 28px of card
+   padding, so 240px is the width below which the row wraps to two lines — which
+   is the thing shortening the labels was for. A rounder-looking 300px floor is
+   what the first cut used, and it was wrong in a way worth recording: it beat
+   the 1fr columns below a ~1500px window, so the card with three buttons and no
+   body became the widest one on the page. Above ~380px the extra width is spent
+   on nothing.
+
+   minmax(0,1fr) on the other two is load-bearing — a bare 1fr has an auto
+   minimum, and a long branch name in the Delete card would push the whole row
+   wider than the page. */
+.maint-row {
+  display: grid; align-items: stretch; gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) clamp(240px, 25%, 380px);
+}
+/* Set where the two content columns would otherwise fall below Export's floor
+   and invert the row again. Below it, one column — and the binding constraint
+   there is the Delete card's action row (~362px), never Export's. */
+@media (max-width: 1100px) { .maint-row { grid-template-columns: 1fr; } }
+/* The point of the short labels: three buttons, one row, always. */
+.maint-card-export .maint-card-actions { flex-wrap: nowrap; }
+.maint-card { min-width: 0; display: flex; flex-direction: column; padding: 14px; margin-bottom: 0; }
 .maint-card h4 { margin: 0 0 6px; }
 .maint-card .maint-note { margin: 0 0 10px; min-height: 2.6em; }
 .maint-card-mid { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; }
@@ -932,6 +991,59 @@ log-header { position: relative; }
 .src-dropdown-detail { font-size: 11px; color: var(--text-dim); }
 .src-dropdown-btn { width: 100%; }
 .src-dropdown-note { font-size: 10.5px; line-height: 1.5; color: var(--text-dim); }
+
+/* --- header refresh stats (§2.5) --- */
+/* An overlay panel on the same machinery as the source dropdown — anchored to
+   its own trigger rather than to the header's right edge, and reusing
+   .src-overlay for the click-outside. Deliberately not an inline expander:
+   that would shove the whole page down every time it opened. */
+.refresh-stats { position: relative; display: flex; align-items: center; }
+button.refresh-stats-btn {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--surface); color: var(--text-dim); white-space: nowrap;
+}
+button.refresh-stats-btn:hover { color: var(--text); }
+button.refresh-stats-btn.has-new { color: var(--text); }
+.refresh-stats-caret { font-size: 9px; opacity: .7; }
+.refresh-pill {
+  padding: 0 6px; border-radius: 999px; font-size: 10.5px; line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  background: var(--accent); color: var(--on-accent);
+}
+.refresh-panel {
+  position: absolute; top: 100%; left: 0; margin-top: 6px;
+  width: 460px; max-width: 90vw; max-height: 60vh;
+  border-radius: var(--radius); background: var(--surface-2);
+  box-shadow: var(--shadow); z-index: 21;
+  display: flex; flex-direction: column;
+}
+.refresh-panel-head { flex: none; padding: 14px 14px 10px; }
+.refresh-panel-total { font-size: 12.5px; line-height: 1.35; color: var(--text); }
+/* Only the list scrolls: the count it is a breakdown of, and the caveat under
+   it, both stay in view however many repositories reported. */
+.refresh-panel-body { flex: 1 1 auto; overflow-y: auto; padding: 4px 8px; }
+.refresh-panel-foot {
+  flex: none; padding: 10px 14px 14px;
+  display: flex; flex-direction: column; gap: 6px;
+  border-top: 1px solid var(--border);
+}
+.refresh-panel-warn { font-size: 11px; line-height: 1.45; color: var(--issue); }
+.refresh-row {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 3px 6px; border: 0; border-radius: 6px;
+  background: transparent; font: inherit; font-size: 12px;
+  color: var(--text-dim); text-align: left;
+}
+.refresh-row-repo { color: var(--text); margin-top: 4px; }
+.refresh-row-branch { padding-left: 18px; }
+.refresh-row-task { padding-left: 32px; color: var(--text); cursor: pointer; }
+.refresh-row-task:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.refresh-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.refresh-date {
+  flex: none; width: 54px; font-size: 10.5px;
+  font-variant-numeric: tabular-nums; opacity: .6;
+}
+.refresh-n { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; opacity: .6; }
 
 /* --- metrics page (§7) — two-column layout, issue cards, agent time --- */
 .metrics-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }

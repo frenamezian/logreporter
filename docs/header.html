@@ -5,10 +5,35 @@
 <tr><td><strong>N / M logs</strong></td><td>Rows in scope versus rows in the database. When the two differ, something is narrowing the view — the fastest way to notice a filter you forgot about.</td></tr>
 <tr><td><strong>CSV · JSON</strong></td><td>Download the rows in scope. Columns are written verbatim in the table's own order; JSON is the row objects as read.</td></tr>
 <tr><td><strong>Refresh</strong></td><td>Re-reads the database <em>from its source</em>, not from the copy in memory — a file you opened by hand is re-opened through its handle, otherwise <code>activity_logs.db</code> is fetched again. This is what surfaces rows agents appended while you were reading.</td></tr>
+<tr><td><strong>Refresh stats</strong></td><td>What that re-read actually picked up, broken down by repository, branch and task (below).</td></tr>
 <tr><td><strong>Data source</strong></td><td>The status dot, the current file name, and a menu (below).</td></tr>
 <tr><td><strong>☀ / ☾</strong></td><td>Switches between the light and dark themes. The glyph shows the theme you would <em>get</em>, not the one you are in. The choice is kept in <code>localStorage</code> and re-applied before the page paints, so a reload never flashes the other theme. Nothing else changes: no row leaves scope, no panel closes, no filter is cleared.</td></tr>
 <tr><td><strong>?</strong></td><td>This guide. It is the Help page, not a popup — the same tab, reachable either way.</td></tr>
 </tbody></table>
+
+<h3>Refresh stats</h3>
+<p>Refresh tells you the database was re-read. It does not tell you whether anything came back, and on a busy afternoon "did that do anything?" is the whole question. The panel at the left end of the header answers it: a count on the button, and a breakdown behind it.</p>
+<pre>[▾ Refresh stats ⦁12]
+┌─────────────────────────────────────────────┐
+│ REFRESH STATS                               │
+│ 12 new logs since last refresh, 15:04:11    │
+│ 3 tasks in 2 repositories · 1 log removed   │
+├─────────────────────────────────────────────┤
+│ logreporter                             9   │
+│    feature-refreshstats-task-nav        9   │
+│       07/aug  Refresh stats and task…   6   │
+│       07/aug  Export card widths        3   │
+│ Playground                              3   │
+│    harness                              3   │
+│       07/aug  Seed rewrite              3   │
+├─────────────────────────────────────────────┤
+│ 4 of these are hidden by the active filters │
+│ Auto-poll adds to this total; only Refresh  │
+│ resets it.                                  │
+└─────────────────────────────────────────────┘</pre>
+<p>It opens by itself after a Refresh that brought something back, and stays shut after one that did not — a panel that covers the page every time you press a button, to say nothing happened, gets dismissed unread and then ignored when it matters. Clicking a task drills the whole dashboard to it. Each task row carries the date of the newest log that arrived for it.</p>
+<p><strong>What "since" means.</strong> The count is measured from the last <em>explicit</em> Refresh — or from page load, or from the moment you opened a different database, whichever came last; the panel names which. <strong>Auto-poll deliberately does not reset it.</strong> Polling picks rows up five seconds after they land, so if it moved the baseline the count would be zero every time you looked; instead the badge climbs on its own between refreshes, and Refresh is what clears it. A refresh that failed read nothing, so it resets nothing.</p>
+<p><strong>It ignores your filters.</strong> The count is what the database gained, not what survived the filter bar — a filter that quietly swallowed new rows would make the word "picked up" a lie. Where the two differ the panel says so, in as many words, and the number above stays honest. Nothing persists across a page reload: reloading is genuinely a fresh baseline, and a stale one carried across a rebuilt database would be worse than none.</p>
 
 <h3>The data-source menu</h3>
 <figure class="help-figure help-figure-sm">

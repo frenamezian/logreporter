@@ -1,17 +1,19 @@
-<p>A scope trail, two side-by-side cards, and a volume table. Deliberately the plainest page in the app: every destructive control sits next to the count it is about to act on.</p>
+<p>A scope trail, three side-by-side cards, and a volume table. Deliberately the plainest page in the app: every destructive control sits next to the count it is about to act on.</p>
 <pre>┃ SCOPE [All repos] › [REPO Playground] › [BRANCH harness] › [TASK task_0340…]
 ┃                                                            [See all repos]
 
-┌ Delete logs ───────────────────────┐┌ Export ────────────────────────────┐
-│ Uses the same filters and drill    ││ Honours the page filters and drill │
-│ scope as the left panel.           ││ scope, 25 rows in scope.           │
-│                                    ││                                    │
-│ [Search: foo ×][Level: warning ×]  ││                                    │
-│  — or — No filters active …        ││                                    │
-│ Older than [dd/mm/yyyy]            ││                                    │
-│                                    ││                                    │
-│ 25 of 189 logs match  [Delete 25]  ││ [CSV][JSON][Save database copy]    │
-└────────────────────────────────────┘└────────────────────────────────────┘
+┌ Delete logs ───────────┐┌ Token usage ───────────┐┌ Export ────────────┐
+│ Uses the same filters  ││ Read from the session  ││ Honours the page   │
+│ and drill scope as the ││ files your agents      ││ filters and drill  │
+│ left panel.            ││ already write.         ││ scope, 25 rows in  │
+│                        ││                        ││ scope.             │
+│ [Search: foo ×]        ││                        ││                    │
+│  — or — No filters …   ││ 41,203 requests cached ││                    │
+│ Older than [dd/mm/yyyy]││ last read 15:02 UTC    ││                    │
+│                        ││                        ││                    │
+│ 25 of 189  [Delete 25] ││ [Refresh…][Rebuild…]   ││[CSV][JSON][Save DB]│
+└────────────────────────┘└────────────────────────┘└────────────────────┘
+├─── fluid ──────────────┤├─── fluid ──────────────┤├ 25%, 240–380px ────┤
 
 Total Log Count: 25   by agent path, within the current scope and filters
 REPO        BRANCH   TASK        AGENT PATH               LOGS ISSUES OLDEST
@@ -32,9 +34,13 @@ Playground  harness  task_0340…  …/task_executor/code_r…     6      0 …
 <tr><td><strong>Older than</strong></td><td>Recomputes the match count immediately; the card re-renders on its own without touching the rest of the app.</td></tr>
 <tr><td><strong>Delete N logs</strong></td><td>Opens the confirmation restating the count and how many repositories it touches. Nothing is removed yet. The backdrop or <strong>Cancel</strong> dismisses it.</td></tr>
 <tr><td>Confirm</td><td>POSTs the ids to <code>serve.py</code>, which deletes them from <code>activity_logs.db</code> and checkpoints the WAL; the page then re-reads the database so the screen matches the file. On demo data, or when the endpoint is missing, it falls back to the in-memory copy and says so — in the second case in red, because a refresh will bring the rows straight back.</td></tr>
-<tr><td><strong>Export CSV / JSON</strong></td><td>Writes the rows in scope, columns verbatim — identical to the header's CSV and JSON buttons.</td></tr>
-<tr><td><strong>Save database copy</strong></td><td>Downloads the in-memory database bytes. It never overwrites the file that was opened.</td></tr>
+<tr><td><strong>CSV / JSON</strong></td><td>Writes the rows in scope, columns verbatim — identical to the header's CSV and JSON buttons.</td></tr>
+<tr><td><strong>Save DB copy</strong></td><td>Downloads the in-memory database bytes. It never overwrites the file that was opened.</td></tr>
 </tbody></table>
+
+<h3>Why Export is the narrow one</h3>
+<p>It carries three buttons and no body, so an even third of the row is mostly empty card. It takes a quarter, clamped to 240–380px, and the two cards that do hold content take the surplus. The floor is the measured width of the button row — 196px of buttons and gaps plus 28px of padding — which is also why the labels are <strong>CSV</strong> and <strong>JSON</strong> rather than <em>Export CSV (filtered)</em>: the card's heading and note already say both things, and the long forms pushed the three buttons onto two lines. The full phrasing survives as their tooltips. The same action in the header's data-source menu is still <strong>Save database copy</strong>: those buttons are stacked full-width with room to spare, and the longer name is the clearer one wherever it fits.</p>
+<p>The bounds are not decoration. A first cut used a rounder-looking 300px floor, which beat the two fluid columns on any window under about 1500px and made the card with three buttons and no body the widest thing on the page. Below 1100px all three stack, and the binding constraint there is the Delete card's action row, never Export's.</p>
 
 <h3>The volume table</h3>
 <p>It groups by the level just <em>below</em> the deepest drilled one — repo → branch → task → <code>agent_path</code>, which is the floor — so drilling one step always answers "and what is that count made of?". Columns above the grouping level repeat the scope's value; columns below it read <em>All</em>, because the row aggregates every value they could take. Groups are sorted by row count, and each carries its issue count and its oldest and newest timestamps.</p>

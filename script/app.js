@@ -70,6 +70,49 @@ function pageFromHash() {
   return PAGES.has(h) ? h : null;
 }
 
+// --- refresh stats ----------------------------------------------------------
+//
+// What the database gained since a baseline set of row ids, grouped
+// repo → branch → task. The ids are SQLite rowids, already the identity key the
+// rest of the app selects rows by.
+//
+// Deliberately blind to the filters and the drill. It reports what the DATABASE
+// picked up, and a filter that quietly swallowed new rows would make that word
+// a lie; the panel names the overlap instead of narrowing the count.
+function diffRows(baseIds, rows) {
+  const added = rows.filter((l) => !baseIds.has(l.id));
+  const nowIds = new Set(rows.map((l) => l.id));
+  let removed = 0;
+  baseIds.forEach((id) => { if (!nowIds.has(id)) removed += 1; });
+
+  const repos = new Map();
+  const at = (map, name) => {
+    let g = map.get(name);
+    if (!g) { g = { name, n: 0, issues: 0, last: '', kids: new Map() }; map.set(name, g); }
+    return g;
+  };
+  added.forEach((l) => {
+    const r = at(repos, l.repo_name || '—');
+    const b = at(r.kids, l.branch_name || '—');
+    const t = at(b.kids, l.task_title || 'Untitled task');
+    [r, b, t].forEach((g) => {
+      g.n += 1;
+      if (l.log_type === 'issue') g.issues += 1;
+      if (l.timestamp > g.last) g.last = l.timestamp;
+    });
+  });
+  // Newest first at every level. The question behind this panel is "what just
+  // happened", so the freshest thing belongs at the top — not the biggest.
+  // Timestamps are 'YYYY-MM-DD HH:MM:SS', so a string compare is chronological.
+  const sorted = (map) => Array.from(map.values())
+    .sort((a, b) => (a.last < b.last ? 1 : a.last > b.last ? -1 : 0));
+  const tree = sorted(repos).map((r) => ({
+    ...r, kids: sorted(r.kids).map((b) => ({ ...b, kids: sorted(b.kids) }))
+  }));
+  const tasks = tree.reduce((n, r) => n + r.kids.reduce((m, b) => m + b.kids.length, 0), 0);
+  return { total: added.length, removed, tasks, repos: tree, rows: added };
+}
+
 // The source state for "there is no database to read". Distinct from an empty
 // one: an activity_logs.db with no rows in it is a correct, expected state on a
 // fresh install and is reported as such — name lit, 0 rows. This is the other
@@ -114,6 +157,18 @@ window.LogApp = {
     srcOpen: false,
     poll: false,
     order: 'newest',
+    // Which rule the two trees order tasks by. 'recent' is what buildModel
+    // already produced before this was a setting — the order was never wrong,
+    // it was just never stated.
+    taskOrder: 'recent',
+    // Refresh stats. The baseline is a set of row ids and the moment it was
+    // taken; the diff against it is recomputed on every load and read by the
+    // header panel.
+    refreshBaseIds: null,
+    refreshBaseAt: null,
+    refreshBaseLabel: 'page load',
+    refreshStats: null,
+    refreshOpen: false,
     helpTopic: 'started',
     confirm: null,
     selectedRun: null, // waterfall run whose logs are listed below it
@@ -153,11 +208,63 @@ window.LogApp = {
       this.state.rows = [];
       this.state.src = noDatabase(e);
     }
+    this._setRefreshBaseline('page load');
+    this._updateRefreshStats();
     this.update();
     // Deliberately after the first render: the usage cache can be tens of
     // megabytes, and the log database is what the page is actually about. The
     // usage views fill in when it lands.
     this.loadUsage().then(() => this.update());
+  },
+
+  // --- refresh stats -------------------------------------------------------
+  //
+  // The baseline moves only on a deliberate act: an explicit Refresh, the page
+  // loading, or a different database being opened. Auto-poll must never move
+  // it — polling would absorb every new row five seconds after it landed and
+  // leave the panel reading "0 new" for anyone running with it on, which is
+  // most of the time. Instead the poll recomputes the diff against the standing
+  // baseline, so the count climbs live between refreshes.
+  _setRefreshBaseline(label) {
+    this.state.refreshBaseIds = new Set(this.state.rows.map((l) => l.id));
+    this.state.refreshBaseAt = new Date();
+    this.state.refreshBaseLabel = label;
+  },
+
+  // Against the standing baseline by default; refresh() passes the previous one
+  // explicitly, because by then the baseline has already moved to the rows it
+  // just read and the diff being reported is the one it just closed.
+  _updateRefreshStats(baseIds, at, label) {
+    const base = baseIds || this.state.refreshBaseIds;
+    if (!base) return;
+    this.state.refreshStats = Object.assign(diffRows(base, this.state.rows), {
+      since: at || this.state.refreshBaseAt,
+      sinceLabel: label || this.state.refreshBaseLabel,
+    });
+  },
+
+  // How many of the new rows the active filters would keep off the screen. The
+  // panel says so rather than counting only what survives them — the point of
+  // the number is what the database picked up, filters or no filters.
+  refreshHiddenCount() {
+    const st = this.state.refreshStats;
+    if (!st || !st.total) return 0;
+    return st.total - applyFilters(st.rows, this.state.filter).length;
+  },
+
+  toggleRefreshStats() {
+    this.state.refreshOpen = !this.state.refreshOpen;
+    if (this.state.refreshOpen) this.state.srcOpen = false;
+    this.render();
+  },
+  closeRefreshStats() {
+    this.state.refreshOpen = false;
+    this.render();
+  },
+
+  setTaskOrder(mode) {
+    this.state.taskOrder = mode === 'name' ? 'name' : 'recent';
+    this.render();
   },
 
   // --- token usage ---------------------------------------------------------
@@ -321,6 +428,10 @@ window.LogApp = {
   },
   toggleSrc() {
     this.state.srcOpen = !this.state.srcOpen;
+    // Two panels hang off the same header bar, each with its own click-outside
+    // overlay. Opening one closes the other, or the second overlay swallows the
+    // click meant to dismiss the first.
+    if (this.state.srcOpen) this.state.refreshOpen = false;
     this.render();
   },
   closeSrc() {
@@ -348,6 +459,7 @@ window.LogApp = {
           this._lastMtime = file.lastModified;
           this.state.rows = await this.state.db.open(file);
           this.state.src = { name: file.name, ok: true, detail: new Date(file.lastModified).toLocaleString() };
+          this._updateRefreshStats();
           this.update();
         }
       } else {
@@ -361,6 +473,7 @@ window.LogApp = {
           this.state.src = { name: 'activity_logs.db', ok: true,
             detail: rows.length + ' rows · loaded by default' };
         }
+        this._updateRefreshStats();
         this.update();
       }
       // The usage cache is checked with a HEAD first. It is orders of
@@ -540,6 +653,11 @@ window.LogApp = {
         this.state.rows = await this.state.db.open(file);
         this.state.src = { name: file.name, ok: true, detail: new Date(file.lastModified).toLocaleString() };
         this.state.srcOpen = false;
+        // A different file: its rowids have nothing to do with the ones the
+        // baseline holds, so every row would count as new. Start again from here
+        // and say so, rather than reporting a whole database as an arrival.
+        this._setRefreshBaseline('this source was opened');
+        this._updateRefreshStats();
       } else {
         const input = document.createElement('input');
         input.type = 'file';
@@ -550,6 +668,8 @@ window.LogApp = {
           this.state.rows = await this.state.db.open(file);
           this.state.src = { name: file.name, ok: true, detail: new Date(file.lastModified).toLocaleString() };
           this.state.srcOpen = false;
+          this._setRefreshBaseline('this source was opened');
+          this._updateRefreshStats();
           this.update();
         };
         input.click();
@@ -571,6 +691,13 @@ window.LogApp = {
     // disk; reading the in-memory copy (readAll) would never surface them, which
     // is what made this button appear to do nothing while agents were working.
     const stamp = () => new Date().toLocaleTimeString();
+    // The baseline this refresh is closing. Captured before the read, because
+    // a successful one moves the baseline to the rows it just brought back and
+    // the stats being reported are the diff it just closed.
+    const prevIds = this.state.refreshBaseIds;
+    const prevAt = this.state.refreshBaseAt;
+    const prevLabel = this.state.refreshBaseLabel;
+    let loaded = false;
     try {
       if (this.state.fileHandle) {
         const file = await this.state.fileHandle.getFile();
@@ -586,12 +713,24 @@ window.LogApp = {
         this.state.src = { name: 'activity_logs.db', ok: true,
           detail: this.state.rows.length + ' rows · reloaded ' + stamp() };
       }
+      loaded = true;
     } catch (e) {
       // Still nothing to read: stay in the empty state rather than reporting a
       // failed refresh of a database that was never open in the first place.
       this.state.src = this.state.db.db
         ? { ...this.state.src, ok: false, detail: 'refresh failed: ' + e.message }
         : noDatabase(e);
+    }
+    // A refresh that failed read nothing, so it closed nothing: the baseline
+    // and the standing diff both stay where they were. The source button is
+    // already reporting the failure.
+    if (loaded) {
+      this._setRefreshBaseline('last refresh');
+      this._updateRefreshStats(prevIds, prevAt, prevLabel);
+      // Opened only when there is something to read. A panel that covers the
+      // page every time the button is pressed, to say nothing happened, gets
+      // dismissed unread and then ignored when it matters.
+      if (this.state.refreshStats && this.state.refreshStats.total) this.state.refreshOpen = true;
     }
     // Refresh means "go back to the source", and for usage the source is the
     // agents' session files, not the cache. Ask serve.py to re-read them; if
@@ -667,6 +806,10 @@ window.LogApp = {
       this.state.src = { ...this.state.src, ok: false,
         detail: 'NOT saved to the database (' + e.message + ') — start the app with start_LogReporter.bat' };
     }
+    // Rows just left. The baseline stays put — a delete is not a refresh — but
+    // the standing diff has to be recut, or the panel keeps offering rows that
+    // are no longer there.
+    this._updateRefreshStats();
     this.update();
   }
 };

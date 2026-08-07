@@ -1,7 +1,7 @@
 (function (window) {
 'use strict';
 const LogComponent = window.LogComponent;
-const { esc } = window.LRC;
+const { esc, fmtDayMon, fmtStamp } = window.LRC;
 
 // The brand mark: an L whose foot is a stacked category bar, in the fixed
 // stacking order activity -> decision -> github -> idle. It is inlined rather
@@ -95,6 +95,7 @@ class LogHeader extends LogComponent {
         }).join('')}
       </nav>
       <div class="header-right">
+        ${this._renderRefreshStats(s)}
         <span class="count-badge">${s.inScope.length} / ${s.rows.length} logs</span>
         <button class="small" data-csv="1">CSV</button>
         <button class="small" data-json="1">JSON</button>
@@ -105,6 +106,96 @@ class LogHeader extends LogComponent {
       </div>
       ${s.srcOpen ? this._renderDropdown(s) : ''}
     `;
+  }
+
+  // --- refresh stats (§2.5) -------------------------------------------------
+  //
+  // What the database has picked up since the last explicit Refresh, at the
+  // left end of the header's control cluster — beside the button whose result
+  // it reports.
+
+  // The moment the standing count is measured from, named as well as stamped.
+  // "12 new since 15:04" is only meaningful if the reader knows what happened
+  // at 15:04.
+  _sinceText(st) {
+    const s = window.LogApp.state;
+    const at = (st && st.since) || s.refreshBaseAt;
+    const label = (st && st.sinceLabel) || s.refreshBaseLabel;
+    if (!at) return 'page load';
+    return label + ', ' + at.toLocaleTimeString();
+  }
+
+  _renderRefreshStats(s) {
+    const st = s.refreshStats;
+    const n = st ? st.total : 0;
+    const since = this._sinceText(st);
+    const title = n
+      ? `${n} new log${n === 1 ? '' : 's'} since ${since} — click for the breakdown`
+      : `No new logs since ${since}`;
+    return `
+      <div class="refresh-stats">
+        <button class="small refresh-stats-btn${n ? ' has-new' : ''}"
+                data-refresh-stats="1" aria-expanded="${s.refreshOpen ? 'true' : 'false'}"
+                title="${esc(title)}">
+          <span class="refresh-stats-caret">${s.refreshOpen ? '▾' : '▸'}</span>Refresh stats${
+            n ? `<span class="refresh-pill">${n}</span>` : ''}
+        </button>
+        ${s.refreshOpen ? this._renderRefreshPanel(s, st) : ''}
+      </div>`;
+  }
+
+  _renderRefreshPanel(s, st) {
+    const n = st ? st.total : 0;
+    const since = this._sinceText(st);
+    const hidden = window.LogApp.refreshHiddenCount();
+    const removed = st ? st.removed : 0;
+    const repos = st ? st.repos.length : 0;
+    return `
+      <div class="src-overlay" data-close-refresh="1"></div>
+      <div class="refresh-panel">
+        <div class="refresh-panel-head">
+          <div class="src-dropdown-label">Refresh stats</div>
+          <div class="refresh-panel-total">${n
+            ? `${n} new log${n === 1 ? '' : 's'} since ${esc(since)}`
+            : `No new logs since ${esc(since)}`}</div>
+          ${n ? `<div class="src-dropdown-detail">${st.tasks} task${st.tasks === 1 ? '' : 's'}
+                   in ${repos} ${repos === 1 ? 'repository' : 'repositories'}${
+                   removed ? ` · ${removed} log${removed === 1 ? '' : 's'} removed` : ''}</div>`
+              : removed ? `<div class="src-dropdown-detail">${removed} log${removed === 1 ? '' : 's'} removed</div>` : ''}
+        </div>
+        ${n ? `<div class="refresh-panel-body">${this._refreshTree(st)}</div>` : ''}
+        <div class="refresh-panel-foot">
+          ${hidden ? `<div class="refresh-panel-warn">${hidden} of these ${hidden === 1 ? 'is' : 'are'}
+             hidden by the active filters — the count above is what the database
+             gained, not what is on screen.</div>` : ''}
+          <div class="src-dropdown-note">Auto-poll adds to this total; only Refresh resets it.</div>
+        </div>
+      </div>`;
+  }
+
+  // Flat rows rather than a collapsible tree: this lists only what arrived, so
+  // it is short by construction, and a panel that opens on its own should not
+  // then need to be opened again inside itself.
+  _refreshTree(st) {
+    return st.repos.map((r) => `
+      <div class="refresh-row refresh-row-repo">
+        <span class="refresh-name">${esc(r.name)}</span>
+        <span class="refresh-n">${r.n}</span>
+      </div>
+      ${r.kids.map((b) => `
+        <div class="refresh-row refresh-row-branch">
+          <span class="refresh-name mono">${esc(b.name)}</span>
+          <span class="refresh-n">${b.n}</span>
+        </div>
+        ${b.kids.map((t) => `
+          <button class="refresh-row refresh-row-task"
+                  data-refresh-drill='${esc(JSON.stringify({ repo: r.name, branch: b.name, task: t.name }))}'
+                  title="${esc(t.name)} — last of the new logs ${esc(fmtStamp(t.last))}">
+            <span class="refresh-date">${esc(fmtDayMon(t.last))}</span>
+            <span class="refresh-name">${esc(t.name)}</span>
+            ${t.issues ? `<span class="tag tag-issue">${t.issues}</span>` : ''}
+            <span class="refresh-n">${t.n}</span>
+          </button>`).join('')}`).join('')}`).join('');
   }
 
   // The glyph shows the theme you would GET, not the one you are in: a button
@@ -143,6 +234,20 @@ class LogHeader extends LogComponent {
     if (json) json.onclick = () => window.LogApp.exportJson();
     const refresh = this.querySelector('[data-refresh]');
     if (refresh) refresh.onclick = () => window.LogApp.refresh();
+    // Refresh stats panel (§2.5)
+    const rstats = this.querySelector('[data-refresh-stats]');
+    if (rstats) rstats.onclick = () => window.LogApp.toggleRefreshStats();
+    const closeRstats = this.querySelector('[data-close-refresh]');
+    if (closeRstats) closeRstats.onclick = () => window.LogApp.closeRefreshStats();
+    // A task row drills the dashboard to it. The panel is closed on the state
+    // directly rather than through closeRefreshStats(), so setDrill's re-render
+    // is the only one — closing afterwards would render the header twice.
+    this.querySelectorAll('[data-refresh-drill]').forEach((btn) => {
+      btn.onclick = () => {
+        window.LogApp.state.refreshOpen = false;
+        window.LogApp.setDrill(JSON.parse(btn.getAttribute('data-refresh-drill')));
+      };
+    });
     // Source button toggles the dropdown panel (§2.1)
     const src = this.querySelector('[data-src]');
     if (src) src.onclick = () => window.LogApp.toggleSrc();

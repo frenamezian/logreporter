@@ -1,7 +1,8 @@
 (function (window) {
 'use strict';
 const LogComponent = window.LogComponent;
-const { esc, fmt } = window.LRC;
+const { esc, fmt, fmtDayMon, fmtStamp } = window.LRC;
+const { orderTasks } = window.LR;
 
 // Dropdown filter keys that support multi-select, in display order.
 const DROPDOWN_KEYS = [
@@ -96,6 +97,7 @@ class LogFilters extends LogComponent {
                   title="Clear the selection and show every repository">All repositories</button>
         </h4>
         <div class="filter-body" ${s.panels.nav ? '' : 'hidden'}>
+          ${this._renderSort(s)}
           ${this._renderNav(s.treeModel)}
         </div>
       </div>
@@ -147,6 +149,23 @@ class LogFilters extends LogComponent {
     return `<div class="chips">${chips.join('')}</div>`;
   }
 
+  // Task ordering, named on screen rather than left to be inferred. The tree
+  // has always been sorted by last log, newest first — nothing said so, which
+  // made a correct order look like no order at all. The label is the feature as
+  // much as the switch is.
+  _renderSort(s) {
+    const mode = s.taskOrder === 'name' ? 'name' : 'recent';
+    const btn = (key, label, title) =>
+      `<button class="nav-sort-btn${mode === key ? ' active' : ''}" data-task-order="${key}"
+               aria-pressed="${mode === key}" title="${esc(title)}">${label}</button>`;
+    return `
+      <div class="nav-sort">
+        <span class="nav-sort-label">Sort tasks</span>
+        ${btn('recent', 'Recent', 'Most recent last log first')}
+        ${btn('name', 'Name', 'Task title, A→Z, numbers in numeric order')}
+      </div>`;
+  }
+
   // Build a nested agent tree from flat agent_path strings (e.g. "lead/handler_dev")
   // Returns [{path, name, children: [...]}]
   _agentTree(agents) {
@@ -181,8 +200,9 @@ class LogFilters extends LogComponent {
       const pad = 'padding-left:' + (12 + d * 14) + 'px';
       return `
         <li>
-          <div class="node leaf${active ? ' active' : ''}" data-drill='${jattr(aDrill)}' data-nav-key="${esc(ak)}" data-has-kids="${hasKids ? '1' : '0'}" style="${pad}">
+          <div class="node leaf${active ? ' active' : ''}" data-drill='${jattr(aDrill)}' data-nav-key="${esc(ak)}" data-has-kids="${hasKids ? '1' : '0'}" style="${pad}" title="${esc(node.path)}">
             ${hasKids ? `<span class="nav-caret-icon ${aOpen ? 'open' : ''}">${aOpen ? '▾' : '▸'}</span>` : '<span class="nav-caret-spacer"></span>'}
+            <span class="node-date-spacer"></span>
             <span class="node-label mono">${esc(node.name)}</span>
             <span class="node-meta">${esc(String(cnt))}</span>
           </div>
@@ -198,6 +218,7 @@ class LogFilters extends LogComponent {
     if (!model?.repos?.length) return '<div class="empty">No data</div>';
     const open = this._openNav;
     const drill = window.LogApp.state.drill || {};
+    const taskOrder = window.LogApp.state.taskOrder;
     // Per-level active state matching the prototype:
     // repo active when drilled to repo (no branch); branch active when drilled
     // to branch (no task); task active when drilled to task or agent under it;
@@ -233,16 +254,22 @@ class LogFilters extends LogComponent {
                   <span class="node-label mono">${esc(b.name)}</span>
                   <span class="node-meta">${esc(fmt(b.ms.wall))}</span>
                 </div>
-                ${bOpen ? `<ul>${b.tasks.map((t) => {
+                ${bOpen ? `<ul>${orderTasks(b.tasks, taskOrder).map((t) => {
                   const tk = 't:' + r.name + '|' + b.name + '|' + t.title;
                   const tOpen = open.has(tk);
                   const tDrill = { repo: r.name, branch: b.name, task: t.title };
                   const tActive = drill.task === t.title && drill.branch === b.name;
                   const agentCount = (t.agents || []).length;
+                  // The end of the task's span is the timestamp of its last log
+                  // — the same value the default order sorts on, so the column
+                  // shows the reader what the sort is doing.
+                  const last = t.span ? t.span.to : null;
                   return `
                     <li>
-                      <div class="node${tActive ? ' active' : ''}" data-drill='${jattr(tDrill)}' data-nav-key="${esc(tk)}" data-has-kids="${agentCount > 0 ? '1' : '0'}">
+                      <div class="node${tActive ? ' active' : ''}" data-drill='${jattr(tDrill)}' data-nav-key="${esc(tk)}" data-has-kids="${agentCount > 0 ? '1' : '0'}"
+                           title="${esc(t.title)}${last ? ' — last log ' + esc(fmtStamp(last)) : ''}">
                         ${caret(tk, agentCount > 0)}
+                        <span class="node-date">${last ? esc(fmtDayMon(last)) : ''}</span>
                         <span class="node-label">${esc(t.title)}</span>
                         <span class="node-meta">${esc(String(t.ms.logs || 0))}</span>
                       </div>
@@ -350,6 +377,16 @@ class LogFilters extends LogComponent {
       Object.keys(f).forEach((k) => { f[k] = Array.isArray(f[k]) ? [] : ''; });
       window.LogApp.setFilter('search', '');
     };
+
+    // Task sort. It changes no scope, so it re-renders rather than recomputing —
+    // and it drives the Hierarchy page's tree too, because two trees ordering
+    // the same tasks differently is worse than either order on its own.
+    this.querySelectorAll('[data-task-order]').forEach((b) => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        window.LogApp.setTaskOrder(b.getAttribute('data-task-order'));
+      };
+    });
 
     // Navigation tree: a click drills to the node and opens it; clicking the
     // node you are already on (open + drilled) collapses it again. Drilling

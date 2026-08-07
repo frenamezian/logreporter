@@ -84,14 +84,14 @@ class LogMaintenance extends LogComponent {
               title="Drop the cache and every watermark, then re-read every session file from the beginning">Rebuild usage</button>
           </div>
         </div>
-        <div class="tree-card maint-card">
+        <div class="tree-card maint-card maint-card-export">
           <h4>Export</h4>
           <p class="maint-note">Honours the page filters and drill scope, ${rows.length} rows in scope.</p>
           <div class="maint-card-mid"></div>
           <div class="maint-card-actions">
-            <button class="small" data-csv="1">Export CSV (filtered)</button>
-            <button class="small" data-json="1">Export JSON (filtered)</button>
-            <button class="small" data-save="1">Save database copy</button>
+            <button class="small" data-csv="1" title="Export CSV — the rows in the current filter and drill scope">CSV</button>
+            <button class="small" data-json="1" title="Export JSON — the rows in the current filter and drill scope">JSON</button>
+            <button class="small" data-save="1" title="Download the in-memory database as a .db file">Save DB copy</button>
           </div>
         </div>
       </div>

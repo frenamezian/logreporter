@@ -1,19 +1,19 @@
 <p>One shell holds every page. Only the content region changes; the header, the left panel, the breadcrumb strip and the detail panel are shared and keep their state across page switches.</p>
 <pre>┌──────────────────────────────────────────────────────────────────────────────────┐
 │ LogReporter [Hierarchy 24][Chronology][Where time goes][Metrics][Models][Maint][?]│
-│ LOCAL MONITOR     24 / 189 logs [CSV][JSON][Refresh][activity_logs.db ▾][?]      │
+│ LOCAL MONITOR [▸Refresh stats ⦁12] 24/189 [CSV][JSON][Refresh][…db ▾][?]         │
 ├────────────────────┬──────────────────────────────────────────┬──────────────────┤
 │ ▸ FILTERS  [clear] │ All repos › Playground › harness › task… │ [‹Prev][Next›]  ×│
 │ [search — Enter]   │       Hierarchy      note about the page │ DECISION         │
 │                    │ ──────────────────────────────────────── │ ENTRY TITLE      │
 │ ▾ NAVIGATION [all] │ legend / page controls          […][…]   │ TASK  task_0350 …│
-│  ▾ Playground 9h26m│                                          │ description …    │
-│    ▾ harness  9h26m│                                          │ #tags            │
-│      ▸ queue…     3│          content region                  │ ERROR DETAILS    │
-│      ▾ task_0350 24│      (the only scroll area)              │ AGENT PATH       │
-│        ▾ lead_a… 24│                                          │ RECORD grid      │
-│          ▾ task… 21│                                          │ TRACE TIMELINE   │
-│            code…  6│                                          │                  │
+│ Sort tasks [Recent]│                                          │ description …    │
+│  ▾ Playground 9h26m│                                          │ #tags            │
+│    ▾ harness  9h26m│          content region                  │ ERROR DETAILS    │
+│      ▸ 04/aug q…  3│      (the only scroll area)              │ AGENT PATH       │
+│      ▾ 07/aug t… 24│                                          │ RECORD grid      │
+│        ▾ lead_a… 24│                                          │ TRACE TIMELINE   │
+│          ▾ task… 21│                                          │                  │
 │ «                ↔ │                                          │ ↔                │
 ├────────────────────┴──────────────────────────────────────────┴──────────────────┤
 │ SPONSORED            [ rotating banner ]                     ● ○ ○ ○             │
@@ -23,7 +23,9 @@
   the sponsor strip spans the full width, under every column</pre>
 
 <h3>State that lives in the shell</h3>
-<p>All of it hangs off <code>LogApp.state</code>, so a component re-render never loses it: <code>page</code>, <code>filter</code>, <code>drill</code>, <code>selectedLog</code>, <code>selectedRun</code>, <code>order</code>, <code>helpTopic</code>, <code>sidebar</code> / <code>panels</code>, <code>navOpen</code> and <code>treeOpen</code> (two independent expand sets), <code>sidebarWidth</code> / <code>detailWidth</code>, and the search draft.</p>
+<p>All of it hangs off <code>LogApp.state</code>, so a component re-render never loses it: <code>page</code>, <code>filter</code>, <code>drill</code>, <code>selectedLog</code>, <code>selectedRun</code>, <code>order</code>, <code>taskOrder</code>, <code>helpTopic</code>, <code>sidebar</code> / <code>panels</code>, <code>navOpen</code> and <code>treeOpen</code> (two independent expand sets), <code>sidebarWidth</code> / <code>detailWidth</code>, and the search draft.</p>
+<p><code>taskOrder</code> is shared rather than per-tree on purpose: the sidebar and the Hierarchy page list the same tasks, and two orders for one set of rows is a worse answer than either order alone.</p>
+<p>Four more keys carry the refresh baseline — <code>refreshBaseIds</code> (a <code>Set</code> of row ids), <code>refreshBaseAt</code>, <code>refreshBaseLabel</code> and the <code>refreshStats</code> diff cut against them. The baseline moves only on a deliberate act: an explicit Refresh, page load, or a different database being opened. A poll tick recuts the diff and leaves the baseline alone, which is what lets the count accumulate between refreshes instead of being swallowed five seconds after each row lands.</p>
 <p>Three pieces of state answer to something other than the logs. <code>measure</code> is the Tokens ⇄ Cost toggle, shared by Metrics and <em>Where time goes</em> so the two never disagree about which measure is on screen. <code>modelsFilter</code>, <code>modelsOpen</code> and <code>modelRowOpen</code> belong to the Models page, which filters the price registry rather than the logs. And <code>usage</code> / <code>usageReport</code> hold the second database — loaded <em>after</em> the first render, deliberately, because the log file is what the page is actually about and the usage cache can be tens of megabytes.</p>
 <p>The sidebar slot follows the page rather than the app: filters normally, the guide's outline on Help, the registry's facets on Models. All three are the same 320px column with the same collapse behaviour.</p>
 

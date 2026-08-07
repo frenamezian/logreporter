@@ -17,7 +17,14 @@
 <p>Changing any filter clears the drill scope and closes the detail panel — the row you had open may no longer be in scope, and a stale drill into a task the filter just excluded shows an empty page.</p>
 
 <h3>Navigation</h3>
-<p>The tree is repository → branch → task → agent, and the agent level is nested from <code>agent_path</code>, so a subagent appears underneath the agent that spawned it. Repositories and branches show their wall-clock time; tasks and agents show a row count.</p>
+<p>The tree is repository → branch → task → agent, and the agent level is nested from <code>agent_path</code>, so a subagent appears underneath the agent that spawned it. Repositories and branches show their wall-clock time; tasks and agents show a row count. Each task also carries the date of its last log, on the left of its title:</p>
+<pre>▾ logreporter                                 7h 46m
+  ▾ restyle/task-0010-paper-ink               3h 53m
+    ▾ 07/aug  Task 0010: Paper &amp; Ink restyle…     26
+      ▸        lead_architect                     26
+  ▸ main                                      2h 51m</pre>
+<p><strong>Sort tasks</strong>, above the tree, switches between <strong>Recent</strong> — the most recent last log first, which is what the tree has always done — and <strong>Name</strong>, the task title A→Z with numbers in numeric order, so <code>task_0009</code> precedes <code>task_0010</code>. The setting drives the Hierarchy page's tree as well: two trees ordering the same tasks differently is worse than either order on its own.</p>
+<p>The date is the value the default sort runs on, which is the point of showing it — an order you can see the key for is an order you can trust. It is written <code>dd/mon</code>, with the year appended when it is not the current one, and in UTC, like every other timestamp in the app. Hovering a task gives its full title and the exact time of that last log.</p>
 
 <p>If a task expands into something that looks like a directory listing — <code>projects</code> → <code>docs</code> → <code>tasks</code> → a filename — that is not a display fault. An agent has written a file path into <code>agent_path</code>, and the tree is faithfully showing every segment as an agent. The fix is in that agent's prompt, not here: <code>agent_path</code> is a lineage of agents, and the file being worked on belongs in <code>log_title</code> or <code>log_description</code>.</p>
 <table><thead><tr><th>Action</th><th>Result</th></tr></thead><tbody>
