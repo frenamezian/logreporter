@@ -565,6 +565,11 @@ log-details { flex: 1; overflow-y: auto; }
 .bar-part:hover { filter: brightness(1.3); }
 .bar-part:last-child { box-shadow: none; }
 .bar-row-active { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 4px; box-shadow: inset 2px 0 0 var(--accent); }
+/* Spend the bars above did not account for. Set apart by a rule and dimmed
+   rather than coloured: it is a total, not another bar to compare against, and
+   it is not clickable because there is nothing underneath it to drill into. */
+.bar-row-outside { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.bar-row-outside .bar-label { font-style: italic; }
 
 .log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .log-table th, .log-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }

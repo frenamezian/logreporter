@@ -18,10 +18,11 @@ Substantial work gets a trace, so the dashboard has something to show. Once per 
 What is easiest to get wrong:
 
 1. **Run the scripts from this repo root.** The working directory decides which repo and branch a row is filed under, and the tool reads both from git. A row written from elsewhere detaches from this repo's cost reporting and nothing tells you: the write succeeds and exits 0.
-2. **One `trace_id` ↔ one `task_title`.** Mint once, when the work starts. Never re-mint mid-task.
-3. **`--agent lead_architect`, and omit `--agent-path`.** It defaults to `--agent` when absent, which is exactly what a flat single-agent run wants, and it matches the shape of the rows already in the database. Never pass a file path there.
-4. **Do not pass `--async`.** Writes are synchronous by default. Use `--timestamp '<UTC YYYY-MM-DD HH:MM:SS>'` to backdate a row you should have written earlier.
-5. **Never log tokens by hand.** `usage_reader.py` reads them out of the agents' own session transcripts into `token_usage.db`; the dashboard joins the two on repo, branch and time.
+2. **Log the repo the *session* is rooted in, not the one you are working on.** Tokens are attributed from the working directory Claude Code recorded in its transcript, which is fixed when the session starts. Logging on behalf of a different repository files the time under a repo the parser will never produce, and the task reports an em dash forever — 1h38m of `apptemplate` work spent its 30.3M tokens under `Playground`, because the session was rooted there. If work moves to another checkout, restart the session inside it; a task that must be logged elsewhere is a task whose tokens cannot be joined, and that is a choice to make deliberately.
+3. **One `trace_id` ↔ one `task_title`.** Mint once, when the work starts. Never re-mint mid-task.
+4. **`--agent lead_architect`, and omit `--agent-path`.** It defaults to `--agent` when absent, which is exactly what a flat single-agent run wants, and it matches the shape of the rows already in the database. Never pass a file path there.
+5. **Do not pass `--async`.** Writes are synchronous by default. Use `--timestamp '<UTC YYYY-MM-DD HH:MM:SS>'` to backdate a row you should have written earlier.
+6. **Never log tokens by hand.** `usage_reader.py` reads them out of the agents' own session transcripts into `token_usage.db`; the dashboard joins the two on repo, branch and time.
 
 ## What counts as a run
 
@@ -30,3 +31,8 @@ Substantial work with no task file still gets logged. Log it if **any** of these
 Casual chat work does not: answering a question, reading or explaining code, a single small edit, a typo or formatting fix, exploratory searching. **If you are one edit and one commit from done, it is chat, not a run** — noise costs more than a missing row.
 
 When a chat exchange *turns into* a run, mint the trace at the moment it does and backdate the `start` row with `--timestamp` to when the work actually began. Use a descriptive `task_title` in place of a task number (e.g. `Paper & Ink restyle`); one trace, one title still holds.
+
+
+## Environment
+
+- **PowerShell command chaining:** use `;`, not `&&` — this repo's default shell doesn't support `&&`.

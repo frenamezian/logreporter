@@ -8,6 +8,20 @@ const CATS = ['activity', 'issue', 'decision', 'github', 'idle'];
 // A per-category duration bucket holding a single value
 const only = (cat, ms) => ({ activity: 0, issue: 0, decision: 0, github: 0, idle: 0, [cat]: ms });
 
+// Every task span in view for a repository, or for one branch of it.
+const spansFor = (m, repo, branch) => (m.tasks || [])
+  .filter((t) => t.repo === repo && (!branch || t.branch === branch) && t.span)
+  .map((t) => t.span);
+
+// Overlapping spans are deliberately *not* weighted here, unlike the parts of a
+// task in cost-model.summarize. A repository bar is asking "did this request
+// happen during any logged work", which a row inside two spans answers once.
+const inAnySpan = (u, spans) => {
+  const v = Date.parse(String(u.timestamp || ''));
+  if (!Number.isFinite(v)) return false;
+  return spans.some((sp) => v >= sp.from && v <= sp.to);
+};
+
 class LogTimegoes extends LogComponent {
   // Scope-wide totals, like every other card here. The waterfall below shows
   // one task, so this card and those rows describe different sets whenever the
@@ -84,7 +98,19 @@ class LogTimegoes extends LogComponent {
   }
 
   // Usage for one item of the bars panel above the agent level: a repository, a
-  // branch, or a task. Tasks join on their span, the others on name alone.
+  // branch, or a task. All three join on name *and* span.
+  //
+  // The repo and branch rows used to join on name alone, and the result was a
+  // row that quietly answered two different questions at once: Playground read
+  // "9m" beside "7.43B tokens", because the TIME column meant the tasks in view
+  // and the TOKENS column meant every request that repository had ever made.
+  // Ten weeks of spend sat next to nine minutes of work with nothing saying so.
+  //
+  // Bounding both to the same spans is what makes a row internally consistent.
+  // The tokens that fall outside every span are not discarded for it — they are
+  // the `outside logged tasks` row in renderBars, which is a more useful number
+  // than the inflated total ever was: it is how much of this agent's spend the
+  // logs never accounted for.
   usageForItem(x, m) {
     const s = window.LogApp.state;
     const rows = s.usageInScope || [];
@@ -97,10 +123,12 @@ class LogTimegoes extends LogComponent {
                  return Number.isFinite(v) && v >= t.span.from && v <= t.span.to; })());
     }
     if (x.scope && x.scope.branch) {
-      return rows.filter((u) => u.repo_name === x.scope.repo && u.branch_name === x.scope.branch);
+      return rows.filter((u) => u.repo_name === x.scope.repo &&
+        u.branch_name === x.scope.branch && inAnySpan(u, spansFor(m, x.scope.repo, x.scope.branch)));
     }
     if (x.scope && x.scope.repo) {
-      return rows.filter((u) => u.repo_name === x.scope.repo);
+      return rows.filter((u) => u.repo_name === x.scope.repo &&
+        inAnySpan(u, spansFor(m, x.scope.repo, null)));
     }
     return [];
   }
@@ -198,23 +226,59 @@ class LogTimegoes extends LogComponent {
         <span class="bars-axis-end">Tokens</span>
         <span class="bars-axis-end">Cost</span>
       </div>`;
-    return `${head}<div class="bars">${items.map((x) => {
+    // Hoisted out of the template so the rows each bar claimed can be counted
+    // against the scope total below.
+    const perItem = items.map((x) => (x.run && perRun)
+      ? (perRun.get(x.run.path + '|' + x.run.from) || [])
+      : this.usageForItem(x, m));
+
+    const body = items.map((x, i) => {
       const active = x.run && sel.path === x.run.path && sel.from === x.run.from;
       const attrs = x.run
         ? `data-run-path="${esc(x.run.path)}" data-run-from="${esc(String(x.run.from))}"`
         : `data-drill='${esc(JSON.stringify(x.drill))}'`;
       const indent = x.depth ? `<span class="bar-indent">${'└'.padStart(x.depth * 2, ' ')}</span>` : '';
-      const uRows = x.run && perRun ? (perRun.get(x.run.path + '|' + x.run.from) || [])
-                                    : this.usageForItem(x, m);
       return `
       <div class="bar-row bar-clickable${active ? ' bar-row-active' : ''}" ${attrs}>
         <div class="bar-label" style="padding-left:${(x.depth || 0) * 14}px" title="${esc(x.run ? x.run.path : x.label)}">${indent}${esc(x.label)}</div>
         <div class="bar-cell">${this.partedBar(x, max)}</div>
         <div class="bar-val">${fmt(x.ms.wall)}</div>
         <div class="bar-val bar-own">${x.self != null ? fmt(x.self) : '<span class="na">—</span>'}</div>
-        ${this.usageCells(uRows)}
+        ${this.usageCells(perItem[i])}
       </div>`;
-    }).join('')}</div>`;
+    }).join('');
+
+    return `${head}<div class="bars">${body}${this.outsideRow(s, perItem)}</div>`;
+  }
+
+  // What the bars above do NOT account for: requests in scope that fell outside
+  // every task span they cover.
+  //
+  // This row is the reason bounding the bars to their spans does not lose
+  // anything. Before, a repository's total silently swallowed this; now it is
+  // named, and it turns out to be the more interesting figure — 9 minutes of
+  // logged work beside 7.43B unaccounted tokens is not a rounding error in the
+  // attribution, it is a statement about how little of the work was logged.
+  //
+  // Omitted at the agent level: there, the bars are the runs of one task and
+  // `outside` would mean "inside the task but between its runs", which is a
+  // different question this row would be mistaken for an answer to.
+  outsideRow(s, perItem) {
+    if (s.drill.task) return '';
+    const scope = s.usageInScope || [];
+    if (!scope.length) return '';
+    const claimed = new Set();
+    perItem.forEach((rs) => rs.forEach((u) => claimed.add(u.request_id)));
+    const outside = scope.filter((u) => !claimed.has(u.request_id));
+    if (!outside.length) return '';
+    return `
+      <div class="bar-row bar-row-outside" title="Requests inside the current scope that fall outside every task span shown above — work the activity log never covered.">
+        <div class="bar-label"><span class="na">outside logged tasks</span></div>
+        <div class="bar-cell"></div>
+        <div class="bar-val"><span class="na">—</span></div>
+        <div class="bar-val bar-own"><span class="na">—</span></div>
+        ${this.usageCells(outside)}
+      </div>`;
   }
 
   // A stacked bar whose colour blocks are subdivided by whatever makes them up

@@ -30,17 +30,32 @@ second gate exists so a future community parser cannot widen it by accident.
 
 Usage:
   python usage_reader.py                 # incremental refresh
+  python usage_reader.py --refresh       # re-derive stored rows in place
   python usage_reader.py --rebuild       # drop the cache and re-read everything
   python usage_reader.py --stats         # totals, no reading
   python usage_reader.py --dry-run       # parse and report, write nothing
   python usage_reader.py --only claude_code --limit 5 --verbose
-  python usage_reader.py --rebuild --only antigravity   # re-read ONE source
+  python usage_reader.py --refresh --only antigravity   # re-derive ONE source
   python usage_reader.py --rebuild --dry-run            # what WOULD a rebuild give?
 
 `--rebuild` on its own deletes the database and starts over. Scoped with
 `--only`, it deletes just that parser's rows and watermarks and leaves every
 other source in place — which is what you want when a parser changes what it
 emits, since INSERT OR IGNORE will not update rows that already exist.
+
+`--refresh` is the same correction without the delete, and it is usually the
+one you want. It re-reads every source from the start like a rebuild, but
+UPDATEs the rows it finds instead of inserting them: nothing is created,
+nothing is removed, and a row whose derived columns are unchanged is not
+written at all. Use it after a PARSE_VERSION bump.
+
+The distinction is not stylistic. This database is documented as "a cache and
+nothing else", and that has quietly stopped being true: agent transcripts are
+deleted or rotated by the agents themselves, so rows here routinely outlive
+the file they were read from. On the machine this was written on, 6 Claude
+Code sessions — 316 rows — had no surviving `.jsonl`, and `--rebuild` would
+have destroyed them to fix 11,348 others. Prefer `--refresh`; reach for
+`--rebuild` only when rows must actually be *removed*, and back up first.
 
 Adding `--dry-run` makes it a preview: every source is read from the start, the
 result is reported, and nothing is deleted or written. That combination used to
@@ -98,6 +113,13 @@ COLUMNS = (
 
 INSERT = (f"INSERT OR IGNORE INTO token_usage ({','.join(COLUMNS)}) "
           f"VALUES ({','.join('?' * len(COLUMNS))})")
+
+# Everything a parser derives, which is every column but the key it derives them
+# against. `--refresh` writes these onto a row that already exists; see _refresh.
+UPDATE_COLS = tuple(c for c in COLUMNS if c != "request_id")
+UPDATE = (f"UPDATE token_usage SET {','.join(c + ' = ?' for c in UPDATE_COLS)} "
+          f"WHERE request_id = ?")
+SELECT_ONE = f"SELECT {','.join(UPDATE_COLS)} FROM token_usage WHERE request_id = ?"
 
 # EXTRA_ALLOWED is defined in parsers/__init__.py and enforced here. A parser
 # that puts a prompt, a file path or a stack trace in extra_json has it
@@ -237,13 +259,19 @@ def _save_watermark(con, parser_id, path, cursor, stat):
 # --- the run ----------------------------------------------------------------
 
 def run(db_path=DB_PATH, only=None, limit=None, dry_run=False, verbose=False,
-        parsers_dir=None, full=False):
+        parsers_dir=None, full=False, refresh=False):
     """Refresh the usage cache. Returns a report dict (the §8.6 source panel).
 
     `full` re-reads every source from the start, ignoring watermarks and
     cursors. It is a *read* mode and says nothing about deleting: the caller
     decides separately whether to clear what is already stored. Keeping those
     two apart is what makes a rebuild previewable — see main().
+
+    `refresh` is the third of those separable things — a *write* mode. Records
+    are UPDATEd onto the rows that already hold their request_id instead of
+    being inserted, and nothing is deleted anywhere in the run. It implies a
+    full read (there is no point re-deriving from a watermark), but main()
+    passes that through `full` rather than assuming it here.
     """
     t0 = time.time()
     result = parser_loader.load(parsers_dir)
@@ -279,7 +307,7 @@ def run(db_path=DB_PATH, only=None, limit=None, dry_run=False, verbose=False,
         for p in result.parsers:
             if p in active or getattr(p.module, "SOURCE_KIND", "files") != "command":
                 continue
-            if not dry_run:
+            if not dry_run and not refresh:
                 con.execute(
                     "DELETE FROM token_usage WHERE source = ? OR source LIKE ?",
                     (p.agent_id, p.agent_id + ":%"))
@@ -289,7 +317,8 @@ def run(db_path=DB_PATH, only=None, limit=None, dry_run=False, verbose=False,
                 continue
             report["agents"].append(
                 _run_parser(con, p, claimed=active, limit=limit,
-                            dry_run=dry_run, verbose=verbose, full=full)
+                            dry_run=dry_run, verbose=verbose, full=full,
+                            refresh=refresh)
             )
         if not dry_run:
             con.commit()
@@ -322,7 +351,7 @@ def _write_report(report, db_path=DB_PATH):
         print(f"could not write {path}: {e}", file=sys.stderr)
 
 
-def _run_parser(con, p, claimed=(), limit=None, dry_run=False, verbose=False,
+def _run_parser(con, p, claimed=(), limit=None, dry_run=False, verbose=False, refresh=False,
                 full=False):
     mod = p.module
     stats = getattr(mod, "PARSE_STATS", None)
@@ -344,7 +373,7 @@ def _run_parser(con, p, claimed=(), limit=None, dry_run=False, verbose=False,
         "kind": "fallback" if kind == "command" else "native",
         "files_seen": 0, "files_skipped": 0, "files_read": 0,
         "files_full_reread": 0, "files_failed": 0,
-        "records": 0, "inserted": 0, "rejected": 0, "replaced": 0,
+        "records": 0, "inserted": 0, "updated": 0, "rejected": 0, "replaced": 0,
         "last_watermark": None, "errors": [],
     }
 
@@ -376,7 +405,10 @@ def _run_parser(con, p, claimed=(), limit=None, dry_run=False, verbose=False,
     marks = {} if full else _watermarks(con, p.agent_id)
     pending = []
 
-    if kind == "command" and not dry_run:
+    # `and not refresh`: a refresh corrects rows in place and is promised never
+    # to remove one. An aggregate source has nothing to correct anyway — its
+    # rows are replaced wholesale on every ordinary run.
+    if kind == "command" and not dry_run and not refresh:
         # Drop the whole namespace before re-inserting it. This is also what
         # cleans up after a fallback that has been superseded: once a native
         # parser claims codex, the adapter stops emitting ccusage:codex rows
@@ -442,10 +474,10 @@ def _run_parser(con, p, claimed=(), limit=None, dry_run=False, verbose=False,
             _save_watermark(con, p.agent_id, path, new_cursor, st)
 
         if len(pending) >= BATCH:
-            agent["inserted"] += _flush(con, pending, dry_run)
+            _store(con, agent, pending, dry_run, refresh)
             pending = []
 
-    agent["inserted"] += _flush(con, pending, dry_run)
+    _store(con, agent, pending, dry_run, refresh)
 
     if isinstance(stats, dict) and stats:
         agent["parse_stats"] = dict(stats)
@@ -454,6 +486,47 @@ def _run_parser(con, p, claimed=(), limit=None, dry_run=False, verbose=False,
                       (p.agent_id,)).fetchone()
     agent["last_watermark"] = row[0] if row else None
     return agent
+
+
+def _store(con, agent, rows, dry_run, refresh):
+    """Write a batch the way this run was asked to: correcting, or importing."""
+    if refresh:
+        agent["updated"] += _refresh(con, rows, dry_run)
+    else:
+        agent["inserted"] += _flush(con, rows, dry_run)
+
+
+def _refresh(con, rows, dry_run):
+    """UPDATE rows that already exist. Inserts nothing, deletes nothing.
+
+    Returns the number of rows whose derived columns actually *changed*, which
+    is the number worth printing: a refresh that corrects 11,348 model ids and
+    one that rewrites 64,049 identical rows are very different events, and
+    SQLite's own change count cannot tell them apart — an UPDATE counts every
+    row its WHERE matched, whether or not the values moved. So the comparison
+    happens here, and an unchanged row is never written.
+
+    A request_id with no stored row is skipped rather than inserted. That is
+    what keeps this a *correction* and not a second import path: --refresh can
+    never change how many rows exist, so it cannot go wrong in the direction
+    that would need a backup to undo.
+
+    Under --dry-run the comparison still runs and only the write is skipped, so
+    the count is a real preview of what a refresh would move. Returning 0 there
+    would have been the same lie --rebuild --dry-run used to tell.
+    """
+    if not rows:
+        return 0
+    changed = 0
+    for r in rows:
+        rid, new = r[0], tuple(r[1:])
+        cur = con.execute(SELECT_ONE, (rid,)).fetchone()
+        if cur is None or tuple(cur) == new:
+            continue
+        if not dry_run:
+            con.execute(UPDATE, new + (rid,))
+        changed += 1
+    return changed
 
 
 def _flush(con, rows, dry_run):
@@ -503,7 +576,7 @@ def print_report(report):
               f"{a['files_skipped']} skipped, {a['files_full_reread']} re-read in full, "
               f"{a['files_failed']} failed")
         print(f"  records: {a['records']} parsed, {a['inserted']} inserted, "
-              f"{a['rejected']} rejected")
+              f"{a.get('updated', 0)} updated, {a['rejected']} rejected")
         if a.get("parse_stats"):
             print(f"  parser: {a['parse_stats']}")
         for e in a["errors"][:5]:
@@ -529,6 +602,10 @@ def main():
                     help="discard the cache and every watermark, then re-read "
                          "everything. Scoped by --only to one AGENT_ID; with "
                          "--dry-run it previews the result and deletes nothing")
+    ap.add_argument("--refresh", action="store_true",
+                    help="re-read every source and UPDATE the rows already "
+                         "stored, inserting nothing and deleting nothing. The "
+                         "non-destructive way to apply a PARSE_VERSION bump")
     ap.add_argument("--stats", action="store_true", help="print totals and exit")
     ap.add_argument("--dry-run", action="store_true", help="parse but write nothing")
     ap.add_argument("--only", help="restrict to one AGENT_ID")
@@ -560,6 +637,15 @@ def main():
     # It used to get the read by deleting the watermark rows, so the read could
     # not happen without the write. Now `full` is passed to run() directly, and
     # --dry-run simply skips the clear, exactly as it already skips the inserts.
+    # Both are corrections for the same situation — a parser now emits something
+    # different for rows it has already imported — and they differ only in
+    # whether the old rows are deleted first. Asking for both is not a
+    # combination, it is a contradiction about which one you meant.
+    if args.rebuild and args.refresh:
+        sys.exit("--rebuild and --refresh are alternatives: --refresh corrects "
+                 "the stored rows in place, --rebuild deletes them and reads "
+                 "again. Pick one (--refresh loses nothing).")
+
     if args.rebuild and not args.dry_run:
         if args.only:
             rows, marks = drop_source(args.db, args.only)
@@ -571,7 +657,7 @@ def main():
 
     report = run(args.db, only=args.only, limit=args.limit,
                  dry_run=args.dry_run, verbose=args.verbose,
-                 full=args.rebuild)
+                 full=args.rebuild or args.refresh, refresh=args.refresh)
     print_report(report)
     if args.dry_run and args.rebuild:
         # Say what a real rebuild would produce, because the row count printed
@@ -580,6 +666,11 @@ def main():
         scope = args.only or "every source"
         print(f"(dry run - nothing was written and nothing was deleted. "
               f"A real --rebuild of {scope} would store {would:,} record(s))")
+    elif args.dry_run and args.refresh:
+        would = sum(a.get("updated", 0) for a in report["agents"])
+        scope = args.only or "every source"
+        print(f"(dry run - nothing was written. A real --refresh of {scope} "
+              f"would correct {would:,} stored row(s))")
     elif args.dry_run:
         print("(dry run - nothing was written)")
 
