@@ -14,22 +14,40 @@
 // a lookup rather than a table of its own:
 //
 //   input_tokens       -> standard
-//   cache_read_tokens  -> cache_read -> cached_input -> standard
+//   cache_read_tokens  -> cache_read -> cached_input -> context_cache
+//                         -> context_cache_text -> cached_text -> standard
 //   cache_write_5m     -> cache_write_5m -> standard
 //   cache_write_1h     -> cache_write_1h -> standard
 //   output_tokens      -> standard   (from the output_token group)
 //
-// The fallbacks are ordered, not alternatives: OpenAI calls a cache read
-// `cached_input` where Anthropic calls it `cache_read`, and an agent whose
-// provider prices cache reads at the full input rate has neither, which is
-// what the final `standard` covers.
+// The cache-read fallbacks are ordered, not alternatives, because every
+// provider named the same thing differently: `cache_read` is Anthropic's,
+// `cached_input` is OpenAI's and four others', `context_cache` is Gemini 3.x,
+// `context_cache_text` is Gemini 2.x, `cached_text` is the OpenAI realtime
+// models. No model in the registry carries two of them, so the order is
+// documentation rather than precedence — what matters is that all five sit in
+// front of `standard`.
+//
+// `standard` last is the genuine fallback: a provider that prices cache reads
+// at the full input rate has none of the above. It is also why this chain has
+// to be kept complete. A missing name does not fail loudly as an unpriced row;
+// it silently bills a cache read at up to 10x its real rate. The audit that
+// added the three Gemini/realtime names found 1.30B tokens priced that way,
+// $1,948 against a true $195.
+//
+// Deliberately absent: `context_cache_audio` and `cached_audio` (wrong
+// modality — every counter here is text), and `context_cache_long` /
+// `long_context_cached` (the >200k premium variants; every model carrying one
+// also carries its base tier, which is the right default for a counter that
+// does not record how long the context actually was).
 
 const REGISTRY = window.LLM_REGISTRY || {};
 
 // Counter -> the price group it is billed under, and the tiers to try in order.
 const TIERS = {
   input_tokens:      { group: 'input_token',  chain: ['standard'] },
-  cache_read_tokens: { group: 'input_token',  chain: ['cache_read', 'cached_input', 'standard'] },
+  cache_read_tokens: { group: 'input_token',  chain: ['cache_read', 'cached_input', 'context_cache',
+                                                      'context_cache_text', 'cached_text', 'standard'] },
   cache_write_5m:    { group: 'input_token',  chain: ['cache_write_5m', 'standard'] },
   cache_write_1h:    { group: 'input_token',  chain: ['cache_write_1h', 'standard'] },
   output_tokens:     { group: 'output_token', chain: ['standard'] }
@@ -37,11 +55,19 @@ const TIERS = {
 
 const COUNTERS = Object.keys(TIERS);
 
-// A tier named intro_<something>_until_YYYY_MM_DD is a launch price with an end
-// date. Sonnet 5 currently has one. It applies to work done on or before that
-// date and to nothing after it — an old session has to price at what it
-// actually cost, not at today's rate.
-const INTRO_RE = /_until_(\d{4})_(\d{2})_(\d{2})$/;
+// A tier named intro_<tier>_until_YYYY_MM_DD is a launch price *for that tier*
+// with an end date. Sonnet 5 currently has one, `intro_standard_until_2026_08_31`.
+// It applies to work done on or before that date and to nothing after it — an
+// old session has to price at what it actually cost, not at today's rate.
+//
+// The `<tier>` in the middle is the one it replaces, and replacing only that
+// tier is the whole of the rule. Prepending an intro price to the front of a
+// chain instead lets it win over every tier behind it, which is not a launch
+// discount but a different price group: Sonnet 5's cache reads priced at the
+// intro *input* rate of $2.00/M rather than the $0.30/M cache-read rate, 6.7x
+// over, across 2.04B tokens. Capturing the base name here is also what lets a
+// future `intro_cache_read_until_...` be a registry edit and not a code change.
+const INTRO_RE = /^intro_(.+)_until_(\d{4})_(\d{2})_(\d{2})$/;
 
 // model_id -> { input_token: {tier: price}, output_token: {...}, _intro: [...] }
 let index = null;
@@ -70,7 +96,8 @@ function buildIndex() {
           // would otherwise be 1000x wrong and look plausible.
           byTier[t.tier_name] = { value: t.price_value, per: t.price_per_qty || 1e6 };
           const mm = INTRO_RE.exec(t.tier_name);
-          if (mm) entry.intro.push({ group, tier: t.tier_name, until: `${mm[1]}-${mm[2]}-${mm[3]}` });
+          if (mm) entry.intro.push({ group, tier: t.tier_name, replaces: mm[1],
+                                     until: `${mm[2]}-${mm[3]}-${mm[4]}` });
         });
         entry.groups[group] = byTier;
       });
@@ -117,11 +144,19 @@ function rateFor(entry, counter, opts) {
   if (opts && opts.serviceTier === 'batch') chain.unshift('batch');
   if (opts && opts.speed === 'fast') chain.unshift('fast_mode');
 
-  // An intro tier that is still in force displaces `standard` for this record.
+  // An intro tier that is still in force substitutes for the single tier it
+  // names, wherever that tier sits — it does not jump the queue. See INTRO_RE.
+  // Running after the two modifiers above is deliberate: it lets an
+  // `intro_batch_until_...` reach the `batch` they unshifted. An intro tier
+  // naming a tier this chain never consults substitutes nothing, which is the
+  // correct no-op.
   const day = opts && opts.day;
   if (day) {
     entry.intro.forEach((i) => {
-      if (i.group === spec.group && day <= i.until) chain.unshift(i.tier);
+      if (i.group !== spec.group || day > i.until) return;
+      for (let k = 0; k < chain.length; k += 1) {
+        if (chain[k] === i.replaces) chain[k] = i.tier;
+      }
     });
   }
 
