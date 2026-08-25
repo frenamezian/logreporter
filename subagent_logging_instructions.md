@@ -1,12 +1,12 @@
 # Subagent Logging Instructions
 
-> **How to use this file:** the lead architect pastes this entire block into every subagent's task prompt, with the placeholders (`<name>`, `<trace_id>`, `<parent_trace_id>`, `<task_title>`) filled in. It is mandatory — every dispatched subagent must log its activity.
+> **How to use this file:** the dispatcher pastes this entire block into every subagent's task prompt, with the placeholders (`<name>`, `<agent_path>`, `<trace_id>`, `<parent_trace_id>`, `<task_title>`) filled in. It is mandatory — every dispatched subagent must log its activity.
 
 ---
 
 ## Your role
 
-You are a **subagent** dispatched by the lead architect. You write an activity log to `activity_logs.db` as you work, so that what each agent did — and what it cost in time and tokens — can be attributed to the agent that incurred it. Logging is mandatory, for you and for any subagent you dispatch in turn.
+You are a **subagent** dispatched by a parent agent. You write an activity log to `activity_logs.db` as you work, so that what each agent did — and what it cost in time and tokens — can be attributed to the agent that incurred it. Logging is mandatory, for you and for any subagent you dispatch in turn.
 
 **If you are working in the LogReporter repository itself:** its dashboard is tested on this data, and the schema and table name must not change.
 
@@ -20,7 +20,7 @@ It lives in the `log_reporter` checkout, and you invoke it **by absolute path**.
 python /absolute/path/to/log_reporter/log_activity.py \
   --log-type <type> \
   --task "<task title>" \
-  --agent <name> --agent-path lead_architect/<name> \
+  --agent <name> --agent-path <agent_path> \
   --trace-id <trace_id> \
   --parent-trace-id <parent_trace_id> \
   --log-title "<one specific line>" \
@@ -42,16 +42,17 @@ Required: `--log-type`, `--log-title`, `--agent`. `--agent-path` defaults to `--
 
 ### `--agent-path` is a lineage, NOT a file path
 
-It is the chain of agents from the root down to you, joined by `/`. Yours is `lead_architect/<name>` and nothing else.
+It is the chain of agents from the root down to you, joined by `/` — on your own rows, use the `<agent_path>` value your dispatcher gave you verbatim. If you dispatch child agents in turn, their path is your `<agent_path>` with their own name appended (and if nothing dispatched you, your path is just your own name). Never compute this by counting levels: take exactly what you were given and add one segment for each downward dispatch.
 
 **The dashboard splits this field on `/` and renders every segment as an agent**, so whatever you put here becomes the navigation tree.
 
 ```
 ✅  --agent-path lead_architect/code_reviewer
+✅  --agent-path lead_architect/task_executor/code_reviewer
 ❌  --agent-path projects/template_project/docs/tasks/task_0400.md
 ```
 
-That second one is a real example, and it created five agents called `projects`, `template_project`, `docs`, `tasks` and `task_0400.md` — while the agent that did the work appeared nowhere. **The file you are working on does not belong in any field.** If it matters, name it in `--log-title` or `--log-description`.
+That last one is a real example, and it created five agents called `projects`, `template_project`, `docs`, `tasks` and `task_0400.md` — while the agent that did the work appeared nowhere. **The file you are working on does not belong in any field.** If it matters, name it in `--log-title` or `--log-description`.
 
 **Synchronous:** the script validates the args, performs the `INSERT`, prints the new row id and exits. It opens the database in WAL mode with a 10s busy timeout, so concurrent agents and dashboard polling coexist; if a write loses the busy timeout it retries up to 5 times with exponential backoff (0.25s → 0.5s → 1s → 2s → 4s). A write that ultimately fails exits non-zero and says why, so a row you were told was written is a row that exists.
 
@@ -70,10 +71,10 @@ This used to be asynchronous, and the default changed because that lost rows sil
 
 If the `task_title` you were given and the `trace_id` you were given do not obviously belong together — you were handed one trace and told to log several different task titles under it — **stop and ask the lead**, because that combination cannot be recorded correctly. Three stages logged as three task titles under one trace read as one run with no parent, and nothing can reconstruct which stage owned which.
 
-## Fill in these values (given to you by the lead)
+## Fill in these values (given to you by your dispatcher)
 
 - `--agent` = **`<name>`**
-- `--agent-path` = **`lead_architect/<name>`**
+- `--agent-path` = **`<agent_path>`**
 - `--tags` must include **`#subagent:<subagent_type>`** on every row, where
   `<subagent_type>` is the type you were dispatched as (the coding agent's own
   name for you, e.g. `code-reviewer`). This is the join key between this log and
@@ -123,7 +124,7 @@ Write it with `--timestamp '<UTC YYYY-MM-DD HH:MM:SS>'` set to when the thing ha
 ## On every row
 
 - `task_title` — identical for every row you write, character for character. It is a grouping key: a title that drifts by one space becomes two tasks.
-- `agent_name` = `<name>`; `agent_path` = `lead_architect/<name>`. One lowercase token, and `agent_name` must equal the last segment of `agent_path`: `Code Reviewer` in one field and `code_reviewer` in the other is two agents as far as the tree is concerned.
+- `agent_name` = `<name>`; `agent_path` = `<agent_path>`. One lowercase token, and `agent_name` must equal the last segment of `agent_path`: `Code Reviewer` in one field and `code_reviewer` in the other is two agents as far as the tree is concerned.
 - `trace_id` = `<trace_id>` (the lead's, verbatim).
 - `parent_trace_id` = `<parent_trace_id>` (the lead's trace_id).
 - `log_title` — one specific line ("Chose append-only over upsert", not "Made a decision").
@@ -152,7 +153,7 @@ Silence between rows is reported as idle time, so log when you begin waiting on 
 
 ## Worked example (a subagent's portion of a task)
 
-Given by the lead: `name=header_agent`, `trace_id=9f2c41a8`, `parent_trace_id=9f2c41a8`, `task_title="Implement header dropdown"`.
+Given by the lead: `name=header_agent`, `agent_path=lead_architect/header_agent`, `trace_id=9f2c41a8`, `parent_trace_id=9f2c41a8`, `task_title="Implement header dropdown"`.
 
 ```
 $ python /absolute/path/to/log_reporter/log_activity.py --log-type start \

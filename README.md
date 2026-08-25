@@ -243,7 +243,7 @@ multi-agent run reads as one sequence.
 
 ### When you dispatch a subagent
 
-Include the subagent logging block in its prompt with `<name>`, `<trace_id>`,
+Include the subagent logging block in its prompt with `<name>`, `<lineage>`, `<trace_id>`,
 `<parent_trace_id>` and `<task_title>` filled in. `task_title` must be
 identical, character for character, across every row of one task — it is a
 grouping key.

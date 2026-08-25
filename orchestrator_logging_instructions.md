@@ -49,13 +49,14 @@ Required: `--log-type`, `--log-title`, `--agent`. `--agent-path` defaults to `--
 
 ### `--agent-path` is a lineage, NOT a file path
 
-The chain of agents from the root down to whoever is writing the row, joined by `/`. You are the root, so yours is just `lead_architect`. A subagent you dispatch is `lead_architect/<its name>`.
+The chain of agents from the root down to whoever is writing the row, joined by `/`. You are the root, so yours is just `lead_architect`. A subagent you dispatch appends its name to your path (`lead_architect/<name>`), and any subagent it dispatches appends to that in turn (`lead_architect/<name>/<subagent_name>`). Never compute this by counting levels: each agent takes the path its dispatcher gave it and appends its own name.
 
 **The dashboard splits this field on `/` and renders every segment as an agent**, so whatever you put here becomes the navigation tree.
 
 ```
 ✅  --agent-path lead_architect
 ✅  --agent-path lead_architect/code_reviewer
+✅  --agent-path lead_architect/task_executor/code_reviewer
 ❌  --agent-path projects/template_project/docs/tasks/task_0400.md
 ```
 
@@ -185,7 +186,7 @@ Those are the only two shapes. What must never happen is one trace carrying seve
 ## When you dispatch a subagent
 
 You MUST pass, in the subagent's task prompt:
-1. The **subagent logging instructions** (`subagent_logging_instructions.md` contents), with `<name>`, `<trace_id>`, `<parent_trace_id>`, and `<task_title>` filled in.
+1. The **subagent logging instructions** (`subagent_logging_instructions.md` contents), with `<name>`, `<agent_path>`, `<trace_id>`, `<parent_trace_id>`, and `<task_title>` filled in.
 2. The current `task_title` to use for every row the subagent writes (the same as yours, unless the subagent is a genuinely independent task — in which case you mint a new trace first and pass that).
 
 You are responsible for: minting the trace before the first `start` row of a task; passing it to every subagent; and writing the task's `end` row after all subagents for that task have finished (or letting the last subagent write it if the task is fully delegated).
