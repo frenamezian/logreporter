@@ -6,7 +6,39 @@ const UsageDb = window.UsageDb;
 const { buildModel, stream, fmt, agentTypeMap, usageAgent, agentInSubtree } = window.LR;
 const { applyFilters, drillRows, unique } = window.Filters;
 
-const DEFAULT_FILTER = { search: '', repo: [], branch: [], agent: [], log_type: [], git: [], log_level: [], status: [], priority: [], from: '', to: '' };
+const HOUR_STEPS = [0, 1, 3, 6, 12, 24, 48];
+const HOUR_FILTER_KEY = 'logreporter.hour_filter';
+
+function readHourFilter() {
+  try {
+    const raw = localStorage.getItem(HOUR_FILTER_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === 'object') {
+        return {
+          hoursFrom: typeof p.hoursFrom === 'number' ? p.hoursFrom : 6,
+          hoursTo: typeof p.hoursTo === 'number' ? p.hoursTo : 0,
+          hoursActive: typeof p.hoursActive === 'boolean' ? p.hoursActive : true
+        };
+      }
+    }
+  } catch (e) { /* ignored */ }
+  return { hoursFrom: 6, hoursTo: 0, hoursActive: true };
+}
+
+function saveHourFilter(hoursFrom, hoursTo, hoursActive) {
+  try {
+    localStorage.setItem(HOUR_FILTER_KEY, JSON.stringify({ hoursFrom, hoursTo, hoursActive }));
+  } catch (e) { /* ignored */ }
+}
+
+const savedHours = readHourFilter();
+const DEFAULT_FILTER = {
+  search: '', repo: [], branch: [], agent: [], log_type: [], git: [], log_level: [], status: [], priority: [], from: '', to: '',
+  hoursFrom: savedHours.hoursFrom,
+  hoursTo: savedHours.hoursTo,
+  hoursActive: savedHours.hoursActive
+};
 
 // --- theme ------------------------------------------------------------------
 // Dark is the default and needs no attribute, so the whole theme is one flag on
@@ -375,6 +407,17 @@ window.LogApp = {
     this.update();
   },
 
+  setHourFilter(hoursFrom, hoursTo, hoursActive) {
+    const f = this.state.filter;
+    if (hoursFrom !== undefined) f.hoursFrom = hoursFrom;
+    if (hoursTo !== undefined) f.hoursTo = hoursTo;
+    if (hoursActive !== undefined) f.hoursActive = hoursActive;
+    saveHourFilter(f.hoursFrom, f.hoursTo, f.hoursActive);
+    this.state.drill = {};
+    this.state.selectedLog = null;
+    this.update();
+  },
+
   // Toggle a value in an array-based filter (multi-select)
   toggleFilter(key, value) {
     if (!Array.isArray(this.state.filter[key])) this.state.filter[key] = [];
@@ -588,16 +631,22 @@ window.LogApp = {
       if (t) span = t.span;
     }
 
+    const now = Date.now();
+    const hasHours = f.hoursActive && (f.hoursFrom !== undefined || f.hoursTo !== undefined);
+    const maxAgeMs = hasHours ? ((f.hoursFrom !== undefined && f.hoursFrom !== null) ? f.hoursFrom : Infinity) * 3600 * 1000 : Infinity;
+    const minAgeMs = hasHours ? ((f.hoursTo !== undefined && f.hoursTo !== null) ? f.hoursTo : 0) * 3600 * 1000 : 0;
+    const hFrom = now - maxAgeMs;
+    const hTo = now - minAgeMs;
+
     const scoped = (s.usage || []).filter((u) => {
       if (repo.length && !repo.includes(u.repo_name)) return false;
       if (branch.length && !branch.includes(u.branch_name)) return false;
-      if (span || from !== null || to !== null) {
-        const t = new Date(String(u.timestamp || '')).getTime();
-        if (!Number.isFinite(t)) return false;
-        if (span && (t < span.from || t > span.to)) return false;
-        if (from !== null && t < from) return false;
-        if (to !== null && t > to) return false;
-      }
+      const t = new Date(String(u.timestamp || '')).getTime();
+      if (!Number.isFinite(t)) return false;
+      if (span && (t < span.from || t > span.to)) return false;
+      if (from !== null && t < from) return false;
+      if (to !== null && t > to) return false;
+      if (hasHours && (t < hFrom || t > hTo)) return false;
       return true;
     });
 
@@ -750,6 +799,9 @@ window.LogApp = {
   fmt,
   stream,
   unique,
+  HOUR_STEPS,
+  readHourFilter,
+  saveHourFilter,
 
   async saveDb() {
     const bytes = this.state.db.exportDb();

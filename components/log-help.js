@@ -38,7 +38,7 @@ const USER_GUIDE = ['started', 'install', 'header', 'sidebar', 'hierarchy', 'chr
 const DEV_GUIDE = ['architecture', 'datamodel', 'queries', 'parsers', 'timemodel', 'design', 'dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmodels', 'dsmaint', 'prompts'];
 const SUB_ITEMS = new Set(['dsmaster', 'dshierarchy', 'dschrono', 'dstime', 'dsmetrics', 'dsmodels', 'dsmaint']);
 const FLAT = USER_GUIDE.concat(DEV_GUIDE);
-const DOC_VERSION = 31;
+const DOC_VERSION = 33;
 
 // Fragments are fetched once and kept, so revisiting a topic re-renders
 // synchronously — both components re-render on every state update. `text` is

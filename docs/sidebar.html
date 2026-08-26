@@ -6,14 +6,22 @@
 </figure>
 
 <h3>Filters</h3>
-<p>Every filter is ANDed with the others. There are three kinds:</p>
+<p>The top header bar carries the collapsible <strong>Filters</strong> label with its active filter count pill and the <strong>«</strong> sidebar collapse button. Inside the filter section, every filter is ANDed with the others. There are four kinds:</p>
 <ul>
-<li><strong>Search</strong> — the field is always visible, even with the section collapsed. Type freely and press <strong>Enter</strong> to apply; <strong>Escape</strong> clears it. It matches <code>log_title</code>, <code>log_description</code>, <code>agent_name</code> and <code>agent_path</code>, case-insensitively. It deliberately does not apply per keystroke — half a word would narrow the whole dashboard to nothing while you were still typing it.</li>
+<li><strong>Hour range slider</strong> — sitting right at the top of the panel, this dual-handle slider filters activities by relative age from <strong>Now</strong> (0h) on the left to <strong>48h</strong> on the right: <code>[Now, 1h, 3h, 6h, 12h, 24h, 48h]</code>.
+  <ul>
+    <li>The <strong>left handle</strong> sets the recent boundary (e.g. <code>Now</code> or <code>1h ago</code>).</li>
+    <li>The <strong>right handle</strong> sets the past boundary (e.g. <code>6h ago</code> or <code>12h ago</code>).</li>
+    <li>Setting <code>Now → 6h</code> shows the last 6 hours (badge: <strong>Last 6h</strong>). Moving the left handle to <code>1h</code> or <code>3h</code> isolates a historical slice (e.g. badge: <strong>3h–6h</strong>), strictly excluding recent activity.</li>
+    <li>Default is <strong>Last 6h</strong>; your selection is automatically remembered in <code>localStorage</code> across page reloads. Clicking the badge toggles the filter on or off (<strong>All</strong>).</li>
+  </ul>
+</li>
+<li><strong>Search</strong> — always visible below the chips. Type freely and press <strong>Enter</strong> to apply; <strong>Escape</strong> clears it. It matches <code>log_title</code>, <code>log_description</code>, <code>agent_name</code> and <code>agent_path</code>, case-insensitively. It deliberately does not apply per keystroke — half a word would narrow the whole dashboard to nothing while you were still typing it.</li>
 <li><strong>Eight multi-selects</strong> — Repository, Branch, Agent, Log type, Git action, Level, Status, Priority. Each is a checkbox list: tick several values and they are ORed within that filter. Only one list is open at a time and clicking outside closes it. The button shows the count, and the line under it summarises the first three choices.</li>
-<li><strong>From / To</strong> — an inclusive date range, applied as you pick.</li>
+<li><strong>From / To</strong> — an inclusive calendar date range, applied as you pick.</li>
 </ul>
 <p>Two of the lists are not simply "every value in the file". <strong>Branch</strong> is scoped to the repositories you have selected, because branch names repeat across repositories and an unscoped list is unusable. <strong>Agent</strong> lists full <code>agent_path</code> values but matches either the path or the bare agent name, so picking a subagent finds its rows wherever it ran.</p>
-<p>Every active value gets a chip above the search box; clicking a chip removes that one value. <strong>Clear all filters</strong> in the section header removes everything at once, and the pill next to the word <em>Filters</em> counts what is active even when the section is collapsed.</p>
+<p>Every active value (including the hour window, e.g. <code>Last 6h ✕</code> or <code>3h–6h ✕</code>) gets a chip above the search box; clicking a chip removes that one value. <strong>Clear all</strong> next to the hour slider removes all filter selections and deactivates the hour constraint (<strong>All</strong>), and the pill next to the word <em>Filters</em> in the top header bar counts what is active even when the section is collapsed.</p>
 <p>Changing any filter clears the drill scope and closes the detail panel — the row you had open may no longer be in scope, and a stale drill into a task the filter just excluded shows an empty page.</p>
 
 <h3>Navigation</h3>

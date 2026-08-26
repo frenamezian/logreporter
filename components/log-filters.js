@@ -30,12 +30,16 @@ const CHIP_KEYS = [
   ['to', 'To']
 ];
 
-// Count active filters (array = non-empty, string = non-empty)
+const HOUR_STEPS = [0, 1, 3, 6, 12, 24, 48];
+
+// Count active filters (array = non-empty, string = non-empty, hoursActive = boolean)
 function countActiveFilters(filter) {
-  return CHIP_KEYS.filter(([k]) => {
+  let count = CHIP_KEYS.filter(([k]) => {
     const v = filter[k];
     return Array.isArray(v) ? v.length > 0 : !!v;
   }).length;
+  if (filter.hoursActive) count += 1;
+  return count;
 }
 
 class LogFilters extends LogComponent {
@@ -46,6 +50,48 @@ class LogFilters extends LogComponent {
 
   // Nav open state lives on LogApp.state so it survives shell re-renders
   get _openNav() { return window.LogApp.state.navOpen; }
+
+  _renderHourSlider(filter) {
+    const steps = (window.LogApp && window.LogApp.HOUR_STEPS) || HOUR_STEPS;
+    const maxIdx = steps.length - 1;
+    const findIdx = (h, def) => {
+      const idx = steps.indexOf(h);
+      return idx >= 0 ? idx : def;
+    };
+
+    const toIdx = findIdx(filter.hoursTo, 0);     // Left thumb: closer to Now (default 0 -> Now)
+    const fromIdx = findIdx(filter.hoursFrom, 3); // Right thumb: further in past (default 3 -> 6h)
+    const active = !!filter.hoursActive;
+
+    const leftPct = (toIdx / maxIdx) * 100;
+    const rightPct = (fromIdx / maxIdx) * 100;
+    const widthPct = Math.max(0, rightPct - leftPct);
+
+    const hTo = steps[toIdx];
+    const hFrom = steps[fromIdx];
+
+    let badgeText = 'All';
+    let badgeTitle = 'Hour filter inactive — click to activate';
+    if (active) {
+      badgeText = (hTo === 0) ? (hFrom === 0 ? 'Now' : `Last ${hFrom}h`) : `${hTo}h–${hFrom}h`;
+      badgeTitle = (hTo === 0)
+        ? `Showing last ${hFrom} hours — click to toggle off`
+        : `Showing activities between ${hTo}h and ${hFrom}h ago — click to toggle off`;
+    }
+
+    return `
+      <div class="hour-slider-wrap ${active ? 'active' : 'inactive'}" data-hour-wrap="1" title="${esc(badgeTitle)}">
+        <div class="hour-slider-container">
+          <div class="hour-slider-track">
+            <div class="hour-slider-fill" style="left: ${leftPct}%; width: ${widthPct}%;"></div>
+          </div>
+          <input type="range" class="hour-range-input hour-range-min" min="0" max="${maxIdx}" step="1" value="${toIdx}" data-hour-min="1" title="From: ${steps[toIdx] === 0 ? 'Now' : steps[toIdx] + 'h ago'}">
+          <input type="range" class="hour-range-input hour-range-max" min="0" max="${maxIdx}" step="1" value="${fromIdx}" data-hour-max="1" title="To: ${steps[fromIdx]}h ago">
+        </div>
+        <button type="button" class="hour-slider-badge" data-hour-toggle="1" title="${esc(badgeTitle)}">${esc(badgeText)}</button>
+      </div>
+    `;
+  }
 
   render() {
     const s = window.LogApp.state;
@@ -76,12 +122,11 @@ class LogFilters extends LogComponent {
 
     return `
       <div class="filter-group">
-        <h4 class="section-head" data-toggle="filters">
-          <span class="caret">${s.panels.filters ? '▾' : '▸'}</span>Filters
-          ${filterCount ? `<span class="filter-count-pill">${filterCount}</span>` : ''}
+        <div class="hour-filter-row">
+          ${this._renderHourSlider(s.filter)}
           <button class="section-head-btn" data-clear-all="1"${hasFilters ? '' : ' disabled'}
-                  title="Clear every active filter">Clear all filters</button>
-        </h4>
+                  title="Clear every active filter">Clear all</button>
+        </div>
         ${chips}
         <input class="filter-search" placeholder="Search title / description — press Enter" data-search="1" value="${esc(s.searchDraft ?? s.filter.search)}">
         <div class="filter-body" ${s.panels.filters ? '' : 'hidden'}>
@@ -133,10 +178,16 @@ class LogFilters extends LogComponent {
     `;
   }
 
-  // Chips: one per selected value for dropdowns, one for search/from/to
+  // Chips: one per selected value for dropdowns, one for search/from/to/hours
   _renderChips(filter) {
     const chips = [];
     if (filter.search) chips.push(`<button class="chip" data-chip-key="search" title="Clear Search">Search: ${esc(filter.search)} ✕</button>`);
+    if (filter.hoursActive) {
+      const hFrom = filter.hoursFrom ?? 6;
+      const hTo = filter.hoursTo ?? 0;
+      const lbl = (hTo === 0) ? (hFrom === 0 ? 'Now' : `Last ${hFrom}h`) : `${hTo}h–${hFrom}h`;
+      chips.push(`<button class="chip" data-chip-key="hours" title="Clear Hour filter">${esc(lbl)} ✕</button>`);
+    }
     DROPDOWN_KEYS.forEach(([key, , label]) => {
       const vals = Array.isArray(filter[key]) ? filter[key] : [];
       vals.forEach((v) => {
@@ -290,13 +341,58 @@ class LogFilters extends LogComponent {
     const s = window.LogApp.state;
 
     // Section collapse/expand
-    this.querySelectorAll('.section-head').forEach((h) => {
-      h.onclick = () => {
+    this.querySelectorAll('[data-toggle]').forEach((h) => {
+      h.onclick = (e) => {
+        e.stopPropagation();
         const which = h.getAttribute('data-toggle');
         if (which === 'filters') window.LogApp.toggleFilters();
-        else window.LogApp.toggleNav();
+        else if (which === 'nav') window.LogApp.toggleNav();
       };
     });
+
+    // Hour dual range slider & badge
+    const steps = (window.LogApp && window.LogApp.HOUR_STEPS) || HOUR_STEPS;
+    const minEl = this.querySelector('[data-hour-min]');
+    const maxEl = this.querySelector('[data-hour-max]');
+    const hourWrap = this.querySelector('[data-hour-wrap]');
+    const hourToggle = this.querySelector('[data-hour-toggle]');
+
+    if (hourWrap) {
+      hourWrap.onclick = (e) => { e.stopPropagation(); };
+    }
+
+    if (minEl && maxEl) {
+      minEl.onpointerdown = () => { minEl.style.zIndex = '3'; maxEl.style.zIndex = '2'; };
+      maxEl.onpointerdown = () => { maxEl.style.zIndex = '3'; minEl.style.zIndex = '2'; };
+
+      minEl.oninput = () => {
+        let minIdx = parseInt(minEl.value, 10);
+        let maxIdx = parseInt(maxEl.value, 10);
+        if (minIdx > maxIdx) {
+          maxEl.value = minIdx;
+          maxIdx = minIdx;
+        }
+        window.LogApp.setHourFilter(steps[maxIdx], steps[minIdx], true);
+      };
+
+      maxEl.oninput = () => {
+        let minIdx = parseInt(minEl.value, 10);
+        let maxIdx = parseInt(maxEl.value, 10);
+        if (maxIdx < minIdx) {
+          minEl.value = maxIdx;
+          minIdx = maxIdx;
+        }
+        window.LogApp.setHourFilter(steps[maxIdx], steps[minIdx], true);
+      };
+    }
+
+    if (hourToggle) {
+      hourToggle.onclick = (e) => {
+        e.stopPropagation();
+        const curActive = !!s.filter.hoursActive;
+        window.LogApp.setHourFilter(undefined, undefined, !curActive);
+      };
+    }
 
     // Date inputs apply immediately; they do not lose a partial value the way
     // a text field does.
@@ -357,7 +453,9 @@ class LogFilters extends LogComponent {
       el.onclick = () => {
         const key = el.getAttribute('data-chip-key');
         const val = el.getAttribute('data-chip-val');
-        if (val !== null) {
+        if (key === 'hours') {
+          window.LogApp.setHourFilter(undefined, undefined, false);
+        } else if (val !== null) {
           // Remove one value from an array filter
           window.LogApp.toggleFilter(key, val);
         } else {
@@ -374,7 +472,14 @@ class LogFilters extends LogComponent {
       e.stopPropagation();
       if (clearAll.disabled) return;
       const f = window.LogApp.state.filter;
-      Object.keys(f).forEach((k) => { f[k] = Array.isArray(f[k]) ? [] : ''; });
+      Object.keys(f).forEach((k) => {
+        if (Array.isArray(f[k])) f[k] = [];
+        else if (typeof f[k] === 'string') f[k] = '';
+      });
+      f.hoursActive = false;
+      if (window.LogApp.saveHourFilter) {
+        window.LogApp.saveHourFilter(f.hoursFrom, f.hoursTo, false);
+      }
       window.LogApp.setFilter('search', '');
     };
 
