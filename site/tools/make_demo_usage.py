@@ -83,11 +83,8 @@ def parse(t):
 
 
 def log_ts_ms(s: str) -> int | None:
-    """Match script/time-model.js `at(s)`: UTC 'YYYY-MM-DD HH:MM:SS' -> epoch ms."""
-    d = parse(str(s))
-    if not d:
-        return None
-    return int(d.replace(tzinfo=timezone.utc).timestamp() * 1000)
+    """Match script/time-model.js `at(s)`: UTC or ISO-8601 timestamp -> epoch ms."""
+    return usage_ts_ms(s)
 
 
 def usage_ts_ms(s: str) -> int | None:
