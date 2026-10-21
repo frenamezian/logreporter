@@ -2,7 +2,7 @@
 'use strict';
 const { esc } = window.LRC;
 const CM = window.CostModel;
-const { attributeUsage, agentTypeMap, usageAgent } = window.LR;
+const { attributeUsage, agentTypeMap, usageAgent, fmt } = window.LR;
 
 // The token-usage block on the Metrics page. Rendered by <log-metrics> rather
 // than being its own page: cost is an attribute of work the Metrics page
@@ -76,6 +76,9 @@ const TABLE_COLS = [
 ];
 
 const TABLE_LIMIT = 500;
+// Named name-mismatches to show before folding the rest into a count. Enough
+// to show a real problem, few enough that they cannot bury the parser rows.
+const ORPHAN_LIMIT = 4;
 
 // --- helpers ----------------------------------------------------------------
 
@@ -159,6 +162,102 @@ function segmentValues(rows, weights, measure) {
 
 function fmtMeasure(v, measure) {
   return measure === 'cost' ? CM.fmtCost(v) : CM.fmtTokens(v);
+}
+
+// --- orphan repositories (§8.6) ---------------------------------------------
+//
+// Attribution joins usage to tasks on repo name, and the two sides arrive at
+// that name independently: log_activity.py records what git told the agent, a
+// parser records what it could read from a transcript's cwd. When the two
+// disagree the join does not degrade gracefully — it matches nothing, every
+// row lands in Unattributed, and the task renders a confident zero.
+//
+// That is the worst failure this page has, because it looks exactly like "this
+// task cost nothing". So a repo name present on only one side is stated in
+// words. This project shipped that bug against itself: agents logged
+// `logreporter` while the parser derived `log_reporter` from the folder, and
+// 76M tokens read as an em dash for a week.
+//
+// Computed from the UNFILTERED rows deliberately. A drill or a date filter can
+// hide precisely the rows that prove the mismatch, and a warning that
+// disappears when you narrow the view is worse than none.
+const canonRepo = (v) => String(v || '').trim().toLowerCase().replace(/[-_\s]+/g, '');
+
+function orphanRepos(s) {
+  const logged = new Set();
+  (s.rows || []).forEach((l) => { if (l.repo_name) logged.add(String(l.repo_name)); });
+  const counts = new Map();
+  (s.usage || []).forEach((u) => {
+    if (!u.repo_name) return;
+    const r = String(u.repo_name);
+    counts.set(r, (counts.get(r) || 0) + 1);
+  });
+  // With nothing on one side there is no disagreement to report — an empty log
+  // or an empty cache is already said elsewhere, and saying it again here as
+  // "every repo is orphaned" would be noise.
+  if (!logged.size || !counts.size) return [];
+
+  // First spelling wins; only used to name the counterpart in the message.
+  const byCanon = new Map();
+  logged.forEach((n) => { if (!byCanon.has(canonRepo(n))) byCanon.set(canonRepo(n), n); });
+
+  const out = [];
+  counts.forEach((count, name) => {
+    if (logged.has(name)) return;                    // joins cleanly
+    out.push({ name, count, near: byCanon.get(canonRepo(name)) || null });
+  });
+  // A near-match is the actionable case — same repository, two spellings —
+  // so it outranks a repo that simply has no logs at all.
+  return out.sort((a, b) => (b.near ? 1 : 0) - (a.near ? 1 : 0) || b.count - a.count);
+}
+
+// --- tasks that spent time and have nothing to show for it (§8.6) ------------
+//
+// orphanRepos cannot catch the worst version of this, and it is worth being
+// precise about why. It walks the repos *usage* knows and asks whether the logs
+// know them too, so it only ever sees a name that reached token_usage.db. A
+// repository existing solely on the log side is invisible to it — and that is
+// exactly the shape of the failure: an agent working out of one checkout while
+// logging on behalf of another spends its tokens under the repo the session was
+// rooted in, and files its rows under a repo no parser ever sees. Nothing is
+// misspelled, so there is no near match to notice. The task just shows an em
+// dash, which reads as "this cost nothing".
+//
+// Asking at the task level removes the ambiguity. A task with real agent
+// runtime and not one usage row inside its span is never ordinary bookkeeping:
+// either its agent has no parser here, or the two sides disagree about the
+// repository. Both deserve a line, and neither can be inferred from a name.
+//
+// Computed unfiltered, for the reason orphanRepos is: a drill or a date filter
+// can hide precisely the rows that would disprove the warning.
+
+// Under this, silence proves nothing — a short task is legitimately one commit
+// and no model call. Set generously on purpose: this warning earns attention
+// only by being rare.
+const SILENT_TASK_MS = 10 * 60 * 1000;
+
+function tasksWithoutUsage(s) {
+  const tasks = (s.treeModel || s.model || {}).tasks || [];
+  const usage = s.usage || [];
+  // Nothing on one side is not a disagreement — same rule as orphanRepos.
+  if (!tasks.length || !usage.length) return [];
+
+  // repo|branch -> the timestamps filed under it, so each task tests only its
+  // own branch instead of scanning every row for every task.
+  const byKey = new Map();
+  usage.forEach((u) => {
+    const t = Date.parse(String(u.timestamp || ''));
+    if (!Number.isFinite(t)) return;
+    const k = String(u.repo_name) + '\u0000' + String(u.branch_name);
+    const arr = byKey.get(k);
+    if (arr) arr.push(t); else byKey.set(k, [t]);
+  });
+
+  return tasks.filter((t) => {
+    if (!t.span || ((t.ms || {}).agentMs || 0) < SILENT_TASK_MS) return false;
+    const arr = byKey.get(String(t.repo) + '\u0000' + String(t.branch));
+    return !arr || !arr.some((ts) => ts >= t.span.from && ts <= t.span.to);
+  }).sort((a, b) => b.ms.agentMs - a.ms.agentMs);
 }
 
 class LogUsage {
@@ -518,6 +617,72 @@ class LogUsage {
     if (status.state === 'ok') {
       rows.push(`<div class="usage-src-row"><span class="usage-src-detail">
         ${CM.registrySize()} models priced from the registry</span></div>`);
+    }
+
+    // Naming disagreements go last, under the parser rows, because they are a
+    // statement about the join rather than about any one source.
+    //
+    // Two very different findings live here and they are not styled alike. A
+    // near-match is a BUG — one repository spelled two ways, tokens that can
+    // never attach to the task that spent them. A repo with no counterpart at
+    // all is usually just work done outside any logged task, which is normal
+    // and would become permanent red noise if flagged per repo. So the first
+    // is named individually and the second is counted in one line.
+    const orphans = orphanRepos(s);
+    const mismatched = orphans.filter((o) => o.near);
+    const unlogged = orphans.filter((o) => !o.near);
+
+    mismatched.slice(0, ORPHAN_LIMIT).forEach((o) => {
+      rows.push(`
+        <div class="usage-src-row">
+          <span class="usage-src-name usage-warn">${esc(o.name)}</span>
+          <span class="usage-badge bad">unattributable</span>
+          <span class="usage-src-spacer"></span>
+          <span class="usage-src-detail usage-warn">${o.count.toLocaleString('en-US')}
+            request${o.count === 1 ? '' : 's'} — logged as <code>${esc(o.near)}</code>,
+            recorded as <code>${esc(o.name)}</code>. One repository under two names, so
+            none of these tokens reach a task. Stop passing <code>--repo</code> and let
+            git derive it.</span>
+        </div>`);
+    });
+    if (mismatched.length > ORPHAN_LIMIT) {
+      rows.push(`<div class="usage-src-row"><span class="usage-src-detail usage-warn">
+        and ${(mismatched.length - ORPHAN_LIMIT).toLocaleString('en-US')} further
+        name mismatch${mismatched.length - ORPHAN_LIMIT === 1 ? '' : 'es'}</span></div>`);
+    }
+    if (unlogged.length) {
+      const reqs = unlogged.reduce((n, o) => n + o.count, 0);
+      rows.push(`<div class="usage-src-row"><span class="usage-src-detail">
+        ${unlogged.length.toLocaleString('en-US')} repositor${unlogged.length === 1 ? 'y' : 'ies'}
+        (${reqs.toLocaleString('en-US')} request${reqs === 1 ? '' : 's'}) have usage but no
+        activity log at all — ${esc(unlogged.slice(0, 3).map((o) => o.name).join(', '))}${
+          unlogged.length > 3 ? ', …' : ''}. Work outside any logged task; it counts as
+        Unattributed.</span></div>`);
+    }
+
+    // Last, because it is the two lines above seen from the side that actually
+    // gets read: not a name that failed to join, but a task reporting that it
+    // cost nothing. Named individually — a task is specific enough to act on.
+    const silent = tasksWithoutUsage(s);
+    silent.slice(0, ORPHAN_LIMIT).forEach((t) => {
+      rows.push(`
+        <div class="usage-src-row">
+          <span class="usage-src-name usage-warn">${esc(t.title)}</span>
+          <span class="usage-badge bad">no usage</span>
+          <span class="usage-src-spacer"></span>
+          <span class="usage-src-detail usage-warn">${esc(fmt(t.ms.agentMs))} of agent time in
+            <code>${esc(t.repo)}</code> / <code>${esc(t.branch)}</code>, and not one request
+            inside its span. Either this agent has no parser here, or it ran from a
+            different checkout than it logged against — in which case its tokens are
+            filed under the repository the session was rooted in, and this task can
+            never find them.</span>
+        </div>`);
+    });
+    if (silent.length > ORPHAN_LIMIT) {
+      rows.push(`<div class="usage-src-row"><span class="usage-src-detail usage-warn">
+        and ${(silent.length - ORPHAN_LIMIT).toLocaleString('en-US')} further
+        task${silent.length - ORPHAN_LIMIT === 1 ? '' : 's'} with agent time but no
+        usage at all</span></div>`);
     }
     return `<div class="usage-src">${rows.join('')}</div>`;
   }

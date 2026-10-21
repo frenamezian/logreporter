@@ -1,10 +1,13 @@
 {
- "started": "2026-08-06 06:25:32",
+ "started": "2026-10-21 09:56:17",
  "agents": [],
  "failures": [],
- "loaded": [],
+ "loaded": [
+  "antigravity",
+  "claude_code"
+ ],
  "inactive": [],
- "rows_total": 251,
+ "rows_total": 110363,
  "elapsed_s": 0,
- "note": "Demo fixture. These usage rows were generated from a fixed seed to match the sample logs \u2014 no session transcripts were read, and no parser ran. On your own install the reader fills this panel with what it actually scanned."
+ "note": "Sanitized public demo snapshot (110,363 task-attributed requests across 901 logged tasks). Local watermark paths and session identifiers have been stripped for publication."
 }

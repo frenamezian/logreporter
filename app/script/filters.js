@@ -9,6 +9,11 @@ function applyFilters(rows, filter) {
   const isActive = (v) => Array.isArray(v) ? v.length > 0 : !!v;
   // Helper: check if a row's value matches the filter (array membership or string equality)
   const match = (fv, val) => Array.isArray(fv) ? fv.includes(val) : fv === val;
+  const now = Date.now();
+  const hasHours = f.hoursActive && (f.hoursFrom !== undefined || f.hoursTo !== undefined);
+  const maxAgeMs = hasHours ? ((f.hoursFrom !== undefined && f.hoursFrom !== null) ? f.hoursFrom : Infinity) * 3600 * 1000 : Infinity;
+  const minAgeMs = hasHours ? ((f.hoursTo !== undefined && f.hoursTo !== null) ? f.hoursTo : 0) * 3600 * 1000 : 0;
+
   return rows.filter((l) => {
     if (f.search) {
       const q = f.search.toLowerCase();
@@ -25,6 +30,13 @@ function applyFilters(rows, filter) {
     if (isActive(f.log_level) && !match(f.log_level, l.log_level)) return false;
     if (isActive(f.status) && !match(f.status, l.status)) return false;
     if (isActive(f.priority) && !match(f.priority, l.priority)) return false;
+    if (hasHours) {
+      const raw = l.timestamp ? l.timestamp.replace(' ', 'T') : '';
+      const t = raw ? new Date(raw.endsWith('Z') ? raw : raw + 'Z').getTime() : NaN;
+      if (Number.isFinite(t)) {
+        if (t < (now - maxAgeMs) || t > (now - minAgeMs)) return false;
+      }
+    }
     if (f.from) {
       const t = l.timestamp?.replace(' ', 'T') + 'Z';
       if (t && new Date(t) < new Date(f.from)) return false;

@@ -863,8 +863,9 @@ const llmRegistry = {
                 "description": (
                     "Best balance of speed and intelligence. Adaptive thinking supported. " +
                     "1 M token context, 128 k max output. Introductory pricing ($2 in / " +
-                    "$10 out, all tiers ~33% off) through 2026-08-31; standard pricing " +
-                    "($3 / $15) from 2026-09-01."
+                    "$10 out) through 2026-08-31; standard pricing ($3 / $15) from " +
+                    "2026-09-01. The intro rate is quoted for standard input and output " +
+                    "only — the cache and batch tiers below are not discounted."
                 ),
                 "capabilities": ["coding", "reasoning", "vision", "long-context", "tools"],
                 "latency_class": "fast",
@@ -877,7 +878,13 @@ const llmRegistry = {
                         {"tier_order": 3, "tier_name": "cache_write_1h", "price_value": 6.00, "price_currency": "USD", "price_per_qty": 1000000},
                         {"tier_order": 4, "tier_name": "cache_read",     "price_value": 0.30, "price_currency": "USD", "price_per_qty": 1000000},
                         {"tier_order": 5, "tier_name": "batch",          "price_value": 1.50, "price_currency": "USD", "price_per_qty": 1000000},
-                        // Introductory pricing in effect through 2026-08-31
+                        // Introductory pricing in effect through 2026-08-31. It replaces
+                        // `standard` and nothing else: the provider quotes an intro rate
+                        // for input and output only, so a cache read on a session dated
+                        // before that day still prices at the cache_read rate above.
+                        // cost-model.js reads the `standard` in the tier name and
+                        // substitutes for exactly that tier — an intro_cache_read_... here
+                        // would be honoured with no code change, if one is ever published.
                         {"tier_order": 6, "tier_name": "intro_standard_until_2026_08_31", "price_value": 2.00, "price_currency": "USD", "price_per_qty": 1000000},
                     ],
                     "output_token": [

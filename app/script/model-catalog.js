@@ -21,7 +21,12 @@ const REGISTRY = window.LLM_REGISTRY || {};
 // Providers disagree about what a cache is called. The catalogue shows each
 // provider its own vocabulary rather than a normalised label, which is only
 // possible because the table lives inside a provider panel.
-const CACHE_READ_TIERS = ['cache_read', 'cached_input', 'context_cache'];
+// Kept in step with cost-model.js's cache_read_tokens chain: a provider whose
+// name is missing here loses its cache-read column entirely, which reads as
+// "this model has no cache discount" rather than "we did not look". The audio
+// and >200k variants are out for the same reasons they are out there.
+const CACHE_READ_TIERS = ['cache_read', 'cached_input', 'context_cache',
+                          'context_cache_text', 'cached_text'];
 const CACHE_WRITE_TIERS = ['cache_write_5m', 'cache_write_1h'];
 
 // A tier named intro_<something>_until_YYYY_MM_DD is a launch price with an end

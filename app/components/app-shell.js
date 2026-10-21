@@ -113,6 +113,23 @@ class AppShell extends HTMLElement {
       </div>`;
   }
 
+  _sidebarTopTitle(s) {
+    if (s.page === 'help') {
+      return '<span class="sidebar-top-title">Help</span>';
+    }
+    if (s.page === 'models') {
+      const m = window.LogApp.modelsFilterCount();
+      return `<span class="sidebar-top-title">Filters${m ? ` <span class="filter-count-pill">${m}</span>` : ''}</span>`;
+    }
+    const n = this._activeFilterCount(s);
+    return `
+      <span class="sidebar-top-title" data-toggle="filters" title="Toggle Filters panel">
+        <span class="caret">${s.panels.filters ? '▾' : '▸'}</span>Filters
+        ${n ? `<span class="filter-count-pill">${n}</span>` : ''}
+      </span>
+    `;
+  }
+
   _sidebarHTML() {
     const s = window.LogApp.state;
     const w = s.sidebarWidth || 320;
@@ -124,7 +141,10 @@ class AppShell extends HTMLElement {
       : '<log-filters></log-filters>';
     return `
       <aside class="sidebar" style="width:${w}px; flex:0 0 ${w}px">
-        <button class="sidebar-collapse" title="Collapse sidebar" data-collapse="1">«</button>
+        <div class="sidebar-top">
+          ${this._sidebarTopTitle(s)}
+          <button class="sidebar-collapse" title="Collapse sidebar" data-collapse="1">«</button>
+        </div>
         ${panel}
         <div class="sidebar-resize" data-resize-sidebar="1" title="Drag to resize"></div>
       </aside>
@@ -163,7 +183,16 @@ class AppShell extends HTMLElement {
     `;
   }
   _activeFilterCount(s) {
-    return Object.values(s.filter || {}).filter((v) => v && String(v).trim()).length;
+    const f = s.filter || {};
+    let n = 0;
+    ['repo', 'branch', 'agent', 'log_type', 'git', 'log_level', 'status', 'priority'].forEach((k) => {
+      if ((f[k] || []).length) n += 1;
+    });
+    if (f.search) n += 1;
+    if (f.from) n += 1;
+    if (f.to) n += 1;
+    if (f.hoursActive) n += 1;
+    return n;
   }
   _breadcrumbHTML(s) {
     const meta = PAGE_META[s.page] || { title: esc(s.page), note: '' };
@@ -213,6 +242,8 @@ class AppShell extends HTMLElement {
   _wireShell() {
     const collapse = this.querySelector('[data-collapse]');
     if (collapse) collapse.onclick = () => window.LogApp.toggleSidebar();
+    const toggleFilters = this.querySelector('[data-toggle="filters"]');
+    if (toggleFilters) toggleFilters.onclick = () => window.LogApp.toggleFilters();
     const openFilters = this.querySelector('[data-open-filters]');
     if (openFilters) openFilters.onclick = () => window.LogApp.openFilters();
     const openSidebar = this.querySelector('[data-open-sidebar]');

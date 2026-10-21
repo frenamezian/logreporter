@@ -195,6 +195,31 @@ function stream(logs, model) {
   return out;
 }
 
+// --- task ordering ----------------------------------------------------------
+//
+// Both trees order tasks through this, so the sidebar and the Hierarchy page can
+// never disagree about the order of the same tasks. It sorts a copy: the arrays
+// it is handed belong to buildModel's output, which also feeds Where time goes
+// and Metrics, and their ordering must not shift because a sidebar control was
+// clicked.
+//
+// 'recent' restates the order buildModel already produces (line 147, tasks by
+// the timestamp of their last log, newest first) rather than relying on it, so
+// that both modes come from one place and the sidebar can name the rule it is
+// applying — which was the actual complaint: the order was right and nothing on
+// screen said so.
+//
+// Numeric collation is load-bearing in 'name': without it task_0010 sorts
+// before task_0009.
+const byTitle = (a, b) =>
+  a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' });
+
+function orderTasks(tasks, mode) {
+  const list = (tasks || []).slice();
+  if (mode === 'name') return list.sort((a, b) => byTitle(a, b) || b.span.to - a.span.to);
+  return list.sort((a, b) => b.span.to - a.span.to || byTitle(a, b));
+}
+
 const fmt = (ms) => {
   if (ms == null || isNaN(ms)) return '—';
   const s = Math.round(ms / 1000);
@@ -352,6 +377,6 @@ function agentInSubtree(path, name) {
 }
 
 window.LR = { TYPES, CATEGORIES, GIT_ACTIONS, gitAction, buildModel, stream, fmt,
-              taskSpans, attributeUsage, agentTypeMap, usageAgent, agentInSubtree,
-              subagentTag, normAgent };
+              orderTasks, taskSpans, attributeUsage, agentTypeMap, usageAgent,
+              agentInSubtree, subagentTag, normAgent };
 })(window);

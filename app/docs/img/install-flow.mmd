@@ -29,7 +29,7 @@ flowchart LR
         H -- "no" --> G
         H -- "yes" --> I["Lead agent's system prompt:<br/>orchestrator_logging_instructions.md"]
         I --> J["Every subagent's prompt:<br/>subagent_logging_instructions.md"]
-        J --> K["In both: absolute path,<br/>and delete --repo / --branch"]
+        J --> K["In both: absolute path.<br/>git names the repo and branch"]
     end
 
     subgraph S3["3 · It works"]
