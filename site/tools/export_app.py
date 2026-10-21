@@ -14,14 +14,17 @@ Two things are added on the way out:
                      unset, which is every local checkout — serve.py serves the
                      app at the root of its own clone, with nothing above it.
 
-  activity_logs.db   seed/activity_logs.db (synthetic sample rows).
+  activity_logs.db   a sanitized copy of the root activity_logs.db (falling back
+                     to seed/activity_logs.db when no root database is present).
 
-The usage sibling is NOT copied from the repository root: see make_demo_usage.py,
-which generates a synthetic one. Publishing the real token_usage.db would expose
-actual repository names, branch names and working patterns.
+The usage sibling is exported separately by make_demo_usage.py, which filters
+the root token_usage.db to task-attributed rows and strips machine-local
+watermarks and session metadata.
 """
 
+import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tarfile
@@ -65,6 +68,36 @@ INJECT = """  <!-- ===== Added by site/tools/export_app.py. Publication-only. ==
   <meta name="twitter:card" content="summary_large_image">
 """
 
+# Ordered replacements applied to every text column of activity_logs.db when
+# exporting the live database into _build/app/. Specific path prefixes run
+# before broader username/email patterns so path structure stays readable.
+REDACTIONS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"C:[/\\]Users[/\\]lotra[/\\]\.gemini[/\\]antigravity-ide", re.I), "~/.gemini/antigravity-ide"),
+    (re.compile(r"C:[/\\]Users[/\\]lotra[/\\]\.gemini[/\\]antigravity", re.I), "~/.gemini/antigravity"),
+    (re.compile(r"C:[/\\]Users[/\\]lotra[/\\]Documents[/\\]github[/\\]", re.I), "/workspace/"),
+    (re.compile(r"C:[/\\]Users[/\\]lotra[/\\]Documents[/\\]", re.I), "/workspace/"),
+    (re.compile(r"C:[/\\]Users[/\\]lotra[/\\]Documents\b", re.I), "/workspace"),
+    (re.compile(r"(?:[A-Za-z]:[/\\]Users|/Users)[/\\]lotra\b", re.I), "/home/user"),
+    (re.compile(r"pytest-of-lotra", re.I), "pytest-of-user"),
+    (re.compile(r"laurent\.tran@gmail\.com", re.I), "owner@example.com"),
+    (re.compile(r"'seed',\s*'laurent\.tran'", re.I), "'seed','owner'"),
+    (re.compile(r"\bLaurent\s+Tran\b", re.I), "the owner"),
+    (re.compile(r"\blaurent\.tran\b", re.I), "owner"),
+    (re.compile(r"coolify\.lespirant\.com", re.I), "coolify.example.com"),
+    (re.compile(r"\+49\s*152\s*26729110"), "+49 000 00000000"),
+    (re.compile(r"\+4915226729110"), "+490000000000"),
+    (re.compile(r"info@lespirant\.com", re.I), "info@example.com"),
+    (re.compile(r"\bHRB\s*77926\b", re.I), "HRB 00000"),
+    (re.compile(r"\blotra\b", re.I), "user"),
+]
+
+
+def sanitize_text(val: str) -> str:
+    out = val
+    for pat, repl in REDACTIONS:
+        out = pat.sub(repl, out)
+    return out
+
 
 def export() -> None:
     head = subprocess.run(
@@ -103,11 +136,47 @@ def inject_home() -> None:
 
 
 def copy_seed() -> None:
-    src = REPO / "seed" / "activity_logs.db"
+    live = REPO / "activity_logs.db"
+    seed = REPO / "seed" / "activity_logs.db"
+    src = live if live.exists() and live.stat().st_size > 0 else seed
     if not src.exists():
         sys.exit(f"missing {src} — run seed/init_db.sh first")
-    shutil.copy2(src, APP / "activity_logs.db")
-    print(f"  activity_logs.db  {src.stat().st_size:,} bytes")
+
+    dst = APP / "activity_logs.db"
+    if dst.exists():
+        dst.unlink()
+
+    # Use SQLite's online backup API from a read-only connection so a live WAL
+    # database is snapshotted cleanly without touching the root file.
+    src_con = sqlite3.connect(f"file:{src.as_posix()}?mode=ro", uri=True)
+    dst_con = sqlite3.connect(dst)
+    with dst_con:
+        src_con.backup(dst_con)
+    src_con.close()
+
+    # Ensure standard journal mode (no -wal/-shm sidecars in _build/app/) and
+    # scrub all text columns in place, then VACUUM so no prior strings linger
+    # in unallocated page slack.
+    dst_con.execute("PRAGMA journal_mode=DELETE")
+    cols = [r[1] for r in dst_con.execute("PRAGMA table_info(logs)") if r[1] != "id"]
+    select_sql = f"SELECT id, {', '.join(cols)} FROM logs"
+    updates = []
+    for row in dst_con.execute(select_sql):
+        rid = row[0]
+        vals = list(row[1:])
+        new_vals = [sanitize_text(v) if isinstance(v, str) else v for v in vals]
+        if new_vals != vals:
+            updates.append((*new_vals, rid))
+
+    if updates:
+        set_clause = ", ".join(f"{c} = ?" for c in cols)
+        dst_con.executemany(f"UPDATE logs SET {set_clause} WHERE id = ?", updates)
+        dst_con.commit()
+
+    dst_con.execute("VACUUM")
+    total_rows = dst_con.execute("SELECT COUNT(*) FROM logs").fetchone()[0]
+    dst_con.close()
+    print(f"  activity_logs.db  {dst.stat().st_size:,} bytes ({total_rows:,} rows, {len(updates)} rows sanitized)")
 
 
 def main() -> None:

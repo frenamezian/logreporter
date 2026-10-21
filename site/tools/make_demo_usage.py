@@ -1,14 +1,15 @@
 """
 Generate _build/app/token_usage.db and its run report for the public demo.
 
-The demo ships seed/activity_logs.db (synthetic sample logs). Its usage sibling
-has to be synthetic too — publishing a real token_usage.db would expose actual
-repository names, branch names and working patterns.
+When the repository root has a live token_usage.db (and _build/app/activity_logs.db
+was exported from the real activity_logs.db), this script filters token_usage.db
+to the rows that fall inside the [start, end] span of a logged task in
+_build/app/activity_logs.db, strips watermark file paths and unused session
+metadata, and compacts the database with VACUUM.
 
-Rows are keyed to the sample logs so the join in the dashboard is real: every
-generated request falls inside a task's start/end span, in that task's repo and
-branch. Only the token counts are invented, and they are drawn from a fixed
-seed so the demo is byte-identical on every rebuild.
+When no root token_usage.db is present (for example on a fresh clone using the
+148-row seed/activity_logs.db), it falls back to generating deterministic
+synthetic usage rows keyed to the sample logs.
 
     python site/tools/make_demo_usage.py
 
@@ -24,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 from _paths import BUILD, REPO
 
 LOGS = BUILD / "app" / "activity_logs.db"
+LIVE_USAGE = REPO / "token_usage.db"
 OUT = BUILD / "app" / "token_usage.db"
 REPORT = BUILD / "app" / "token_usage.report.json"
 
@@ -52,8 +54,6 @@ CREATE TABLE IF NOT EXISTS token_usage (
   source            TEXT NOT NULL,
   extra_json        TEXT
 );
-CREATE INDEX IF NOT EXISTS ix_usage_scope
-  ON token_usage(repo_name, branch_name, timestamp);
 CREATE TABLE IF NOT EXISTS watermark (
   parser_id   TEXT NOT NULL,
   source_path TEXT NOT NULL,
@@ -67,6 +67,11 @@ CREATE TABLE IF NOT EXISTS watermark (
 
 TS = "%Y-%m-%d %H:%M:%S"
 
+# Only these extra_json keys are read by the dashboard UI:
+# - agent_type: script/time-model.js (usageAgent subagent attribution)
+# - model_id_source: components/log-usage.js (derived model marker)
+KEEP_EXTRA_KEYS = ("agent_type", "model_id_source")
+
 
 def parse(t):
     for f in (TS, "%Y-%m-%dT%H:%M:%S"):
@@ -77,12 +82,175 @@ def parse(t):
     return None
 
 
+def log_ts_ms(s: str) -> int | None:
+    """Match script/time-model.js `at(s)`: UTC 'YYYY-MM-DD HH:MM:SS' -> epoch ms."""
+    d = parse(str(s))
+    if not d:
+        return None
+    return int(d.replace(tzinfo=timezone.utc).timestamp() * 1000)
+
+
+def usage_ts_ms(s: str) -> int | None:
+    """Match script/time-model.js `usageAt(s)`: ISO-8601 UTC string -> epoch ms."""
+    if not s:
+        return None
+    try:
+        txt = str(s).strip()
+        if txt.endswith("Z"):
+            txt = txt[:-1] + "+00:00"
+        elif " " in txt and "+" not in txt:
+            txt = txt.replace(" ", "T") + "+00:00"
+        dt = datetime.fromisoformat(txt)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp() * 1000)
+    except ValueError:
+        return None
+
+
+def slim_extra_json(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    try:
+        d = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(d, dict):
+        return None
+    slim = {k: d[k] for k in KEEP_EXTRA_KEYS if d.get(k) is not None}
+    return json.dumps(slim, separators=(",", ":")) if slim else None
+
+
+def export_real_usage(src_logs: sqlite3.Connection) -> bool:
+    """Filter LIVE_USAGE to task-attributed rows matching src_logs. Returns True if used."""
+    if not LIVE_USAGE.exists() or LIVE_USAGE.stat().st_size == 0:
+        return False
+
+    # Build task spans per (repo_name, branch_name), matching time-model.js taskSpans()
+    spans: dict[tuple[str, str, str], tuple[int, int]] = {}
+    for repo, branch, task, ts in src_logs.execute(
+        "SELECT repo_name, branch_name, task_title, timestamp FROM logs "
+        "WHERE timestamp IS NOT NULL"
+    ):
+        ms = log_ts_ms(ts)
+        if ms is None:
+            continue
+        k = (repo or "", branch or "", task or "Untitled task")
+        lo, hi = spans.get(k, (ms, ms))
+        spans[k] = (min(lo, ms), max(hi, ms))
+
+    by_scope: dict[tuple[str, str], list[tuple[int, int]]] = {}
+    for (repo, branch, _task), span in spans.items():
+        by_scope.setdefault((repo, branch), []).append(span)
+
+    repos = sorted({r for r, _b in by_scope})
+    if not repos:
+        return False
+
+    live_con = sqlite3.connect(f"file:{LIVE_USAGE.as_posix()}?mode=ro", uri=True)
+    placeholders = ",".join("?" for _ in repos)
+    cur = live_con.execute(
+        f"SELECT request_id, timestamp, model_id, repo_name, branch_name, "
+        f"       input_tokens, cache_read_tokens, cache_write_5m, cache_write_1h, "
+        f"       output_tokens, service_tier, speed, source, extra_json "
+        f"FROM token_usage WHERE repo_name IN ({placeholders}) ORDER BY timestamp",
+        repos,
+    )
+
+    matched_rows = []
+    idx = 0
+    for (
+        _req_id, ts, model_id, repo, branch,
+        in_tok, cr_tok, cw5_tok, cw1h_tok, out_tok,
+        tier, speed, source, extra_json,
+    ) in cur:
+        scope_spans = by_scope.get((repo or "", branch or ""))
+        if not scope_spans:
+            continue
+        t_ms = usage_ts_ms(ts)
+        if t_ms is None:
+            continue
+        if any(lo <= t_ms <= hi for lo, hi in scope_spans):
+            idx += 1
+            matched_rows.append((
+                f"r{idx}",  # compact sequential ID instead of raw server UUID
+                None,       # strip session_id
+                ts,
+                model_id,
+                repo,
+                branch,
+                in_tok,
+                cr_tok,
+                cw5_tok,
+                cw1h_tok,
+                out_tok,
+                tier,
+                speed,
+                source,
+                slim_extra_json(extra_json),
+            ))
+    live_con.close()
+
+    if not matched_rows:
+        return False
+
+    if OUT.exists():
+        OUT.unlink()
+    out = sqlite3.connect(OUT)
+    out.execute("PRAGMA journal_mode=DELETE")
+    out.executescript(DDL)
+    out.executemany(
+        "INSERT INTO token_usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        matched_rows,
+    )
+    out.commit()
+    out.execute("VACUUM")
+
+    tot = out.execute(
+        "SELECT COALESCE(SUM(COALESCE(input_tokens,0)+COALESCE(cache_read_tokens,0)"
+        "                    +COALESCE(cache_write_5m,0)+COALESCE(cache_write_1h,0)), 0),"
+        "       COALESCE(SUM(COALESCE(output_tokens,0)), 0) FROM token_usage"
+    ).fetchone()
+    out.close()
+
+    print(
+        f"{OUT.relative_to(REPO)}: {len(matched_rows):,} task-attributed requests "
+        f"across {len(spans):,} tasks ({OUT.stat().st_size:,} bytes)"
+    )
+    print(f"  input {tot[0]:,} tokens · output {tot[1]:,} tokens")
+    write_real_report(len(matched_rows), len(spans))
+    return True
+
+
+def write_real_report(rows_total: int, tasks_total: int) -> None:
+    report = {
+        "started": datetime.now(timezone.utc).strftime(TS),
+        "agents": [],
+        "failures": [],
+        "loaded": ["antigravity", "claude_code"],
+        "inactive": [],
+        "rows_total": rows_total,
+        "elapsed_s": 0,
+        "note": (
+            f"Sanitized public demo snapshot ({rows_total:,} task-attributed "
+            f"requests across {tasks_total:,} logged tasks). Local watermark "
+            f"paths and session identifiers have been stripped for publication."
+        ),
+    }
+    REPORT.write_text(json.dumps(report, indent=1), encoding="utf-8", newline="\n")
+    print(f"  {REPORT.name}  {REPORT.stat().st_size:,} bytes")
+
+
 def main():
     if not LOGS.exists():
         raise SystemExit(f"missing {LOGS} — run site/tools/export_app.py first")
 
+    src = sqlite3.connect(f"file:{LOGS.as_posix()}?mode=ro", uri=True)
+    if export_real_usage(src):
+        src.close()
+        return
+
     rng = random.Random(SEED)
-    src = sqlite3.connect(f"file:{LOGS}?mode=ro", uri=True)
 
     # One span per task: earliest and latest log entry in it.
     spans = {}
@@ -96,6 +264,7 @@ def main():
         k = (repo, branch, task)
         lo, hi = spans.get(k, (d, d))
         spans[k] = (min(lo, d), max(hi, d))
+    src.close()
 
     if OUT.exists():
         OUT.unlink()
@@ -151,6 +320,7 @@ def main():
         "SELECT SUM(input_tokens+cache_read_tokens+cache_write_5m+cache_write_1h),"
         "       SUM(output_tokens) FROM token_usage"
     ).fetchone()
+    out.close()
     print(f"{OUT.relative_to(REPO)}: {len(rows)} requests across {len(spans)} tasks")
     print(f"  input {tot[0]:,} tokens · output {tot[1]:,} tokens")
 

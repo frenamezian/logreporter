@@ -24,6 +24,8 @@ starts clean; the next push then needs --force.
 
 import argparse
 import os
+import re
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -34,6 +36,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
 from _paths import BUILD, REPO  # noqa: E402
 
 BRANCH = "gh-pages"
+
+# Forbidden patterns that must never appear in any published database (checked
+# against raw file bytes so even unvacuumed page slack cannot slip through).
+FORBIDDEN_DB_BYTES: list[tuple[str, re.Pattern[bytes]]] = [
+    ("OS username 'lotra'", re.compile(rb"lotra", re.I)),
+    ("personal name/email 'laurent.tran'", re.compile(rb"laurent[\s.]*tran", re.I)),
+    ("Windows user path", re.compile(rb"[A-Za-z]:[/\\]Users[/\\]", re.I)),
+    ("Unix user path", re.compile(rb"/Users/[A-Za-z0-9._-]+")),
+    ("private Coolify host", re.compile(rb"coolify\.lespirant\.com", re.I)),
+    ("phone number", re.compile(rb"26729110")),
+    ("operator email", re.compile(rb"info@lespirant\.com", re.I)),
+    ("commercial register number", re.compile(rb"HRB\s*77926", re.I)),
+    ("API key / token prefix", re.compile(rb"\b(?:sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{30,}|AKIA[0-9A-Z]{16})\b")),
+]
 
 
 def git(*args: str, env=None) -> str:
@@ -46,27 +62,44 @@ def git(*args: str, env=None) -> str:
     return r.stdout.strip()
 
 
+def verify_db_sanitized(db: Path, rel: str) -> None:
+    raw = db.read_bytes()
+    for label, pat in FORBIDDEN_DB_BYTES:
+        m = pat.search(raw)
+        if m:
+            snippet = m.group(0).decode("utf-8", errors="replace")
+            sys.exit(f"{rel} contains forbidden {label} ({snippet!r}) — refusing to publish")
+
+    if rel == "app/token_usage.db":
+        con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
+        try:
+            wm = [
+                r[0] for r in con.execute("SELECT source_path FROM watermark")
+                if r[0] != "<demo fixture>"
+            ]
+        finally:
+            con.close()
+        if wm:
+            sys.exit(f"{rel} still carries {len(wm)} watermark path(s) — refusing to publish")
+
+
 def check_build() -> None:
     """Refuse to publish something that is not a built site, or that carries a
-    database we have no business publishing."""
+    database with unsanitized PII, paths, or secrets."""
     if not (BUILD / "index.html").exists():
         sys.exit("no site/_build/index.html — run: python site/build.py")
     if not (BUILD / "app" / "index.html").exists():
         sys.exit("no site/_build/app/ — run: python site/build.py")
 
-    # The only databases that may be published are the demo fixtures: the sample
-    # logs, byte-identical to the tracked seed, and the synthetic usage sibling
-    # generated beside them. A live activity_logs.db or token_usage.db reaching
-    # a public branch would publish real repository names, branch names and
-    # working patterns — see .gitignore and .githooks/pre-commit.
-    seed = (REPO / "seed" / "activity_logs.db").read_bytes()
+    for sidecar in list(BUILD.rglob("*.db-wal")) + list(BUILD.rglob("*.db-shm")):
+        rel = sidecar.relative_to(BUILD).as_posix()
+        sys.exit(f"unexpected SQLite sidecar in the build: {rel} — refusing to publish")
+
     for db in BUILD.rglob("*.db"):
         rel = db.relative_to(BUILD).as_posix()
-        if rel == "app/activity_logs.db":
-            if db.read_bytes() != seed:
-                sys.exit(f"{rel} is not seed/activity_logs.db — refusing to publish")
-        elif rel != "app/token_usage.db":
+        if rel not in ("app/activity_logs.db", "app/token_usage.db"):
             sys.exit(f"unexpected database in the build: {rel} — refusing to publish")
+        verify_db_sanitized(db, rel)
 
 
 def build_commit(orphan: bool) -> str:
