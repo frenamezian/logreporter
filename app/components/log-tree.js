@@ -83,7 +83,7 @@ class LogTree extends LogComponent {
           <span class="caret">${open ? '▾' : '▸'}</span>
           <span class="name">${esc(r.name)}</span>
           <span class="meta">${r.branches.length} branches · ${fmt(r.ms.wall)}${ish ? ' · ' + ish + '% idle' : ''}</span>
-          <div style="width:120px">${bar(r.ms, Math.max(r.ms.wall, 1))}</div>
+          <div class="tree-bar">${bar(r.ms, Math.max(r.ms.wall, 1))}</div>
           <span class="tree-badges">${this.badges(r.ms)}</span>
           <button class="btn btn-secondary time-btn" data-time='{"repo":"${esc(r.name)}"}'>Time →</button>
         </div>
@@ -99,15 +99,15 @@ class LogTree extends LogComponent {
     const open = this._open.has(key);
     const ish = idleShare(b.ms);
     return `
-      <div class="tree-head branch-head" data-key="${esc(key)}" data-repo="${esc(r.name)}" data-branch="${esc(b.name)}" style="padding-left:28px">
+      <div class="tree-head branch-head" data-key="${esc(key)}" data-repo="${esc(r.name)}" data-branch="${esc(b.name)}">
         <span class="caret">${open ? '▾' : '▸'}</span>
         <span class="name mono">${esc(b.name)}</span>
         <span class="meta">${b.tasks.length} tasks · ${fmt(b.ms.wall)}${ish ? ' · ' + ish + '% idle' : ''}</span>
-        <div style="width:120px">${bar(b.ms, Math.max(b.ms.wall, 1))}</div>
+        <div class="tree-bar">${bar(b.ms, Math.max(b.ms.wall, 1))}</div>
         <span class="tree-badges">${this.badges(b.ms)}</span>
         <button class="btn btn-secondary time-btn" data-time='{"repo":"${esc(r.name)}","branch":"${esc(b.name)}"}'>Time →</button>
       </div>
-      <div class="tree-body" ${open ? '' : 'hidden'} style="padding-left:28px">
+      <div class="tree-body branch-body" ${open ? '' : 'hidden'}>
         ${orderTasks(b.tasks, s.taskOrder).map((t) => this.taskBlock(r, b, t, s)).join('')}
       </div>
     `;
@@ -121,11 +121,11 @@ class LogTree extends LogComponent {
     this._taskByKey.set(key, t);
     return `
       <div class="tree-task">
-        <div class="tree-head task-head" data-key="${esc(key)}" data-repo="${esc(r.name)}" data-branch="${esc(b.name)}" data-task="${esc(t.title)}" style="padding-left:40px">
+        <div class="tree-head task-head" data-key="${esc(key)}" data-repo="${esc(r.name)}" data-branch="${esc(b.name)}" data-task="${esc(t.title)}">
           <span class="caret">${open ? '▾' : '▸'}</span>
           <span class="name">${esc(t.title)} ${statusBadge(t.status)}</span>
           <span class="meta" title="Last log ${esc(fmtStamp(t.span.to))}">${t.ms.logs} entries · ${fmt(t.ms.wall)} · ${(t.agents || []).length} agents · last ${esc(fmtDayMon(t.span.to))}</span>
-          <div style="width:160px">${bar(t.ms, Math.max(t.ms.wall, 1))}</div>
+          <div class="tree-bar tree-bar-task">${bar(t.ms, Math.max(t.ms.wall, 1))}</div>
           <span class="tree-badges">${this.badges(t.ms)}</span>
           ${ish ? `<span class="tag tag-outline">${ish}% idle</span>` : ''}
           <button class="btn btn-secondary time-btn" data-time='${esc(drill)}'>Time →</button>

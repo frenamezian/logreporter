@@ -140,7 +140,8 @@ class AppShell extends HTMLElement {
       : s.page === 'models' ? '<log-models-filters></log-models-filters>'
       : '<log-filters></log-filters>';
     return `
-      <aside class="sidebar" style="width:${w}px; flex:0 0 ${w}px">
+      <div class="mobile-sidebar-backdrop" data-collapse="1"></div>
+      <aside class="sidebar" style="--sidebar-w:${w}px">
         <div class="sidebar-top">
           ${this._sidebarTopTitle(s)}
           <button class="sidebar-collapse" title="Collapse sidebar" data-collapse="1">«</button>
@@ -232,7 +233,7 @@ class AppShell extends HTMLElement {
   _detailPanelHTML() {
     const w = window.LogApp.state.detailWidth || 372;
     return `
-      <div class="right-panel" style="width:clamp(280px, ${w}px, 60vw); flex:0 0 clamp(280px, ${w}px, 60vw)">
+      <div class="right-panel" style="--detail-w:${w}px">
         <div class="right-panel-resize" data-resize-detail="1" title="Drag to resize"></div>
         <button class="detail-close" title="Close" data-close-detail="1">✕</button>
         <log-details></log-details>
@@ -240,8 +241,7 @@ class AppShell extends HTMLElement {
     `;
   }
   _wireShell() {
-    const collapse = this.querySelector('[data-collapse]');
-    if (collapse) collapse.onclick = () => window.LogApp.toggleSidebar();
+    this.querySelectorAll('[data-collapse]').forEach((el) => { el.onclick = () => window.LogApp.toggleSidebar(); });
     const toggleFilters = this.querySelector('[data-toggle="filters"]');
     if (toggleFilters) toggleFilters.onclick = () => window.LogApp.toggleFilters();
     const openFilters = this.querySelector('[data-open-filters]');
@@ -272,13 +272,13 @@ class AppShell extends HTMLElement {
     });
 
     // Right detail panel: drag the left edge (widening means dragging left)
-    this._wireResize('[data-resize-detail]', '.right-panel', 280, -1, (w) => { window.LogApp.state.detailWidth = w; });
+    this._wireResize('[data-resize-detail]', '.right-panel', 280, -1, '--detail-w', (w) => { window.LogApp.state.detailWidth = w; });
     // Left sidebar: drag the right edge (widening means dragging right)
-    this._wireResize('[data-resize-sidebar]', '.sidebar', 220, 1, (w) => { window.LogApp.state.sidebarWidth = w; });
+    this._wireResize('[data-resize-sidebar]', '.sidebar', 220, 1, '--sidebar-w', (w) => { window.LogApp.state.sidebarWidth = w; });
   }
 
   // Shared column resizer. `dir` is 1 when dragging right widens the panel.
-  _wireResize(handleSel, panelSel, minW, dir, save) {
+  _wireResize(handleSel, panelSel, minW, dir, cssVar, save) {
     const handle = this.querySelector(handleSel);
     if (!handle) return;
     handle.onmousedown = (e) => {
@@ -292,8 +292,7 @@ class AppShell extends HTMLElement {
       const onMove = (ev) => {
         const newW = Math.max(minW, Math.min(window.innerWidth * 0.6, startW + dir * (ev.clientX - startX)));
         save(newW);
-        panel.style.width = newW + 'px';
-        panel.style.flex = '0 0 ' + newW + 'px';
+        panel.style.setProperty(cssVar, newW + 'px');
       };
       const onUp = () => {
         document.body.style.cursor = '';

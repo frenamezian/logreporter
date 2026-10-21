@@ -144,7 +144,7 @@ class LogTimegoes extends LogComponent {
     const ratio = (v) => wall ? ((v / wall) * 100).toFixed(1) + '% of wall' : '—';
     const sec = (v) => v ? ratio(v) : '0% of wall';
     return `
-      <div class="metrics-grid" style="grid-template-columns:repeat(6,1fr)">
+      <div class="metrics-grid metrics-grid-6">
         <div class="metric-card"><div class="metric-value">${fmt(t.wall)}</div><div class="metric-label">Wall clock</div><div class="metric-sub">${t.tasks || 0} tasks</div></div>
         <div class="metric-card" title="Sum of every agent run. A parent stays open while its subagents work, so nested and parallel time is counted more than once — over 100% of wall clock means agents overlapped.">
           <div class="metric-value">${fmt(t.agentMs)}</div>
@@ -442,10 +442,12 @@ class LogTimegoes extends LogComponent {
           <span class="run-logs-sub">${run.events.length} logs · ${fmt(run.ms)} span${run.childMs ? ` · ${fmt(run.selfMs)} excluding subagents` : ''}</span>
           <button class="small" data-run-close="1">Close</button>
         </div>
-        <table class="gaps-table">
-          <thead><tr><th>Time</th><th>Type</th><th>Entry</th><th>Level</th><th>Accounts for</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="5">No logs</td></tr>'}</tbody>
-        </table>
+        <div class="table-scroll-wrap">
+          <table class="gaps-table">
+            <thead><tr><th>Time</th><th>Type</th><th>Entry</th><th>Level</th><th>Accounts for</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5">No logs</td></tr>'}</tbody>
+          </table>
+        </div>
       </div>`;
   }
 
@@ -465,10 +467,12 @@ class LogTimegoes extends LogComponent {
     return `
       <div class="gaps-section">
         <h4>Longest idle gaps in view</h4>
-        <table class="gaps-table">
-          <thead><tr><th>Repo</th><th>Branch</th><th>Task</th><th>From</th><th>To</th><th>Idle</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="table-scroll-wrap">
+          <table class="gaps-table">
+            <thead><tr><th>Repo</th><th>Branch</th><th>Task</th><th>From</th><th>To</th><th>Idle</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       </div>`;
   }
 

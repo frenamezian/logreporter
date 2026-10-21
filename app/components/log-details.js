@@ -77,7 +77,7 @@ class LogDetails extends LogComponent {
           <div class="detail-record">
             <div class="detail-section-label">Record</div>
             <dl>
-              ${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${k === 'Description' || k === 'Performance' ? (v ? `<pre>${esc(v)}</pre>` : '—') : esc(v ?? '—')}</dd>`).join('')}
+              ${rows.map(([k, v]) => `<dt data-record-row="1">${esc(k)}</dt><dd data-record-dd="1">${k === 'Description' || k === 'Performance' ? (v ? `<pre>${esc(v)}</pre>` : '—') : esc(v ?? '—')}</dd>`).join('')}
             </dl>
           </div>
           ${trace.length ? `
@@ -121,6 +121,18 @@ class LogDetails extends LogComponent {
         const act = btn.getAttribute('data-act');
         const ni = act === 'prev' ? idx - 1 : idx + 1;
         if (trace[ni]) window.LogApp.selectLog(trace[ni]);
+      };
+    });
+
+    this.querySelectorAll('[data-record-dd]').forEach((dd) => {
+      dd.onclick = () => {
+        dd.classList.toggle('expanded');
+      };
+    });
+    this.querySelectorAll('[data-record-row]').forEach((dt) => {
+      dt.onclick = () => {
+        const dd = dt.nextElementSibling;
+        if (dd) dd.classList.toggle('expanded');
       };
     });
 

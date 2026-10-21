@@ -83,6 +83,8 @@ class LogHeader extends LogComponent {
     const s = window.LogApp.state;
     const tabs = ['hierarchy', 'chronology', 'timegoes', 'metrics', 'models', 'maintenance', 'help'];
     const dotClass = s.src.ok ? 'ok' : 'fail';
+    const st = s.refreshStats;
+    const newLogs = st ? st.total : 0;
     return `
       ${brandHtml()}
       <nav class="nav-tabs">
@@ -104,7 +106,91 @@ class LogHeader extends LogComponent {
         ${this._renderThemeToggle(s)}
         <button class="small" title="Help — user and developer guide" data-page="help">?</button>
       </div>
+      <div class="mobile-header-bar">
+        <button class="small primary mobile-refresh-btn" data-refresh="1" title="Refresh logs">↻${newLogs ? `<span class="refresh-pill">${newLogs}</span>` : ''}</button>
+        ${this._renderMobileSidebarBtn(s)}
+        <button class="small hamburger-btn${s.menuOpen ? ' open' : ''}" data-mobile-menu="1"
+                aria-label="Toggle navigation menu" aria-expanded="${s.menuOpen ? 'true' : 'false'}"
+                title="Menu">${s.menuOpen ? '✕' : '☰'}</button>
+      </div>
       ${s.srcOpen ? this._renderDropdown(s) : ''}
+      ${s.menuOpen ? this._renderMobileMenu(s, tabs, dotClass) : ''}
+    `;
+  }
+
+  _activeFilterCount(s) {
+    const f = s.filter || {};
+    let n = 0;
+    ['repo', 'branch', 'agent', 'log_type', 'git', 'log_level', 'status', 'priority'].forEach((k) => {
+      if ((f[k] || []).length) n += 1;
+    });
+    if (f.search) n += 1;
+    if (f.from) n += 1;
+    if (f.to) n += 1;
+    if (f.hoursActive) n += 1;
+    return n;
+  }
+
+  _renderMobileSidebarBtn(s) {
+    if (s.page === 'help') {
+      return `<button class="small mobile-sidebar-btn${s.sidebar ? ' active' : ''}" data-mobile-sidebar="1" title="Toggle help contents">Topics</button>`;
+    }
+    const n = s.page === 'models' ? window.LogApp.modelsFilterCount() : this._activeFilterCount(s);
+    const label = s.page === 'models' ? 'Filters' : 'Tree / Filter';
+    return `<button class="small mobile-sidebar-btn${s.sidebar ? ' active' : ''}" data-mobile-sidebar="1" title="Toggle filters and navigation">
+      <span>${label}</span>${n ? `<span class="filter-count-pill">${n}</span>` : ''}
+    </button>`;
+  }
+
+  _renderMobileMenu(s, tabs, dotClass) {
+    const pollLabel = s.poll ? 'on' : 'off';
+    const st = s.refreshStats;
+    const n = st ? st.total : 0;
+    const since = this._sinceText(st);
+    return `
+      <div class="src-overlay" data-close-menu="1"></div>
+      <div class="mobile-menu" role="dialog" aria-label="Navigation menu">
+        <div class="mobile-menu-section">
+          <div class="src-dropdown-label">Views</div>
+          <nav class="mobile-menu-nav">
+            ${tabs.map((t) => {
+              const active = s.page === t ? 'active' : '';
+              const label = esc(TAB_LABELS[t] || t);
+              const count = t === 'hierarchy' ? `<span class="count">${s.inScope.length}</span>` : '';
+              return `<button class="mobile-nav-item ${active}" data-page="${t}"><span>${label}</span>${count}</button>`;
+            }).join('')}
+          </nav>
+        </div>
+        <div class="mobile-menu-section">
+          <div class="mobile-menu-bar">
+            <span class="count-badge">${s.inScope.length} / ${s.rows.length} logs</span>
+            <div class="mobile-menu-actions">
+              <button class="small" data-csv="1">CSV</button>
+              <button class="small" data-json="1">JSON</button>
+              <button class="small primary" data-refresh="1">Refresh</button>
+              ${this._renderThemeToggle(s)}
+            </div>
+          </div>
+        </div>
+        <div class="mobile-menu-section">
+          <div class="src-dropdown-head">
+            <div class="src-dropdown-label">Data source</div>
+            <div class="src-dropdown-name"><span class="src-dot ${dotClass}"></span> ${esc(s.src.name)}</div>
+            <div class="src-dropdown-detail">${esc(s.src.detail || '')}</div>
+          </div>
+          <div class="mobile-menu-db-btns">
+            <button class="small primary" data-open-db="1">Open DB</button>
+            <button class="small" data-toggle-poll="1">Auto-poll ${esc(pollLabel)}</button>
+            <button class="small" data-save-db="1">Save copy</button>
+          </div>
+          <div class="mobile-refresh-summary">
+            <div class="src-dropdown-detail">${n
+              ? `${n} new log${n === 1 ? '' : 's'} since ${esc(since)}`
+              : `No new logs since ${esc(since)}`}</div>
+            ${n ? `<div class="refresh-panel-body mobile-refresh-body">${this._refreshTree(st)}</div>` : ''}
+          </div>
+        </div>
+      </div>
     `;
   }
 
@@ -228,12 +314,9 @@ class LogHeader extends LogComponent {
 
   attach() {
     this.querySelectorAll('[data-page]').forEach((b) => b.onclick = () => window.LogApp.setPage(b.getAttribute('data-page')));
-    const csv = this.querySelector('[data-csv]');
-    if (csv) csv.onclick = () => window.LogApp.exportCsv();
-    const json = this.querySelector('[data-json]');
-    if (json) json.onclick = () => window.LogApp.exportJson();
-    const refresh = this.querySelector('[data-refresh]');
-    if (refresh) refresh.onclick = () => window.LogApp.refresh();
+    this.querySelectorAll('[data-csv]').forEach((b) => b.onclick = () => window.LogApp.exportCsv());
+    this.querySelectorAll('[data-json]').forEach((b) => b.onclick = () => window.LogApp.exportJson());
+    this.querySelectorAll('[data-refresh]').forEach((b) => b.onclick = () => window.LogApp.refresh());
     // Refresh stats panel (§2.5)
     const rstats = this.querySelector('[data-refresh-stats]');
     if (rstats) rstats.onclick = () => window.LogApp.toggleRefreshStats();
@@ -245,24 +328,26 @@ class LogHeader extends LogComponent {
     this.querySelectorAll('[data-refresh-drill]').forEach((btn) => {
       btn.onclick = () => {
         window.LogApp.state.refreshOpen = false;
+        window.LogApp.state.menuOpen = false;
         window.LogApp.setDrill(JSON.parse(btn.getAttribute('data-refresh-drill')));
       };
     });
     // Source button toggles the dropdown panel (§2.1)
     const src = this.querySelector('[data-src]');
     if (src) src.onclick = () => window.LogApp.toggleSrc();
-    const theme = this.querySelector('[data-theme-toggle]');
-    if (theme) theme.onclick = () => window.LogApp.toggleTheme();
+    this.querySelectorAll('[data-theme-toggle]').forEach((b) => b.onclick = () => window.LogApp.toggleTheme());
     // Dropdown actions
-    const openDb = this.querySelector('[data-open-db]');
-    if (openDb) openDb.onclick = () => window.LogApp.openDb();
-    const togglePoll = this.querySelector('[data-toggle-poll]');
-    if (togglePoll) togglePoll.onclick = () => window.LogApp.togglePoll();
-    const saveDb = this.querySelector('[data-save-db]');
-    if (saveDb) saveDb.onclick = () => window.LogApp.saveDb();
+    this.querySelectorAll('[data-open-db]').forEach((b) => b.onclick = () => window.LogApp.openDb());
+    this.querySelectorAll('[data-toggle-poll]').forEach((b) => b.onclick = () => window.LogApp.togglePoll());
+    this.querySelectorAll('[data-save-db]').forEach((b) => b.onclick = () => window.LogApp.saveDb());
     // Click-outside overlay closes the dropdown (§2.1)
     const closeOverlay = this.querySelector('[data-close-src]');
     if (closeOverlay) closeOverlay.onclick = () => window.LogApp.closeSrc();
+    // Mobile hamburger menu & sidebar triggers
+    this.querySelectorAll('[data-mobile-menu]').forEach((b) => b.onclick = () => window.LogApp.toggleMenu());
+    const closeMenu = this.querySelector('[data-close-menu]');
+    if (closeMenu) closeMenu.onclick = () => window.LogApp.closeMenu();
+    this.querySelectorAll('[data-mobile-sidebar]').forEach((b) => b.onclick = () => window.LogApp.toggleSidebar());
   }
 }
 customElements.define('log-header', LogHeader);

@@ -155,6 +155,10 @@ function noDatabase(e) {
     detail: 'activity_logs.db not reachable (' + e.message + ')' };
 }
 
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.innerWidth <= 768;
+}
+
 window.LogApp = {
   state: {
     rows: [],
@@ -184,7 +188,8 @@ window.LogApp = {
     measure: 'tokens',
     // shell state (§11.1)
     theme: readTheme(),
-    sidebar: true,
+    sidebar: !isMobileViewport(),
+    menuOpen: false,
     panels: { filters: false, nav: true },
     srcOpen: false,
     poll: false,
@@ -286,11 +291,27 @@ window.LogApp = {
 
   toggleRefreshStats() {
     this.state.refreshOpen = !this.state.refreshOpen;
-    if (this.state.refreshOpen) this.state.srcOpen = false;
+    if (this.state.refreshOpen) {
+      this.state.srcOpen = false;
+      this.state.menuOpen = false;
+    }
     this.render();
   },
   closeRefreshStats() {
     this.state.refreshOpen = false;
+    this.render();
+  },
+
+  toggleMenu() {
+    this.state.menuOpen = !this.state.menuOpen;
+    if (this.state.menuOpen) {
+      this.state.srcOpen = false;
+      this.state.refreshOpen = false;
+    }
+    this.render();
+  },
+  closeMenu() {
+    this.state.menuOpen = false;
     this.render();
   },
 
@@ -343,6 +364,8 @@ window.LogApp = {
     this.state.page = page;
     if (page === 'help' || page === 'maintenance' || page === 'models') this.state.selectedLog = null;
     this.state.srcOpen = false;
+    this.state.menuOpen = false;
+    if (isMobileViewport()) this.state.sidebar = false;
     // Keep the address bar in step, so any page can be linked to and the back
     // button walks pages instead of leaving the app. Writing a hash that is
     // already current is a no-op, which is what stops this and the hashchange
@@ -454,11 +477,13 @@ window.LogApp = {
   },
   toggleSidebar() {
     this.state.sidebar = !this.state.sidebar;
+    if (this.state.sidebar) this.state.menuOpen = false;
     this.render();
   },
   openFilters() {
     this.state.sidebar = true;
     this.state.panels.filters = true;
+    this.state.menuOpen = false;
     this.render();
   },
   toggleFilters() {
@@ -474,7 +499,10 @@ window.LogApp = {
     // Two panels hang off the same header bar, each with its own click-outside
     // overlay. Opening one closes the other, or the second overlay swallows the
     // click meant to dismiss the first.
-    if (this.state.srcOpen) this.state.refreshOpen = false;
+    if (this.state.srcOpen) {
+      this.state.refreshOpen = false;
+      this.state.menuOpen = false;
+    }
     this.render();
   },
   closeSrc() {
@@ -532,6 +560,7 @@ window.LogApp = {
   closeDetail() { this.selectLog(null); },
   setHelpTopic(id) {
     this.state.helpTopic = id;
+    if (isMobileViewport()) this.state.sidebar = false;
     this.render();
   },
   expandAll() {
