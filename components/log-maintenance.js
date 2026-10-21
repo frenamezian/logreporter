@@ -160,12 +160,14 @@ class LogMaintenance extends LogComponent {
       <h4 class="maint-vol-head">Total Log Count: ${rows.length}
         <span class="maint-vol-note">by ${esc(level.label.toLowerCase())}, within the current scope and filters</span>
       </h4>
-      <table class="log-table">
-        <thead><tr>${head}<th>Logs</th><th>Issues</th><th>Oldest</th><th>Newest</th></tr></thead>
-        <tbody>${vols.length
-          ? vols.map((v) => `<tr>${cells(v)}<td>${v.n}</td><td>${v.issues}</td><td class="mono">${v.oldest}</td><td class="mono">${v.newest}</td></tr>`).join('')
-          : `<tr><td colspan="${LEVELS.length + 4}" class="dim">No logs in scope</td></tr>`}</tbody>
-      </table>
+      <div class="table-scroll-wrap">
+        <table class="log-table">
+          <thead><tr>${head}<th>Logs</th><th>Issues</th><th>Oldest</th><th>Newest</th></tr></thead>
+          <tbody>${vols.length
+            ? vols.map((v) => `<tr>${cells(v)}<td>${v.n}</td><td>${v.issues}</td><td class="mono">${v.oldest}</td><td class="mono">${v.newest}</td></tr>`).join('')
+            : `<tr><td colspan="${LEVELS.length + 4}" class="dim">No logs in scope</td></tr>`}</tbody>
+        </table>
+      </div>
     `;
   }
 
