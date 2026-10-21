@@ -31,8 +31,8 @@ class LogMaintenance extends LogComponent {
     const allRows = s.rows;
     const olderThan = this._olderThan || '';
     const matched = olderThan ? rows.filter((l) => {
-      const t = l.timestamp?.replace(' ', 'T') + 'Z';
-      return t && new Date(t) < new Date(olderThan + 'T00:00:00Z');
+      const t = window.LR && window.LR.at ? window.LR.at(l.timestamp) : NaN;
+      return Number.isFinite(t) && t < new Date(olderThan + 'T00:00:00Z').getTime();
     }) : rows;
     const n = matched.length;
     const total = allRows.length;
@@ -230,8 +230,8 @@ class LogMaintenance extends LogComponent {
         const s = window.LogApp.state;
         const olderThan = this._olderThan || '';
         const matched = olderThan ? s.inScope.filter((l) => {
-          const t = l.timestamp?.replace(' ', 'T') + 'Z';
-          return t && new Date(t) < new Date(olderThan + 'T00:00:00Z');
+          const t = window.LR && window.LR.at ? window.LR.at(l.timestamp) : NaN;
+          return Number.isFinite(t) && t < new Date(olderThan + 'T00:00:00Z').getTime();
         }) : s.inScope;
         if (!matched.length) return;
         const count = matched.length;

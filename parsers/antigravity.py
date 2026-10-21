@@ -145,7 +145,10 @@ PRIORITY = 100
 # therefore needs the escape hatch — `python usage_reader.py --rebuild`, which
 # drops the cache and every watermark and reads the corpus again. That is safe
 # precisely because token_usage.db is a cache and nothing else.
-PARSE_VERSION = 2
+# 3: fall back to steps.metadata when gen_metadata omits field 1.9.4 timestamp,
+#    and map Gemini 4 Argon, Gemini 3.7/3.8 Flash, Gemini 3.5 Flash-Lite, and
+#    Gemini 3.1 Pro enums and display names.
+PARSE_VERSION = 3
 
 UNAVAILABLE_HINT = ("Antigravity's conversation store was not found under "
                     "~/.gemini/*/conversations. Open a conversation in "
@@ -161,32 +164,41 @@ _APP_DIRS = ("antigravity-ide", "antigravity")
 # which never carry one and are taken from the older install's catalog, where
 # 1133 is listed as "Gemini 3.5 Flash (High)".
 #
-# Observed 2026-05-28 .. 2026-08-04 across 11,795 requests. This is history, not
+# Observed 2026-05-28 .. 2026-10-21 across 91,715 requests. This is history, not
 # a copy of the live catalog: see the module docstring for why that distinction
 # is the whole point. Field 21 always wins over this table.
 _ENUM_NAMES = {
     1020: "Gemini 3.5 Flash (Medium)",
     1026: "Claude Opus 4.6 (Thinking)",
     1035: "Claude Sonnet 4.6 (Thinking)",
+    1036: "Gemini 3.1 Pro (Low)",
+    1071: "Gemini 3.6 Flash (High)",
     1072: "Gemini 3.6 Flash (Medium)",
     1132: "Gemini 3.5 Flash (High)",
     1133: "Gemini 3.5 Flash (High)",
     1187: "Gemini 3.5 Flash (Low)",
+    1198: "Gemini 3.5 Flash-Lite",
+    1298: "Gemini 3.7 Flash (High)",
+    1299: "Gemini 3.7 Flash (Medium)",
+    1301: "Gemini 3.7 Flash (High)",
+    1318: "Gemini 3.8 Flash (High)",
+    1319: "Gemini 3.8 Flash (Medium)",
+    1322: "Gemini 3.8 Flash (High)",
+    1417: "Gemini 4 Argon (High)",
+    1418: "Gemini 4 Argon (Medium)",
 }
 
 # Antigravity's display name minus its effort suffix -> the id that
 # script/llm_registry.py prices on. It has to be exact: cost-model.js's
 # lookupModel() is a map lookup and does no normalising of its own.
-#
-# Antigravity's other catalogued models are absent on purpose. "Gemini 3.1 Pro"
-# is the interesting one: the registry has `gemini-3.1-pro-preview` and nothing
-# else 3.1-Pro-shaped, and pricing a GA model at preview rates because the names
-# nearly match is exactly the guess this parser refuses to make elsewhere. It
-# has never been observed here; if it appears it goes unpriced and shows up in
-# cost-model's unknownModels, which is a visible prompt to add it deliberately.
 _REGISTRY_IDS = {
+    "Gemini 3.1 Pro": "gemini-3.1-pro",
     "Gemini 3.5 Flash": "gemini-3.5-flash",
+    "Gemini 3.5 Flash-Lite": "gemini-3.5-flash-lite",
     "Gemini 3.6 Flash": "gemini-3.6-flash",
+    "Gemini 3.7 Flash": "gemini-3.7-flash",
+    "Gemini 3.8 Flash": "gemini-3.8-flash",
+    "Gemini 4 Argon": "gemini-4-argon",
     "Claude Sonnet 4.6": "claude-sonnet-4-6",
     "Claude Opus 4.6": "claude-opus-4-6",
 }
@@ -404,9 +416,8 @@ def _trajectory_context(con, db: Path):
     return session, repo, branch
 
 
-def _timestamp(step):
-    """ISO-8601 UTC, to the millisecond, from field 1.9.4 {seconds, nanos}."""
-    t = _sub(_sub(step, 9), 4)
+def _ts_from_pb(t):
+    """Format a protobuf Timestamp {1: seconds, 2: nanos} as ISO-8601 UTC."""
     secs = _one(t, 1)
     if not isinstance(secs, int) or isinstance(secs, bool) or secs <= 0:
         return None
@@ -417,6 +428,71 @@ def _timestamp(step):
     except (OverflowError, OSError, ValueError):
         return None
     return f"{dt:%Y-%m-%dT%H:%M:%S}.{ms:03d}Z"
+
+
+def _timestamp(step):
+    """ISO-8601 UTC, to the millisecond, from field 1.9.4 {seconds, nanos}."""
+    return _ts_from_pb(_sub(_sub(step, 9), 4))
+
+
+def _step_timestamps(con):
+    """(by_response_id, by_step_idx) from steps.metadata for newer conversations.
+
+    Starting in mid-August 2026, Antigravity stopped populating field 1.9.4 in
+    gen_metadata blobs and moved the per-step timestamp to `steps.metadata`
+    (field 1 is `{seconds, nanos}`, field 9 is `ModelUsageStats` carrying
+    `response_id` at 9.11). Read lazily only when a gen_metadata row has no
+    1.9.4 timestamp.
+    """
+    by_req, by_idx = {}, {}
+    try:
+        rows = con.execute(
+            "SELECT idx, metadata FROM steps WHERE metadata IS NOT NULL"
+        ).fetchall()
+    except sqlite3.Error:
+        return by_req, by_idx
+    for s_idx, m_blob in rows:
+        if not isinstance(m_blob, (bytes, bytearray)):
+            continue
+        try:
+            sm = _fields(bytes(m_blob))
+        except ValueError:
+            continue
+        ts = _ts_from_pb(_sub(sm, 1))
+        if not ts:
+            continue
+        if isinstance(s_idx, int) and not isinstance(s_idx, bool):
+            by_idx[s_idx] = ts
+        req = _text(_sub(sm, 9), 11, limit=128)
+        if req:
+            by_req[req] = ts
+    return by_req, by_idx
+
+
+def _fallback_timestamp(step, usage, step_ts):
+    """Resolve timestamp from steps.metadata when field 1.9.4 is absent."""
+    by_req, by_idx = step_ts
+    req = _text(usage, 11, limit=128)
+    if req and req in by_req:
+        return by_req[req]
+    if by_idx:
+        for kv_raw in step.get(20, ()):
+            if not isinstance(kv_raw, bytes):
+                continue
+            try:
+                kv = _fields(kv_raw)
+            except ValueError:
+                continue
+            if _text(kv, 1) == "last_step_index":
+                val = _text(kv, 2)
+                if val and val.isdigit():
+                    target = int(val)
+                    if target in by_idx:
+                        return by_idx[target]
+                    nearest = min(by_idx, key=lambda k: abs(k - target))
+                    return by_idx[nearest]
+        return by_idx[max(by_idx)]
+    return None
 
 
 def _split_effort(name):
@@ -453,7 +529,7 @@ def _model(step, usage):
     return _text(step, 19), None, "alias"
 
 
-def _record(blob, idx, session, repo, branch):
+def _record(blob, idx, session, repo, branch, step_ts_getter=None):
     """One UsageRecord, or None if this step was not an LLM request."""
     try:
         step = _sub(_fields(blob), 1)
@@ -473,6 +549,8 @@ def _record(blob, idx, session, repo, branch):
         return None
 
     ts = _timestamp(step)
+    if ts is None and step_ts_getter is not None:
+        ts = _fallback_timestamp(step, usage, step_ts_getter())
     if ts is None:
         _bump("skipped_no_timestamp")
         return None
@@ -530,6 +608,14 @@ def parse(path, cursor=None):
         _bump("unreadable_databases")
         return iter(()), cursor
 
+    step_ts_cache = None
+
+    def get_step_ts():
+        nonlocal step_ts_cache
+        if step_ts_cache is None:
+            step_ts_cache = _step_timestamps(con)
+        return step_ts_cache
+
     try:
         session, repo, branch = _trajectory_context(con, db)
         try:
@@ -541,21 +627,21 @@ def parse(path, cursor=None):
             # `<uuid>.pb` files and other tables alongside these.
             _bump("databases_without_gen_metadata")
             return iter(()), cursor
+
+        records, high = [], after
+        for idx, blob in rows:
+            if not isinstance(idx, int):
+                continue
+            high = max(high, idx)
+            if not isinstance(blob, (bytes, bytearray)):
+                _bump("undecodable_rows")
+                continue
+            _bump("rows_read")
+            rec = _record(bytes(blob), idx, session, repo, branch, get_step_ts)
+            if rec is not None:
+                records.append(rec)
     finally:
         con.close()
-
-    records, high = [], after
-    for idx, blob in rows:
-        if not isinstance(idx, int):
-            continue
-        high = max(high, idx)
-        if not isinstance(blob, (bytes, bytearray)):
-            _bump("undecodable_rows")
-            continue
-        _bump("rows_read")
-        rec = _record(bytes(blob), idx, session, repo, branch)
-        if rec is not None:
-            records.append(rec)
 
     _bump("records", len(records))
     # An empty conversation leaves nothing to resume after; a NULL cursor reads

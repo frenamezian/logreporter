@@ -60,7 +60,9 @@ PRIORITY = 100
 # what this parser emits for already-imported requests needs the escape hatch,
 # `python usage_reader.py --rebuild`, which is safe precisely because
 # token_usage.db is a cache and nothing else.
-PARSE_VERSION = 2
+# 3: multi-line requestId deduplication merges counters across streamed content
+#    blocks so output_tokens reflects the final block rather than the first.
+PARSE_VERSION = 3
 
 # Envelope fields worth keeping. Every one of these is a short enum-like token
 # or a version string; none of them can carry message content.
@@ -208,7 +210,7 @@ def parse(path: Path, cursor: str | None):
     path = Path(path)
     start = _read_cursor(cursor)
     records: list[UsageRecord] = []
-    seen: set[str] = set()
+    by_rid: dict[str, UsageRecord] = {}
     agent_type = _subagent_type(path)
 
     try:
@@ -270,13 +272,27 @@ def parse(path: Path, cursor: str | None):
                 if rid is None:
                     rid = _synthetic_id(o.get("sessionId"), o.get("uuid"), path)
                     _bump("synthesized_request_ids")
-                if rid in seen:
+                rec = _record(o, msg, usage, ts, rid, agent_type)
+                prev = by_rid.get(rid)
+                if prev is not None:
                     _bump("deduped_lines")
+                    # Claude Code writes one JSONL line per streamed content
+                    # block sharing the same requestId. Input/cache counters are
+                    # identical across blocks, while output_tokens accumulates
+                    # and reaches its final value on the last block. Keep the
+                    # initial timestamp and take the highest reported counter.
+                    for c in ("input_tokens", "cache_read_tokens",
+                              "cache_write_5m", "cache_write_1h",
+                              "output_tokens"):
+                        nv = getattr(rec, c)
+                        if nv is not None:
+                            ov = getattr(prev, c)
+                            setattr(prev, c, max(ov, nv) if ov is not None else nv)
                     continue
-                seen.add(rid)
+                by_rid[rid] = rec
 
                 _bump("records")
-                records.append(_record(o, msg, usage, ts, rid, agent_type))
+                records.append(rec)
     except OSError:
         # Mid-rotation, a lock, a vanished file. Keep the old cursor so the
         # next refresh retries from the same place.

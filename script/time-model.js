@@ -15,7 +15,11 @@ const gitAction = (l) => {
   return GIT_ACTIONS.find((a) => hay.includes(a)) || '';
 };
 
-const at = (s) => new Date(String(s).replace(' ', 'T') + 'Z').getTime();
+const at = (s) => {
+  if (!s) return NaN;
+  const iso = String(s).includes('T') ? String(s) : String(s).replace(' ', 'T');
+  return new Date(/([Zz]|[+-]\d{2}:?\d{2})$/.test(iso) ? iso : iso + 'Z').getTime();
+};
 const key = (l) => l.repo_name + '\u0000' + l.branch_name + '\u0000' + (l.task_title || 'Untitled task');
 
 function union(intervals) {
@@ -376,7 +380,7 @@ function agentInSubtree(path, name) {
   return !!path && path.split('/').includes(name);
 }
 
-window.LR = { TYPES, CATEGORIES, GIT_ACTIONS, gitAction, buildModel, stream, fmt,
+window.LR = { TYPES, CATEGORIES, GIT_ACTIONS, gitAction, at, buildModel, stream, fmt,
               orderTasks, taskSpans, attributeUsage, agentTypeMap, usageAgent,
               agentInSubtree, subagentTag, normAgent };
 })(window);
