@@ -30,20 +30,15 @@ function applyFilters(rows, filter) {
     if (isActive(f.log_level) && !match(f.log_level, l.log_level)) return false;
     if (isActive(f.status) && !match(f.status, l.status)) return false;
     if (isActive(f.priority) && !match(f.priority, l.priority)) return false;
-    if (hasHours) {
-      const raw = l.timestamp ? l.timestamp.replace(' ', 'T') : '';
-      const t = raw ? new Date(raw.endsWith('Z') ? raw : raw + 'Z').getTime() : NaN;
-      if (Number.isFinite(t)) {
+    if (hasHours || f.from || f.to) {
+      const raw = l.timestamp ? (l.timestamp.includes('T') ? l.timestamp : l.timestamp.replace(' ', 'T')) : '';
+      const iso = raw ? (/([Zz]|[+-]\d{2}:?\d{2})$/.test(raw) ? raw : raw + 'Z') : '';
+      const t = iso ? new Date(iso).getTime() : NaN;
+      if (hasHours && Number.isFinite(t)) {
         if (t < (now - maxAgeMs) || t > (now - minAgeMs)) return false;
       }
-    }
-    if (f.from) {
-      const t = l.timestamp?.replace(' ', 'T') + 'Z';
-      if (t && new Date(t) < new Date(f.from)) return false;
-    }
-    if (f.to) {
-      const t = l.timestamp?.replace(' ', 'T') + 'Z';
-      if (t && new Date(t) > new Date(f.to + 'T23:59:59Z')) return false;
+      if (f.from && Number.isFinite(t) && t < new Date(f.from).getTime()) return false;
+      if (f.to && Number.isFinite(t) && t > new Date(f.to + 'T23:59:59Z').getTime()) return false;
     }
     return true;
   });

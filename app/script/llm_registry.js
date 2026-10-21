@@ -7,7 +7,7 @@
 
 /*
 LLM Registry — Structured model data extracted from official provider sources.
-Sources fetched: July 30, 2026.
+Sources fetched: October 21, 2026.
 
 Providers covered:
   - OpenAI        → https://developers.openai.com/api/docs/pricing
@@ -27,7 +27,7 @@ Pricing normalization:
 
 ─────────────────────────────────────────────────────────────────────────────
 UPDATE PROMPT — paste the text below into Claude (Cowork / Claude Code) to
-refresh this registry. Last run: July 30, 2026.
+refresh this registry. Last run: October 21, 2026.
 ─────────────────────────────────────────────────────────────────────────────
 
 Update the LLM registry in script/llm_registry.py, then regenerate the
@@ -770,6 +770,97 @@ const llmRegistry = {
         "provider_url": "https://platform.claude.com/docs/en/about-claude/pricing",
         "models": [
 
+            // ── Claude 5.5 / Fable 5.1 generation (GA Sept–Oct 2026) ────────
+            {
+                "model_name": "Claude Fable 5.1",
+                "model_id": "claude-fable-5-1",
+                "description": (
+                    "Anthropic's frontier heavy-reasoning model (GA Sept 1, 2026), " +
+                    "succeeding Claude Fable 5. 1 M token context, 128 k max output. " +
+                    "Cache read pricing cut by 75 % ($0.25/M, 2.5 % of base input) " +
+                    "for long-horizon agentic workflows."
+                ),
+                "capabilities": ["coding", "reasoning", "vision", "long-context", "tools"],
+                "latency_class": "slow",
+                "regional_availability": ["us-east-1", "eu-west-1"],
+                "context_window": 1000000,
+                "pricing": {
+                    "input_token": [
+                        {"tier_order": 1, "tier_name": "standard",       "price_value": 10.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "cache_write_5m", "price_value": 12.50, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "cache_write_1h", "price_value": 20.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "cache_read",     "price_value": 0.25,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 5, "tier_name": "batch",          "price_value": 5.00,  "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                    "output_token": [
+                        {"tier_order": 1, "tier_name": "standard", "price_value": 50.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "batch",    "price_value": 25.00, "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                },
+                "status": "active",
+                "expiration_date": null,
+            },
+            {
+                "model_name": "Claude Opus 5.5",
+                "model_id": "claude-opus-5-5",
+                "description": (
+                    "Flagship model for complex agentic coding, multi-step orchestration, " +
+                    "and enterprise work (GA Sept 22, 2026). 20 % lower base rates and " +
+                    "60 % lower cache read rates ($0.20/M, 5 % of base input) than Opus 5. " +
+                    "1 M token context, 128 k max output. Fast mode (2x rates) available."
+                ),
+                "capabilities": ["coding", "reasoning", "vision", "long-context", "tools"],
+                "latency_class": "medium",
+                "regional_availability": ["us-east-1", "eu-west-1"],
+                "context_window": 1000000,
+                "pricing": {
+                    "input_token": [
+                        {"tier_order": 1, "tier_name": "standard",       "price_value": 4.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "cache_write_5m", "price_value": 5.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "cache_write_1h", "price_value": 8.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "cache_read",     "price_value": 0.20, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 5, "tier_name": "batch",          "price_value": 2.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 6, "tier_name": "fast_mode",      "price_value": 8.00, "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                    "output_token": [
+                        {"tier_order": 1, "tier_name": "standard",  "price_value": 20.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "batch",     "price_value": 10.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "fast_mode", "price_value": 40.00, "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                },
+                "status": "active",
+                "expiration_date": null,
+            },
+            {
+                "model_name": "Claude Sonnet 5.5",
+                "model_id": "claude-sonnet-5-5",
+                "description": (
+                    "High-throughput balanced model for coding and agentic production " +
+                    "workloads (GA Oct 9, 2026). 33 % lower base rates ($2 in / $10 out) " +
+                    "and 95 % cache read discount ($0.10/M) compared to Sonnet 5 standard " +
+                    "pricing. 1 M token context, 128 k max output."
+                ),
+                "capabilities": ["coding", "reasoning", "vision", "long-context", "tools"],
+                "latency_class": "fast",
+                "regional_availability": ["us-east-1", "eu-west-1"],
+                "context_window": 1000000,
+                "pricing": {
+                    "input_token": [
+                        {"tier_order": 1, "tier_name": "standard",       "price_value": 2.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "cache_write_5m", "price_value": 2.50, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "cache_write_1h", "price_value": 4.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "cache_read",     "price_value": 0.10, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 5, "tier_name": "batch",          "price_value": 1.00, "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                    "output_token": [
+                        {"tier_order": 1, "tier_name": "standard", "price_value": 10.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "batch",    "price_value": 5.00,  "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                },
+                "status": "active",
+                "expiration_date": null,
+            },
+
             // ── Claude 5 generation (GA June–July 2026) ─────────────────────
             {
                 "model_name": "Claude Fable 5",
@@ -1306,7 +1397,108 @@ const llmRegistry = {
         "provider_url": "https://ai.google.dev/gemini-api/docs/pricing",
         "models": [
 
-            // ── Gemini 3.6 / 3.5 (latest) ────────────────────────────────────
+            // ── Gemini 4 Argon / 3.8 / 3.7 (latest, Aug–Oct 2026) ───────────
+            {
+                "model_name": "Gemini 4 Argon",
+                "model_id": "gemini-4-argon",
+                "description": (
+                    "Google's flagship reasoning model built for complex multi-step " +
+                    "workflows, agentic coding, and deep analysis (GA Oct 2026). " +
+                    "1 M token context with no long-context surcharge. Introductory " +
+                    "pricing (50 % off: $2.00 in / $10.00 out / $0.10 cache) in effect " +
+                    "through 2026-11-30; standard rates ($4.00 / $20.00 / $0.20) from " +
+                    "2026-12-01."
+                ),
+                "capabilities": ["coding", "reasoning", "vision", "long-context", "tools"],
+                "latency_class": "medium",
+                "regional_availability": ["us-central1", "europe-west4", "asia-northeast1"],
+                "context_window": 1000000,
+                "pricing": {
+                    "input_token": [
+                        {"tier_order": 1, "tier_name": "standard",                             "price_value": 4.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "context_cache",                        "price_value": 0.20, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "batch",                                "price_value": 2.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "intro_standard_until_2026_11_30",      "price_value": 2.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 5, "tier_name": "intro_context_cache_until_2026_11_30", "price_value": 0.10, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 6, "tier_name": "intro_batch_until_2026_11_30",         "price_value": 1.00, "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                    "output_token": [
+                        {"tier_order": 1, "tier_name": "standard",                        "price_value": 20.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "batch",                           "price_value": 10.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "intro_standard_until_2026_11_30", "price_value": 10.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "intro_batch_until_2026_11_30",    "price_value": 5.00,  "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                },
+                "status": "active",
+                "expiration_date": null,
+            },
+            {
+                "model_name": "Gemini 3.8 Flash",
+                "model_id": "gemini-3.8-flash",
+                "description": (
+                    "High-intelligence workhorse Flash model optimized for speed, cost " +
+                    "efficiency, and long-horizon agentic workflows. 1 M token context " +
+                    "with no long-context surcharge. Introductory pricing (50 % off: " +
+                    "$0.75 in / $3.75 out / $0.075 cache) through 2026-12-31; standard " +
+                    "rates ($1.50 / $7.50 / $0.15) from 2027-01-01."
+                ),
+                "capabilities": ["coding", "reasoning", "vision", "long-context", "tools"],
+                "latency_class": "fast",
+                "regional_availability": ["us-central1", "europe-west4", "asia-northeast1"],
+                "context_window": 1000000,
+                "pricing": {
+                    "input_token": [
+                        {"tier_order": 1, "tier_name": "standard",                             "price_value": 1.50,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "context_cache",                        "price_value": 0.15,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "batch",                                "price_value": 0.75,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "intro_standard_until_2026_12_31",      "price_value": 0.75,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 5, "tier_name": "intro_context_cache_until_2026_12_31", "price_value": 0.075, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 6, "tier_name": "intro_batch_until_2026_12_31",         "price_value": 0.375, "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                    "output_token": [
+                        {"tier_order": 1, "tier_name": "standard",                        "price_value": 7.50,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "batch",                           "price_value": 3.75,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "intro_standard_until_2026_12_31", "price_value": 3.75,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "intro_batch_until_2026_12_31",    "price_value": 1.875, "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                },
+                "status": "active",
+                "expiration_date": null,
+            },
+            {
+                "model_name": "Gemini 3.7 Flash",
+                "model_id": "gemini-3.7-flash",
+                "description": (
+                    "GA Flash model between 3.6 Flash and 3.8 Flash with unified multimodal " +
+                    "pricing and 1 M token context (no long-context surcharge). Introductory " +
+                    "pricing (50 % off: $0.75 in / $3.75 out / $0.075 cache) through " +
+                    "2026-12-31; standard rates ($1.50 / $7.50 / $0.15) from 2027-01-01."
+                ),
+                "capabilities": ["coding", "reasoning", "vision", "long-context", "tools"],
+                "latency_class": "fast",
+                "regional_availability": ["us-central1", "europe-west4", "asia-northeast1"],
+                "context_window": 1000000,
+                "pricing": {
+                    "input_token": [
+                        {"tier_order": 1, "tier_name": "standard",                             "price_value": 1.50,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "context_cache",                        "price_value": 0.15,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "batch",                                "price_value": 0.75,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "intro_standard_until_2026_12_31",      "price_value": 0.75,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 5, "tier_name": "intro_context_cache_until_2026_12_31", "price_value": 0.075, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 6, "tier_name": "intro_batch_until_2026_12_31",         "price_value": 0.375, "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                    "output_token": [
+                        {"tier_order": 1, "tier_name": "standard",                        "price_value": 7.50,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "batch",                           "price_value": 3.75,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "intro_standard_until_2026_12_31", "price_value": 3.75,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "intro_batch_until_2026_12_31",    "price_value": 1.875, "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                },
+                "status": "active",
+                "expiration_date": null,
+            },
+
+            // ── Gemini 3.6 / 3.5 ─────────────────────────────────────────────
             {
                 "model_name": "Gemini 3.6 Flash",
                 "model_id": "gemini-3.6-flash",
@@ -1386,6 +1578,37 @@ const llmRegistry = {
             },
 
             // ── Gemini 3.1 ───────────────────────────────────────────────────
+            {
+                "model_name": "Gemini 3.1 Pro",
+                "model_id": "gemini-3.1-pro",
+                "description": (
+                    "GA release of Gemini 3.1 Pro for advanced multimodal intelligence " +
+                    "and complex problem-solving. Long-context surcharge applies above " +
+                    "200 k tokens."
+                ),
+                "capabilities": ["coding", "reasoning", "vision", "long-context", "tools"],
+                "latency_class": "medium",
+                "regional_availability": ["us-central1", "europe-west4", "asia-northeast1"],
+                "context_window": 1000000,
+                "pricing": {
+                    "input_token": [
+                        {"tier_order": 1, "tier_name": "standard",           "price_value": 2.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "long_context",       "price_value": 4.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "context_cache",      "price_value": 0.20, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "context_cache_long", "price_value": 0.40, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 5, "tier_name": "batch",              "price_value": 1.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 6, "tier_name": "batch_long_context", "price_value": 2.00, "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                    "output_token": [
+                        {"tier_order": 1, "tier_name": "standard",           "price_value": 12.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 2, "tier_name": "long_context",       "price_value": 18.00, "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 3, "tier_name": "batch",              "price_value": 6.00,  "price_currency": "USD", "price_per_qty": 1000000},
+                        {"tier_order": 4, "tier_name": "batch_long_context", "price_value": 9.00,  "price_currency": "USD", "price_per_qty": 1000000},
+                    ],
+                },
+                "status": "active",
+                "expiration_date": null,
+            },
             {
                 "model_name": "Gemini 3.1 Pro Preview",
                 "model_id": "gemini-3.1-pro-preview",

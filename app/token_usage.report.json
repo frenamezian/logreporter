@@ -1,5 +1,5 @@
 {
- "started": "2026-10-21 09:56:17",
+ "started": "2026-10-21 12:44:47",
  "agents": [],
  "failures": [],
  "loaded": [
@@ -7,7 +7,7 @@
   "claude_code"
  ],
  "inactive": [],
- "rows_total": 110363,
+ "rows_total": 155892,
  "elapsed_s": 0,
- "note": "Sanitized public demo snapshot (110,363 task-attributed requests across 901 logged tasks). Local watermark paths and session identifiers have been stripped for publication."
+ "note": "Sanitized public demo snapshot (155,892 task-attributed requests across 909 logged tasks). Local watermark paths and session identifiers have been stripped for publication."
 }

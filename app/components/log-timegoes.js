@@ -10,7 +10,7 @@ const only = (cat, ms) => ({ activity: 0, issue: 0, decision: 0, github: 0, idle
 
 // Every task span in view for a repository, or for one branch of it.
 const spansFor = (m, repo, branch) => (m.tasks || [])
-  .filter((t) => t.repo === repo && (!branch || t.branch === branch) && t.span)
+  .filter((t) => t.repo === repo && (branch === undefined ? true : t.branch === branch) && t.span)
   .map((t) => t.span);
 
 // Overlapping spans are deliberately *not* weighted here, unlike the parts of a
@@ -128,7 +128,7 @@ class LogTimegoes extends LogComponent {
     }
     if (x.scope && x.scope.repo) {
       return rows.filter((u) => u.repo_name === x.scope.repo &&
-        inAnySpan(u, spansFor(m, x.scope.repo, null)));
+        inAnySpan(u, spansFor(m, x.scope.repo, u.branch_name)));
     }
     return [];
   }

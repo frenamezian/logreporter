@@ -821,8 +821,8 @@ window.LogApp = {
     const rows = s.inScope;
     if (!scope || !scope.olderThan) return rows;
     return rows.filter((l) => {
-      const t = l.timestamp?.replace(' ', 'T') + 'Z';
-      return t && new Date(t) < new Date(scope.olderThan + 'T00:00:00Z');
+      const t = window.LR && window.LR.at ? window.LR.at(l.timestamp) : NaN;
+      return Number.isFinite(t) && t < new Date(scope.olderThan + 'T00:00:00Z').getTime();
     });
   },
 
